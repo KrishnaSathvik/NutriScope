@@ -37,9 +37,10 @@ export function ThemeSwitcher() {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setShowMenu(!showMenu)}
-        className="relative flex items-center justify-center w-8 h-8 rounded-sm border border-border bg-surface hover:bg-panel transition-all duration-200 group"
+        className="relative flex items-center justify-center h-8 w-8 rounded-sm border border-border bg-surface hover:bg-panel transition-all duration-200 group"
         aria-label="Toggle theme"
         title={`Current theme: ${currentTheme.label}${theme === 'system' ? ` (${resolvedTheme})` : ''}`}
+        style={{ minHeight: '2rem', minWidth: '2rem' }}
       >
         <CurrentIcon className="w-4 h-4 text-text transition-transform group-hover:scale-110" strokeWidth={2} />
       </button>

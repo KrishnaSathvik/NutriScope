@@ -1,6 +1,7 @@
 import { ChatMessage, AIAction, UserProfile, DailyLog } from '@/types'
 import { logger } from '@/utils/logger'
 import { trackAPICall } from '@/utils/performance'
+import { stripJSON } from '@/utils/format'
 
 /**
  * Backend proxy for OpenAI API calls
@@ -332,10 +333,13 @@ Be conversational, helpful, personalized, and ask for confirmation before loggin
         }
       }
     } catch (e2) {
-      // If parsing fails, just return the message
+      // If parsing fails, just return the message (will be cleaned by stripJSON)
       message = responseContent
     }
   }
+
+  // Always strip any remaining JSON from the message to ensure clean display
+  message = stripJSON(message).trim() || 'Done!'
 
   return { message, action }
 }

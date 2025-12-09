@@ -73,7 +73,7 @@ export default function PullToRefresh({
       {/* Content */}
       <div 
         data-scrollable
-        className="h-full overflow-y-auto"
+        className="h-full overflow-y-auto scrollbar-hide"
         style={{
           transform: showIndicator ? `translateY(${Math.min(pullDistance, threshold)}px)` : 'translateY(0)',
           transition: isRefreshing ? 'transform 0.3s ease-out' : 'none',

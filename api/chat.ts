@@ -392,6 +392,23 @@ Be conversational, helpful, personalized, and ask for confirmation before loggin
 
     const responseMessage = completion.choices[0]?.message?.content || ''
 
+    // Helper function to strip JSON from text
+    const stripJSON = (text: string): string => {
+      if (!text) return text
+      // Remove JSON objects (including multiline)
+      return text
+        .replace(/\{[\s\S]*?"action"[\s\S]*?\}/g, '')
+        .replace(/\{[\s\S]*?\}/g, (match) => {
+          // Only remove if it looks like JSON (has quotes, colons, etc.)
+          if (match.includes('"') && match.includes(':')) {
+            return ''
+          }
+          return match
+        })
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+    }
+
     // Try to parse JSON response
     let action = undefined
     let message = responseMessage
@@ -402,6 +419,8 @@ Be conversational, helpful, personalized, and ask for confirmation before loggin
       if (parsed.action) {
         action = parsed.action
         message = parsed.message || responseMessage
+      } else {
+        message = parsed.message || parsed.content || responseMessage
       }
     } catch (e) {
       // Try extracting JSON action from text
@@ -418,6 +437,9 @@ Be conversational, helpful, personalized, and ask for confirmation before loggin
         // Not a JSON action, that's fine - return text response
       }
     }
+
+    // Always strip any remaining JSON from the message to ensure clean display
+    message = stripJSON(message).trim() || 'Done!'
 
     // Return response with rate limit headers
     return res.status(200).json({

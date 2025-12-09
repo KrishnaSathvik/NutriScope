@@ -80,7 +80,7 @@ export function FoodSearch({ onSelectFood, onClose }: FoodSearchProps) {
         </div>
 
         {/* Results */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="flex-1 overflow-y-auto scrollbar-hide p-4 md:p-6">
           {error && (
             <div className="text-center py-8 p-4 border border-error/30 bg-error/5 rounded-sm">
               <p className="text-error font-mono font-bold mb-2">Failed to search food database</p>

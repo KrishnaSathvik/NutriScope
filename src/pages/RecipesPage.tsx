@@ -131,10 +131,10 @@ export default function RecipesPage() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh} disabled={!user}>
-      <div className="space-y-4 md:space-y-8 px-3 md:px-0 pb-20 md:pb-0">
+      <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
         {/* Header */}
-        <div className="border-b border-border pb-4 md:pb-6 px-3 md:px-0 -mx-3 md:mx-0">
-          <div className="px-3 md:px-0">
+        <div className="border-b border-border pb-4 md:pb-6">
+          <div>
             <div className="flex items-center gap-2 md:gap-3 mb-2">
               <div className="h-px w-6 md:w-8 bg-acid"></div>
               <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-widest">
@@ -166,7 +166,7 @@ export default function RecipesPage() {
             setEditingRecipeId(null)
           }
         }}>
-          <DialogContent className="w-full h-full max-w-full max-h-full sm:h-[95vh] sm:max-h-[95vh] sm:w-[95vw] sm:max-w-[95vw] sm:m-4 p-4 md:p-6 lg:p-8 overflow-y-auto translate-x-0 translate-y-0 left-0 top-0 sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%]" hideClose={true}>
+          <DialogContent className="w-full h-full max-w-full max-h-full sm:h-[95vh] sm:max-h-[95vh] sm:w-[95vw] sm:max-w-[95vw] sm:m-4 p-4 md:p-6 lg:p-8 overflow-y-auto scrollbar-hide translate-x-0 translate-y-0 left-0 top-0 sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%]" hideClose={true}>
             <DialogHeader>
               <div className="flex items-center justify-between mb-4 md:mb-6">
                 <DialogTitle className="text-lg md:text-2xl font-bold text-text uppercase tracking-widest font-mono">

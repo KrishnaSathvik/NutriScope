@@ -20,7 +20,7 @@ export function ChatMessages({ messages, loading, isStreaming, streamingMessage,
   }, [messages, streamingMessage])
 
   return (
-    <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 md:space-y-4 pb-20 md:pb-6">
+    <div className="flex-1 overflow-y-auto scrollbar-hide p-3 md:p-6 space-y-3 md:space-y-4 pb-4 md:pb-6" style={{ maxHeight: '100%', overflowY: 'auto' }}>
       {messages.map((message, index) => (
         <div
           key={message.id}

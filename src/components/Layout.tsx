@@ -1,7 +1,7 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { Home, UtensilsCrossed, Dumbbell, MessageSquare, Calendar, BarChart3, User, MoreHorizontal, ChefHat, CalendarDays, ShoppingCart, Trophy, UserCircle } from 'lucide-react'
+import { Home, UtensilsCrossed, Dumbbell, MessageSquare, Calendar, BarChart3, User, MoreHorizontal, ChefHat, CalendarDays, ShoppingCart, Trophy } from 'lucide-react'
 import Logo from './Logo'
 import { ThemeSwitcher } from './ThemeSwitcher'
 
@@ -87,14 +87,15 @@ export default function Layout() {
               <ThemeSwitcher />
               
               {isGuest && (
-                <span className="hidden lg:flex items-center justify-center h-8 px-2 sm:px-3 text-xs text-dim font-mono uppercase tracking-wider border border-border bg-panel whitespace-nowrap">
+                <span className="flex items-center justify-center h-8 px-2 sm:px-3 text-xs text-dim font-mono uppercase tracking-wider border border-border bg-panel whitespace-nowrap rounded-sm" style={{ minHeight: '2rem' }}>
                   Guest Mode
                 </span>
               )}
               {user && (
                 <button
                   onClick={() => signOut()}
-                  className="flex items-center justify-center h-8 px-2 sm:px-3 rounded-sm bg-acid text-[#020617] dark:text-[#020617] font-mono text-[10px] sm:text-xs uppercase tracking-wider transition-all duration-200 hover:brightness-105 active:scale-95 whitespace-nowrap"
+                  className="btn-primary h-8 px-2 sm:px-3 text-[10px] sm:text-xs font-mono uppercase tracking-wider transition-all duration-200 active:scale-95 whitespace-nowrap"
+                  style={{ minHeight: '2rem' }}
                   aria-label="Sign out"
                 >
                   Sign Out
@@ -106,8 +107,8 @@ export default function Layout() {
       </nav>
 
       {/* Bottom Navigation (Mobile) */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-xl border-t border-border md:hidden z-40" aria-label="Mobile navigation">
-        <div className="flex justify-around relative">
+      <nav className="fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-xl border-t border-border md:hidden z-40 safe-area-bottom" aria-label="Mobile navigation" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}>
+        <div className="flex justify-around items-stretch relative w-full max-w-full overflow-x-hidden" style={{ minHeight: '4rem' }}>
           {/* Show Dashboard, Meals, Workouts, Chat, Analytics, and More */}
           {[
             navItems[0], // Dashboard
@@ -129,16 +130,17 @@ export default function Layout() {
                     window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
                   }, 0)
                 }}
-                className={`flex flex-col items-center justify-center p-3 transition-all ${
+                className={`flex flex-col items-center justify-center flex-1 min-w-0 px-1 py-2 transition-all touch-manipulation ${
                   isActive
                     ? 'text-acid'
-                    : 'text-dim hover:text-text'
+                    : 'text-dim active:text-text'
                 }`}
+                style={{ minHeight: '4rem', paddingTop: '0.5rem', paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0))' }}
                 aria-label={item.label}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <Icon className={`w-5 h-5 mb-1 ${isActive ? 'text-acid glow-acid' : 'text-dim'}`} aria-hidden="true" />
-                <span className="text-[10px] font-mono uppercase tracking-wider">{item.label}</span>
+                <Icon className={`w-5 h-5 mb-0.5 flex-shrink-0 ${isActive ? 'text-acid glow-acid' : 'text-dim'}`} aria-hidden="true" />
+                <span className="text-[9px] xs:text-[10px] font-mono uppercase tracking-wider text-center leading-tight truncate w-full px-0.5">{item.label}</span>
               </Link>
             )
           })}
@@ -146,23 +148,24 @@ export default function Layout() {
           {/* More Menu Button - shows Recipes, Meal Planning, Grocery Lists, History, Achievements, Profile */}
           <button
             onClick={() => setShowMoreMenu(!showMoreMenu)}
-            className={`flex flex-col items-center justify-center p-3 transition-all relative ${
+            className={`flex flex-col items-center justify-center flex-1 min-w-0 px-1 py-2 transition-all relative touch-manipulation ${
               (location.pathname === '/recipes' || location.pathname === '/meal-planning' || 
                location.pathname === '/grocery-lists' || location.pathname === '/history' || 
                location.pathname === '/achievements' || location.pathname === '/profile')
                 ? 'text-acid'
-                : 'text-dim hover:text-text'
+                : 'text-dim active:text-text'
             }`}
+            style={{ minHeight: '4rem', paddingTop: '0.5rem', paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0))' }}
             aria-label="More menu"
             aria-expanded={showMoreMenu}
             aria-haspopup="true"
           >
-            <MoreHorizontal className={`w-5 h-5 mb-1 ${(location.pathname === '/recipes' || location.pathname === '/meal-planning' || location.pathname === '/grocery-lists' || location.pathname === '/history' || location.pathname === '/achievements' || location.pathname === '/profile') ? 'text-acid glow-acid' : 'text-dim'}`} aria-hidden="true" />
-            <span className="text-[10px] font-mono uppercase tracking-wider">More</span>
+            <MoreHorizontal className={`w-5 h-5 mb-0.5 flex-shrink-0 ${(location.pathname === '/recipes' || location.pathname === '/meal-planning' || location.pathname === '/grocery-lists' || location.pathname === '/history' || location.pathname === '/achievements' || location.pathname === '/profile') ? 'text-acid glow-acid' : 'text-dim'}`} aria-hidden="true" />
+            <span className="text-[9px] xs:text-[10px] font-mono uppercase tracking-wider text-center leading-tight truncate w-full px-0.5">More</span>
             {(location.pathname === '/recipes' || location.pathname === '/meal-planning' || 
               location.pathname === '/grocery-lists' || location.pathname === '/history' || 
               location.pathname === '/achievements' || location.pathname === '/profile') && (
-              <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-acid rounded-full" aria-hidden="true"></span>
+              <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-acid rounded-full" aria-hidden="true"></span>
             )}
           </button>
         </div>
@@ -175,7 +178,7 @@ export default function Layout() {
               className="fixed inset-0 bg-black/20 -z-10"
               onClick={() => setShowMoreMenu(false)}
             />
-            <div className="absolute bottom-full left-0 right-0 bg-surface border-t border-border shadow-lg mb-1 max-h-[60vh] overflow-y-auto">
+            <div className="absolute bottom-full left-0 right-0 bg-surface border-t border-border shadow-lg mb-1 max-h-[60vh] overflow-y-auto scrollbar-hide w-full max-w-full">
               <div className="flex flex-col">
                 {[navItems[4], navItems[5], navItems[6], navItems[7], navItems[9], navItems[10]].map((item) => {
                   const Icon = item.icon
@@ -215,7 +218,7 @@ export default function Layout() {
       </nav>
 
       {/* Main Content - Full Width */}
-      <main id="main-content" className="w-full pb-20 md:pb-6 overflow-y-auto md:overflow-y-visible" role="main">
+      <main id="main-content" className="w-full pb-20 md:pb-6 overflow-y-auto md:overflow-y-visible scrollbar-hide" role="main" style={{ width: '100%', minHeight: 'calc(100vh - 4rem)' }}>
         <Outlet />
       </main>
     </div>

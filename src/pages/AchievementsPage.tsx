@@ -98,9 +98,9 @@ export default function AchievementsPage() {
   if (isLoading && hasNoData && !showFallback) {
     return (
       <PullToRefresh onRefresh={async () => {}} disabled={!user}>
-        <div className="space-y-4 md:space-y-6 px-3 md:px-0 pb-20 md:pb-0">
-          <div className="border-b border-border pb-4 md:pb-6 px-3 md:px-0 -mx-3 md:mx-0">
-            <div className="px-3 md:px-0">
+        <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-6">
+          <div className="border-b border-border pb-4 md:pb-6">
+            <div>
               <div className="flex items-center gap-2 md:gap-3 mb-2">
                 <div className="h-px w-6 md:w-8 bg-acid"></div>
                 <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-widest">
@@ -128,9 +128,9 @@ export default function AchievementsPage() {
   if (isLoading && hasNoData && showFallback) {
     return (
       <PullToRefresh onRefresh={async () => {}} disabled={!user}>
-        <div className="space-y-4 md:space-y-6 px-3 md:px-0 pb-20 md:pb-0">
-          <div className="border-b border-border pb-4 md:pb-6 px-3 md:px-0 -mx-3 md:mx-0">
-            <div className="px-3 md:px-0">
+        <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-6">
+          <div className="border-b border-border pb-4 md:pb-6">
+            <div>
               <div className="flex items-center gap-2 md:gap-3 mb-2">
                 <div className="h-px w-6 md:w-8 bg-acid"></div>
                 <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-widest">
@@ -187,10 +187,10 @@ export default function AchievementsPage() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh} disabled={!user}>
-      <div className="space-y-4 md:space-y-6 px-3 md:px-0 pb-20 md:pb-0">
+      <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-6">
         {/* Header */}
-        <div className="border-b border-border pb-4 md:pb-6 px-3 md:px-0 -mx-3 md:mx-0">
-          <div className="px-3 md:px-0">
+        <div className="border-b border-border pb-4 md:pb-6">
+          <div>
             <div className="flex items-center gap-2 md:gap-3 mb-2">
               <div className="h-px w-6 md:w-8 bg-acid"></div>
               <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-widest">

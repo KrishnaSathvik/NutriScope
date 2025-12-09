@@ -200,7 +200,7 @@ function ErrorFallback({ error, onReset }: ErrorFallbackProps) {
                 <summary className="text-xs font-mono text-dim cursor-pointer hover:text-text">
                   Stack Trace
                 </summary>
-                <pre className="text-xs font-mono text-dim mt-2 overflow-auto max-h-40">
+                <pre className="text-xs font-mono text-dim mt-2 overflow-auto scrollbar-hide max-h-40">
                   {error.stack}
                 </pre>
               </details>

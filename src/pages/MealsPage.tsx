@@ -427,9 +427,9 @@ export default function MealsPage() {
 
   return (
     <PullToRefresh onRefresh={handleRefresh} disabled={!user}>
-      <div className="space-y-4 md:space-y-8 px-3 md:px-0 pb-20 md:pb-0">
-      <div className="border-b border-border pb-4 md:pb-6 px-3 md:px-0 -mx-3 md:mx-0">
-        <div className="px-3 md:px-0">
+      <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
+      <div className="border-b border-border pb-4 md:pb-6">
+        <div>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 md:gap-3 mb-2">
@@ -537,7 +537,7 @@ export default function MealsPage() {
 
       {/* Meal Templates Dialog */}
       <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
-        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto scrollbar-hide">
           <DialogHeader>
             <div className="flex items-start justify-between gap-4 mb-4">
               <div className="flex-1">
@@ -973,7 +973,7 @@ export default function MealsPage() {
           setSelectedMealIds(new Set())
         }
       }}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto scrollbar-hide">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30">
@@ -1054,7 +1054,7 @@ export default function MealsPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                    <div className="space-y-2 max-h-96 overflow-y-auto scrollbar-hide">
                       {sourceMeals.map((meal) => {
                         const mealType = meal.meal_type || 'meal'
                         const mealColor = mealTypeColors[mealType as keyof typeof mealTypeColors] || 'bg-acid/20 text-acid border-acid/30'

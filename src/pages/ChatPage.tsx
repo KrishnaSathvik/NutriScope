@@ -467,16 +467,16 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="space-y-4 md:space-y-8 px-3 md:px-0 pb-20 md:pb-0">
-      <div className="border-b border-border pb-4 md:pb-6 px-3 md:px-0 -mx-3 md:mx-0">
-        <div className="px-3 md:px-0">
+    <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
+      <div className="border-b border-border pb-4 md:pb-6 relative z-40 sticky top-0 md:static">
+        <div>
           <div className="flex items-center gap-2 md:gap-3 mb-2">
             <div className="h-px w-6 md:w-8 bg-acid"></div>
             <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-widest">AI Assistant</span>
           </div>
           <div className="flex items-center justify-between mt-2 md:mt-4">
             <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-text tracking-tighter">Chat</h1>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative z-50">
               {/* New Chat Button */}
               <button
                 onClick={handleNewChat}
@@ -527,7 +527,7 @@ export default function ChatPage() {
                           </button>
                         </div>
                       </div>
-                      <div className="overflow-y-auto flex-1">
+                      <div className="overflow-y-auto scrollbar-hide flex-1">
                         {conversations.length === 0 ? (
                           <div className="p-4 text-center">
                             <p className="text-xs text-dim font-mono">No previous chats</p>
@@ -595,7 +595,7 @@ export default function ChatPage() {
                 </button>
               </div>
             </div>
-            <div className="overflow-y-auto h-[calc(100vh-12rem)]">
+            <div className="overflow-y-auto scrollbar-hide h-[calc(100vh-12rem)]">
               {conversations.length === 0 ? (
                 <div className="p-4 text-center">
                   <p className="text-xs text-dim font-mono">No previous chats</p>
@@ -639,7 +639,11 @@ export default function ChatPage() {
         </>
       )}
 
-      <div className="flex flex-col fixed md:relative inset-x-0 bottom-[4rem] md:bottom-auto top-auto md:top-auto h-[calc(100vh-12rem)] md:h-[calc(100vh-16rem)] bg-surface border-x-0 md:border-x border-t-0 md:border-t border-b border-border md:rounded-sm overflow-hidden -mx-3 md:mx-0 z-30">
+      <div className="chat-container flex flex-col fixed md:relative inset-x-0 top-[10rem] md:top-auto bottom-[4rem] md:bottom-auto bg-surface border-x-0 md:border-x border-t-0 md:border-t border-b border-border md:rounded-sm overflow-hidden z-30" style={{ 
+        height: 'calc(100vh - 14rem)', 
+        maxHeight: 'calc(100vh - 14rem)',
+        minHeight: 0
+      }}>
         <ChatMessages
           messages={messages}
           loading={loading}

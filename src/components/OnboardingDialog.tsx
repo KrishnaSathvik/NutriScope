@@ -234,7 +234,7 @@ export function OnboardingDialog({
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent 
-        className="sm:max-w-3xl max-h-[90vh] overflow-y-auto card-modern" 
+        className="sm:max-w-3xl max-h-[90vh] overflow-y-auto scrollbar-hide card-modern" 
         onInteractOutside={(e) => e.preventDefault()}
         hideClose={true}
       >

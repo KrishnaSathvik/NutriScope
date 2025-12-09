@@ -23,13 +23,42 @@ export function formatOptionalNumber(value: number | null | undefined): string {
 }
 
 /**
+ * Strip JSON objects from text
+ * Removes JSON objects that might be accidentally included in AI responses
+ */
+export function stripJSON(text: string): string {
+  if (!text) return text
+  
+  // Remove JSON objects (including multiline)
+  let cleaned = text
+    // Remove complete JSON objects with action field
+    .replace(/\{[\s\S]*?"action"[\s\S]*?\}/g, '')
+    // Remove any remaining JSON-like structures
+    .replace(/\{[\s\S]*?\}/g, (match) => {
+      // Only remove if it looks like JSON (has quotes, colons, etc.)
+      if (match.includes('"') && match.includes(':')) {
+        return ''
+      }
+      return match
+    })
+    // Clean up extra whitespace
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  
+  return cleaned
+}
+
+/**
  * Strip markdown formatting from text
  * Removes **bold**, *italic*, `code`, # headers, etc.
  */
 export function stripMarkdown(text: string): string {
   if (!text) return text
   
-  return text
+  // First strip JSON, then markdown
+  let cleaned = stripJSON(text)
+  
+  return cleaned
     // Remove bold (**text** or __text__)
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/__([^_]+)__/g, '$1')

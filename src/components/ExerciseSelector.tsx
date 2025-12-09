@@ -120,7 +120,7 @@ export function ExerciseSelector({
         </div>
 
         {/* Exercise List */}
-        <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+        <div className="flex-1 overflow-y-auto scrollbar-hide space-y-2 min-h-0">
           {isLoading ? (
             <div className="text-center py-8 md:py-12 text-dim font-mono text-xs md:text-sm">
               Loading exercises...
