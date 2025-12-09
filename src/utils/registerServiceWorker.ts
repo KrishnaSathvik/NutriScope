@@ -1,3 +1,5 @@
+import { logger } from './logger'
+
 /**
  * Register Service Worker for PWA functionality
  */
@@ -7,7 +9,7 @@ export function registerServiceWorker() {
       navigator.serviceWorker
         .register('/sw.js')
         .then((registration) => {
-          console.log('Service Worker registered:', registration.scope)
+          logger.debug('Service Worker registered:', registration.scope)
 
           // Check for updates
           registration.addEventListener('updatefound', () => {
@@ -16,7 +18,7 @@ export function registerServiceWorker() {
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                   // New service worker available, notify user
-                  console.log('New service worker available')
+                  logger.debug('New service worker available')
                   // You can dispatch a custom event here to show update notification
                   window.dispatchEvent(new CustomEvent('sw-update-available'))
                 }
@@ -25,7 +27,7 @@ export function registerServiceWorker() {
           })
         })
         .catch((error) => {
-          console.error('Service Worker registration failed:', error)
+          logger.error('Service Worker registration failed:', error)
         })
     })
 

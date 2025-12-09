@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Bot, User } from 'lucide-react'
+import { Bot, User, Check, X } from 'lucide-react'
 import { ChatMessage } from '@/types'
 
 interface ChatMessagesProps {
@@ -7,6 +7,8 @@ interface ChatMessagesProps {
   loading: boolean
   isStreaming: boolean
   streamingMessage: string
+  onConfirmAction?: (messageId: string) => void
+  onCancelAction?: (messageId: string) => void
 }
 
 export function ChatMessages({ messages, loading, isStreaming, streamingMessage }: ChatMessagesProps) {
@@ -54,6 +56,34 @@ export function ChatMessages({ messages, loading, isStreaming, streamingMessage 
                 className="mt-2 md:mt-3 max-w-full md:max-w-[300px] rounded-sm border border-border animate-slide-up"
                 style={{ animationDelay: '100ms' }}
               />
+            )}
+            
+            {/* Confirmation Buttons */}
+            {message.role === 'assistant' && message.requires_confirmation && !message.confirmed && message.action && (
+              <div className="mt-3 md:mt-4 flex items-center gap-2 md:gap-3 animate-slide-up" style={{ animationDelay: '200ms' }}>
+                <button
+                  onClick={() => onConfirmAction?.(message.id)}
+                  className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 bg-success/20 hover:bg-success/30 border border-success/50 text-success rounded-sm transition-all duration-200 hover:scale-105 active:scale-95 text-xs md:text-sm font-mono"
+                >
+                  <Check className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                  <span>Yes</span>
+                </button>
+                <button
+                  onClick={() => onCancelAction?.(message.id)}
+                  className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 md:py-2 bg-error/20 hover:bg-error/30 border border-error/50 text-error rounded-sm transition-all duration-200 hover:scale-105 active:scale-95 text-xs md:text-sm font-mono"
+                >
+                  <X className="w-3 h-3 md:w-3.5 md:h-3.5" />
+                  <span>No</span>
+                </button>
+              </div>
+            )}
+            
+            {/* Confirmed Status */}
+            {message.role === 'assistant' && message.confirmed && (
+              <div className="mt-2 md:mt-3 flex items-center gap-1.5 text-xs text-success font-mono animate-fade-in">
+                <Check className="w-3 h-3" />
+                <span>Confirmed</span>
+              </div>
             )}
           </div>
         </div>

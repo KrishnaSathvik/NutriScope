@@ -543,16 +543,6 @@ export default function RecipesPage() {
             <p className="text-dim font-mono text-sm md:text-base mb-6 md:mb-8 max-w-md mx-auto leading-relaxed">
               Create your first recipe to save time and track nutrition accurately
             </p>
-            <button
-              onClick={() => {
-                setEditingRecipeId(null)
-                setShowAddForm(true)
-              }}
-              className="btn-primary inline-flex items-center justify-center gap-2 text-sm md:text-base py-2.5 md:py-3 px-4 md:px-6"
-            >
-              <Plus className="w-4 h-4 md:w-5 md:h-5" />
-              <span>Create Recipe</span>
-            </button>
           </div>
         )}
 

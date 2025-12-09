@@ -877,22 +877,6 @@ export default function AnalyticsPage() {
           <p className="text-dim font-mono text-xs md:text-sm mb-6 md:mb-8 max-w-md mx-auto">
             Start logging meals and workouts to see your insights!
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <button
-              onClick={() => window.location.href = '/meals'}
-              className="btn-primary inline-flex items-center justify-center gap-2 text-sm md:text-base py-2.5 md:py-3 px-4 md:px-6 font-mono uppercase tracking-wider"
-            >
-              <Flame className="w-4 h-4 md:w-5 md:h-5" />
-              <span>Log Meals</span>
-            </button>
-            <button
-              onClick={() => window.location.href = '/workouts'}
-              className="btn-secondary inline-flex items-center justify-center gap-2 text-sm md:text-base py-2.5 md:py-3 px-4 md:px-6 font-mono uppercase tracking-wider"
-            >
-              <Activity className="w-4 h-4 md:w-5 md:h-5" />
-              <span>Log Workouts</span>
-            </button>
-          </div>
         </div>
       )}
       </div>

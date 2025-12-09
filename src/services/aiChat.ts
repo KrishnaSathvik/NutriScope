@@ -1,5 +1,6 @@
 import { ChatMessage, AIAction, UserProfile, DailyLog } from '@/types'
 import { logger } from '@/utils/logger'
+import { trackAPICall } from '@/utils/performance'
 
 /**
  * Backend proxy for OpenAI API calls
@@ -18,43 +19,60 @@ export async function chatWithAI(
   if (useBackendProxy) {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '/api/chat'
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(userId && { 'x-user-id': userId }),
-        },
-        body: JSON.stringify({
-          messages,
-          profile: profile ? {
-            calorie_target: profile.calorie_target,
-            protein_target: profile.protein_target,
-            goal: profile.goal,
-          } : undefined,
-          dailyLog: dailyLog ? {
-            calories_consumed: dailyLog.calories_consumed,
-            protein: dailyLog.protein,
-            calories_burned: dailyLog.calories_burned,
-          } : undefined,
-          imageUrl,
-          userId,
-        }),
-      })
+      
+      // Track API call performance
+      return trackAPICall(apiUrl, async () => {
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(userId && { 'x-user-id': userId }),
+          },
+          body: JSON.stringify({
+            messages,
+            profile: profile ? {
+              name: profile.name,
+              age: profile.age,
+              weight: profile.weight,
+              height: profile.height,
+              calorie_target: profile.calorie_target,
+              protein_target: profile.protein_target,
+              water_goal: profile.water_goal,
+              goal: profile.goal,
+              activity_level: profile.activity_level,
+              dietary_preference: profile.dietary_preference,
+              restrictions: profile.restrictions,
+              ...('target_carbs' in profile && profile.target_carbs ? { target_carbs: profile.target_carbs } : {}),
+              ...('target_fats' in profile && profile.target_fats ? { target_fats: profile.target_fats } : {}),
+            } : undefined,
+            dailyLog: dailyLog ? {
+              calories_consumed: dailyLog.calories_consumed,
+              protein: dailyLog.protein,
+              calories_burned: dailyLog.calories_burned,
+              water_intake: dailyLog.water_intake,
+              meals: dailyLog.meals.slice(0, 5),
+              exercises: dailyLog.exercises.slice(0, 3),
+            } : undefined,
+            imageUrl,
+            userId,
+          }),
+        })
 
-      if (!response.ok) {
-        if (response.status === 429) {
+        if (!response.ok) {
+          if (response.status === 429) {
+            const error = await response.json()
+            throw new Error(error.message || 'Rate limit exceeded. Please try again later.')
+          }
           const error = await response.json()
-          throw new Error(error.message || 'Rate limit exceeded. Please try again later.')
+          throw new Error(error.error || 'Failed to get AI response')
         }
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to get AI response')
-      }
 
-      const data = await response.json()
-      return {
-        message: data.message,
-        action: data.action,
-      }
+        const data = await response.json()
+        return {
+          message: data.message,
+          action: data.action,
+        }
+      })
     } catch (error) {
       // In production, always use backend proxy - no fallback
       if (import.meta.env.PROD) {
@@ -107,29 +125,121 @@ async function chatWithAIDirect(
   // Prepare messages with system prompt
   const systemMessage = {
     role: 'system' as const,
-    content: `You are a helpful AI health and fitness assistant for NutriScope. ${context}
+    content: `You are a personalized AI health and fitness assistant for NutriScope. You understand each user's unique profile, goals, and preferences, and provide tailored advice accordingly.
 
-You can help users:
-1. Log meals by understanding their descriptions (e.g., "I had chicken salad for lunch")
-2. Log workouts (e.g., "I ran for 30 minutes")
-3. Log water intake (e.g., "I drank 500ml of water")
-4. Answer nutrition and fitness questions
-5. Provide personalized insights based on their data
+${context}
 
-When the user wants to log something, respond with a JSON action in this format:
+**IMPORTANT - Personalization Guidelines:**
+1. **Always reference the user's specific goals and targets** when giving advice
+2. **Use their name** if available (e.g., "Based on your goal of ${profile?.goal === 'lose_weight' ? 'losing weight' : profile?.goal}, ${profile?.name || 'you'}...")
+3. **Consider their dietary preferences** when suggesting meals or recipes
+4. **Reference their activity level** when discussing workouts or calorie needs
+5. **Check their progress** against their personalized targets before making suggestions
+6. **Give personalized recommendations** based on their specific situation, not generic advice
+7. **Be encouraging** and reference their progress toward their goals
+
+**Example Personalized Responses:**
+- Instead of: "Aim for 150g protein"
+- Say: "Since your goal is gaining muscle and your target is ${profile?.protein_target || 150}g protein, let's make sure you hit that today!"
+
+- Instead of: "You should eat more protein"
+- Say: "You're at ${dailyLog?.protein || 0}g protein today, but your target is ${profile?.protein_target || 150}g. Let's add some ${profile?.dietary_preference === 'vegetarian' ? 'legumes or tofu' : profile?.dietary_preference === 'vegan' ? 'plant-based protein' : 'lean protein'} to help you reach your goal!"
+
+You can help users with:
+
+1. **Meal Logging:**
+   - Understand natural language meal descriptions (e.g., "I had chicken salad for lunch", "I hate eggs for breakfast")
+   - Extract meal type (breakfast, lunch, dinner, snack)
+   - Calculate nutrition from food descriptions
+   - Show summary and ask for confirmation before logging
+   - Use action type: "log_meal_with_confirmation" with requires_confirmation: true
+
+2. **Food Questions:**
+   - Answer "Can I eat this?" questions
+   - Analyze images of food
+   - Consider user goals, dietary preferences, and calorie targets
+   - Use action type: "answer_food_question"
+
+3. **Recipe Generation:**
+   - Generate recipes from descriptions or images
+   - Include ingredients, instructions, prep/cook time, servings, nutrition
+   - Ask if user wants to save recipe
+   - Use action type: "generate_recipe" then "save_recipe" if confirmed
+
+4. **Meal Planning:**
+   - Add meals to meal plans (e.g., "Add chicken curry to Monday lunch")
+   - Extract day and meal type
+   - Use action type: "add_to_meal_plan"
+
+5. **Grocery Lists:**
+   - Add items to grocery lists (e.g., "Add chicken, rice, vegetables to grocery list")
+   - Extract individual items
+   - Use action type: "add_to_grocery_list"
+
+6. **Workout Logging:**
+   - Log workouts from descriptions (e.g., "I ran for 30 minutes")
+   - Use action type: "log_workout"
+
+7. **Water Logging:**
+   - Log water intake (e.g., "I drank 500ml of water")
+   - Use action type: "log_water"
+
+**Response Format:**
+Always respond with JSON:
 {
   "action": {
-    "type": "log_meal" | "log_workout" | "log_water" | "get_summary" | "none",
-    "data": { ... }
+    "type": "log_meal_with_confirmation" | "generate_recipe" | "save_recipe" | "add_to_meal_plan" | 
+            "add_to_grocery_list" | "answer_food_question" | "log_workout" | "log_water" | "none",
+    "data": { ... },
+    "requires_confirmation": true/false,
+    "confirmation_message": "Do you want me to log this?"
   },
-  "message": "Your response message"
+  "message": "Your conversational response"
 }
 
-For meals, include: meal_type, calories, protein, carbs (optional), fats (optional)
-For workouts, include: exercise_name, exercise_type, duration, calories_burned
-For water, include: water_amount (in ml)
+**For Meal Logging with Confirmation:**
+- Extract meal_type, calories, protein, carbs, fats, food_items
+- If user provides specific amounts (e.g., "100g chicken"), calculate exact nutrition
+- If user provides calories/protein directly, use those values
+- Otherwise, estimate nutrition from food descriptions
+- Set requires_confirmation: true
+- Show summary in message with nutrition breakdown
+- Ask for confirmation
 
-Be conversational and helpful. Only include actions when the user explicitly wants to log something.`,
+**For Recipe Generation:**
+- If user says "I have this recipe" or provides recipe details, automatically save it (requires_confirmation: false)
+- If user asks to generate a recipe, generate it and ask for confirmation (requires_confirmation: true)
+- Generate complete recipe with ingredients, instructions, prep/cook time, servings, nutrition
+- Include all recipe details in action.data.recipe
+
+**For Meal Planning:**
+- Extract day and meal type
+- Set requires_confirmation: true
+- Ask for confirmation
+
+**For Grocery Lists:**
+- Extract individual items
+- Set requires_confirmation: true
+- Ask for confirmation before adding
+
+**For Food Questions:**
+- Analyze food in context of user's SPECIFIC goals, dietary preferences, and calorie targets
+- Reference their personalized targets (e.g., "This fits well within your ${profile?.calorie_target || 2000} calorie target")
+- Consider their dietary preference (e.g., if vegetarian, suggest vegetarian alternatives)
+- Provide detailed reasoning based on THEIR profile
+- Set can_eat: true/false
+- Consider portion sizes if mentioned
+- Give personalized portion recommendations based on their targets
+
+**Communication Style:**
+- Be warm, encouraging, and personalized
+- Reference their name when appropriate
+- Acknowledge their progress toward their goals
+- Give specific, actionable advice based on THEIR profile
+- Use "your" instead of generic "you" (e.g., "your calorie target", "your goal")
+- Celebrate their achievements relative to their goals
+
+Be conversational, helpful, personalized, and ask for confirmation before logging/saving data (except when user explicitly provides a recipe to save).`,
   }
 
   // Prepare user messages
@@ -156,6 +266,8 @@ Be conversational and helpful. Only include actions when the user explicitly wan
       ...formattedMessages,
     ],
     response_format: { type: 'json_object' }, // Force JSON response for action parsing
+    temperature: 0.7,
+    max_tokens: 1500,
   })
 
   const responseContent = completion.choices[0]?.message?.content || 'Sorry, I encountered an error.'
@@ -193,52 +305,145 @@ Be conversational and helpful. Only include actions when the user explicitly wan
 }
 
 /**
- * Build enhanced context from user profile and daily log
+ * Build enhanced personalized context from user profile and daily log
  */
 function buildContext(profile: UserProfile | null, dailyLog: DailyLog | null): string {
   let context = ''
   
   if (profile) {
-    context += `User Profile:
-- Goal: ${profile.goal}
-- Activity Level: ${profile.activity_level}
-- Dietary Preference: ${profile.dietary_preference}
-- Calorie Target: ${profile.calorie_target || 2000} cal
-- Protein Target: ${profile.protein_target || 150}g
-- Water Goal: ${profile.water_goal || 2000}ml
-`
+    // Personalized greeting with name if available
+    const userName = profile.name ? `Hi ${profile.name}! ` : ''
+    
+    context += `${userName}Here's your personalized profile:\n\n`
+    
+    // Personal details
+    if (profile.age || profile.weight || profile.height) {
+      context += `**About You:**\n`
+      if (profile.name) context += `- Name: ${profile.name}\n`
+      if (profile.age) context += `- Age: ${profile.age} years\n`
+      if (profile.weight) context += `- Weight: ${profile.weight}kg\n`
+      if (profile.height) context += `- Height: ${profile.height}cm\n`
+      context += `\n`
+    }
+    
+    // Goals and preferences
+    const goalDescriptions: Record<string, string> = {
+      lose_weight: 'losing weight',
+      gain_muscle: 'gaining muscle mass',
+      maintain: 'maintaining your current weight',
+      improve_fitness: 'improving overall fitness',
+    }
+    
+    const activityDescriptions: Record<string, string> = {
+      sedentary: 'sedentary lifestyle (little to no exercise)',
+      light: 'light activity (1-3 days/week)',
+      moderate: 'moderate activity (3-5 days/week)',
+      active: 'active lifestyle (6-7 days/week)',
+      very_active: 'very active lifestyle (intense daily exercise)',
+    }
+    
+    const dietaryDescriptions: Record<string, string> = {
+      vegetarian: 'vegetarian diet',
+      vegan: 'vegan diet',
+      non_vegetarian: 'non-vegetarian diet',
+      flexitarian: 'flexitarian diet (mostly plant-based)',
+    }
+    
+    context += `**Your Goals & Preferences:**\n`
+    context += `- Primary Goal: ${goalDescriptions[profile.goal] || profile.goal}\n`
+    context += `- Activity Level: ${activityDescriptions[profile.activity_level] || profile.activity_level}\n`
+    context += `- Dietary Preference: ${dietaryDescriptions[profile.dietary_preference] || profile.dietary_preference}\n`
+    if (profile.restrictions && profile.restrictions.length > 0) {
+      context += `- Dietary Restrictions: ${profile.restrictions.join(', ')}\n`
+    }
+    context += `\n`
+    
+    // Personalized targets
+    context += `**Your Personalized Targets:**\n`
+    context += `- Daily Calorie Target: ${profile.calorie_target || 2000} calories\n`
+    context += `- Daily Protein Target: ${profile.protein_target || 150}g\n`
+    context += `- Daily Water Goal: ${profile.water_goal || 2000}ml\n`
+    if ('target_carbs' in profile && profile.target_carbs) context += `- Daily Carbs Target: ${profile.target_carbs}g\n`
+    if ('target_fats' in profile && profile.target_fats) context += `- Daily Fats Target: ${profile.target_fats}g\n`
+    context += `\n`
+    
+    // Personalized guidance based on goals
+    context += `**Personalized Guidance:**\n`
+    if (profile.goal === 'lose_weight') {
+      context += `- Focus on calorie deficit while maintaining protein intake to preserve muscle\n`
+      context += `- Aim for ${profile.protein_target || 150}g+ protein daily to support weight loss\n`
+      context += `- Stay hydrated - your water goal is ${profile.water_goal || 2000}ml/day\n`
+    } else if (profile.goal === 'gain_muscle') {
+      context += `- Focus on protein-rich meals to support muscle growth\n`
+      context += `- Ensure adequate calories (${profile.calorie_target || 2000} cal/day) for muscle building\n`
+      context += `- Prioritize strength training and recovery\n`
+    } else if (profile.goal === 'maintain') {
+      context += `- Balance your intake around ${profile.calorie_target || 2000} calories daily\n`
+      context += `- Maintain ${profile.protein_target || 150}g protein for muscle maintenance\n`
+    } else if (profile.goal === 'improve_fitness') {
+      context += `- Focus on balanced nutrition and regular exercise\n`
+      context += `- Support your active lifestyle with ${profile.protein_target || 150}g+ protein\n`
+    }
+    context += `\n`
   }
 
   if (dailyLog) {
-    context += `
-Today's Progress:
-- Calories Consumed: ${dailyLog.calories_consumed} / ${profile?.calorie_target || 2000}
-- Protein: ${dailyLog.protein}g / ${profile?.protein_target || 150}g
-- Water Intake: ${dailyLog.water_intake}ml / ${profile?.water_goal || 2000}ml
-- Calories Burned: ${dailyLog.calories_burned} cal
-- Meals Logged: ${dailyLog.meals.length}
-- Workouts Logged: ${dailyLog.exercises.length}
-
-Recent Meals: ${dailyLog.meals.slice(0, 3).map(m => 
-  `${m.meal_type || 'meal'}: ${m.calories} cal, ${m.protein}g protein`
-).join(', ') || 'None'}
-`
+    const calorieProgress = profile?.calorie_target ? ((dailyLog.calories_consumed / profile.calorie_target) * 100).toFixed(0) : '0'
+    const proteinProgress = profile?.protein_target ? ((dailyLog.protein / profile.protein_target) * 100).toFixed(0) : '0'
+    const waterProgress = profile?.water_goal ? ((dailyLog.water_intake / profile.water_goal) * 100).toFixed(0) : '0'
+    
+    context += `**Today's Progress:**\n`
+    context += `- Calories: ${dailyLog.calories_consumed} / ${profile?.calorie_target || 2000} cal (${calorieProgress}%)\n`
+    context += `- Protein: ${dailyLog.protein}g / ${profile?.protein_target || 150}g (${proteinProgress}%)\n`
+    context += `- Water: ${dailyLog.water_intake}ml / ${profile?.water_goal || 2000}ml (${waterProgress}%)\n`
+    context += `- Calories Burned: ${dailyLog.calories_burned} cal\n`
+    context += `- Meals Logged: ${dailyLog.meals.length}\n`
+    context += `- Workouts Logged: ${dailyLog.exercises.length}\n`
+    
+    if (dailyLog.meals.length > 0) {
+      context += `\n**Recent Meals:**\n`
+      dailyLog.meals.slice(0, 3).forEach((m, i) => {
+        context += `${i + 1}. ${m.meal_type || 'meal'}: ${m.calories} cal, ${m.protein}g protein`
+        if (m.name) context += ` (${m.name})`
+        context += `\n`
+      })
+    }
+    
+    // Personalized suggestions based on progress
+    if (profile) {
+      context += `\n**Personalized Insights:**\n`
+      if (dailyLog.calories_consumed < (profile.calorie_target || 2000) * 0.8) {
+        context += `- You're below your calorie target - consider adding nutrient-dense meals\n`
+      } else if (dailyLog.calories_consumed > (profile.calorie_target || 2000) * 1.2) {
+        context += `- You're above your calorie target - focus on portion control\n`
+      }
+      
+      if (dailyLog.protein < (profile.protein_target || 150) * 0.8) {
+        context += `- Protein intake is below target - add protein-rich foods to your meals\n`
+      }
+      
+      if (dailyLog.water_intake < (profile.water_goal || 2000) * 0.7) {
+        context += `- Water intake is low - remember to stay hydrated throughout the day\n`
+      }
+    }
+    context += `\n`
   }
 
   return context
 }
 
 /**
- * Execute AI action (log meal, workout, water)
+ * Execute AI action (log meal, workout, water, recipes, meal plans, grocery lists)
  */
 export async function executeAction(
   action: AIAction,
   userId: string,
   date: string
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; data?: any }> {
   try {
     switch (action.type) {
       case 'log_meal':
+      case 'log_meal_with_confirmation':
         if (!action.data) {
           return { success: false, message: 'Missing meal data' }
         }
@@ -250,7 +455,7 @@ export async function executeAction(
           protein: action.data.protein || 0,
           carbs: action.data.carbs,
           fats: action.data.fats,
-          food_items: [],
+          food_items: action.data.food_items || [],
         })
         return { success: true, message: 'Meal logged successfully!' }
 
@@ -279,6 +484,119 @@ export async function executeAction(
         const { addWaterIntake } = await import('./water')
         await addWaterIntake(userId, date, action.data.water_amount)
         return { success: true, message: 'Water intake logged successfully!' }
+
+      case 'generate_recipe':
+        // Recipe is already generated in action.data.recipe
+        // If requires_confirmation is false, auto-save it (user provided recipe)
+        if (!action.requires_confirmation && action.data?.recipe) {
+          const { createRecipe } = await import('./recipes')
+          const recipe = await createRecipe(action.data.recipe)
+          return { 
+            success: true, 
+            message: `Recipe "${recipe.name}" saved successfully!`,
+            data: recipe
+          }
+        }
+        // Otherwise, ask for confirmation (AI generated recipe)
+        return { 
+          success: true, 
+          message: 'Recipe generated! Would you like to save it to your recipes?',
+          data: action.data?.recipe
+        }
+
+      case 'save_recipe':
+        if (!action.data?.recipe) {
+          // Try to create recipe from action data if recipe object not provided
+          if (action.data?.recipe_name) {
+            const { createRecipe } = await import('./recipes')
+            const { calculateRecipeNutrition } = await import('./recipes')
+            
+            // Build recipe from action data
+            const recipeData = {
+              name: action.data.recipe_name,
+              description: action.data.recipe_description || '',
+              servings: action.data.recipe?.servings || 4,
+              prep_time: action.data.recipe?.prep_time,
+              cook_time: action.data.recipe?.cook_time,
+              ingredients: action.data.recipe?.ingredients || [],
+              instructions: action.data.recipe?.instructions || [],
+              nutrition_per_serving: action.data.recipe?.nutrition_per_serving || calculateRecipeNutrition(
+                action.data.recipe?.ingredients || [],
+                action.data.recipe?.servings || 4
+              ),
+              tags: action.data.recipe?.tags || [],
+              is_favorite: false,
+            }
+            const recipe = await createRecipe(recipeData)
+            return { success: true, message: `Recipe "${recipe.name}" saved successfully!`, data: recipe }
+          }
+          return { success: false, message: 'Missing recipe data' }
+        }
+        const { createRecipe } = await import('./recipes')
+        const recipe = await createRecipe(action.data.recipe)
+        return { success: true, message: `Recipe "${recipe.name}" saved successfully!`, data: recipe }
+
+      case 'add_to_meal_plan':
+        if (!action.data?.meal_plan_meal || !action.data?.day) {
+          return { success: false, message: 'Missing meal plan data' }
+        }
+        const { getCurrentWeekMealPlan, addMealToPlan } = await import('./mealPlanning')
+        const mealPlan = await getCurrentWeekMealPlan()
+        const dayMap: Record<string, string> = {
+          monday: 'monday',
+          tuesday: 'tuesday',
+          wednesday: 'wednesday',
+          thursday: 'thursday',
+          friday: 'friday',
+          saturday: 'saturday',
+          sunday: 'sunday',
+        }
+        const dayKey = dayMap[action.data.day.toLowerCase()] || 'monday'
+        await addMealToPlan(mealPlan.week_start_date, dayKey, action.data.meal_plan_meal)
+        return { success: true, message: `Meal added to ${dayKey}'s meal plan!` }
+
+      case 'add_to_grocery_list':
+        if (!action.data?.grocery_items || action.data.grocery_items.length === 0) {
+          return { success: false, message: 'Missing grocery items' }
+        }
+        const { createGroceryList, updateGroceryList, getGroceryLists } = await import('./groceryLists')
+        // Get or create default grocery list
+        const lists = await getGroceryLists()
+        let list = lists.find(l => l.name === (action.data?.grocery_list_name || 'Shopping List'))
+        
+        const newItems = action.data.grocery_items.map(name => ({
+          name,
+          quantity: 1,
+          unit: 'item',
+          category: 'other',
+          checked: false,
+        }))
+        
+        if (!list) {
+          list = await createGroceryList({
+            name: action.data.grocery_list_name || 'Shopping List',
+            items: newItems,
+          })
+        } else {
+          // Add items to existing list
+          list = await updateGroceryList(list.id, {
+            ...list,
+            items: [...list.items, ...newItems],
+          })
+        }
+        
+        return { success: true, message: `Added ${newItems.length} item(s) to "${list.name}"!` }
+
+      case 'answer_food_question':
+        // Just return the answer - no action needed
+        return { 
+          success: true, 
+          message: action.data?.answer || 'I can help answer your food question!',
+          data: {
+            can_eat: action.data?.can_eat,
+            reasoning: action.data?.reasoning,
+          }
+        }
 
       case 'get_summary':
         // Summary is already in context, no action needed

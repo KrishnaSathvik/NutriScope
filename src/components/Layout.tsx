@@ -35,8 +35,16 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen relative" style={{ backgroundColor: 'var(--color-void)' }}>
+      {/* Skip Navigation Link - Hidden until focused */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-0 focus:left-0 focus:z-[100] focus:bg-acid focus:text-void focus:px-4 focus:py-2 focus:font-mono focus:text-sm focus:uppercase focus:tracking-wider focus:outline-none focus:ring-2 focus:ring-acid focus:ring-offset-2 focus:ring-offset-void"
+      >
+        Skip to main content
+      </a>
+      
       {/* Top Navigation */}
-      <nav className="sticky top-0 z-50 bg-surface/80 backdrop-blur-xl border-b border-border">
+      <nav className="sticky top-0 z-50 bg-surface/80 backdrop-blur-xl border-b border-border" aria-label="Main navigation">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16 items-center">
             <Link to="/" className="group transition-transform hover:scale-105 active:scale-95">
@@ -44,7 +52,7 @@ export default function Layout() {
             </Link>
             
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1 lg:gap-2 text-xs font-mono uppercase tracking-wider overflow-x-auto">
+            <nav className="hidden md:flex items-center gap-1 lg:gap-2 text-xs font-mono uppercase tracking-wider overflow-x-auto" aria-label="Desktop navigation">
               {navItems.map((item) => {
                 const Icon = item.icon
                 const isActive = location.pathname === item.path
@@ -61,11 +69,13 @@ export default function Layout() {
                         : 'text-dim hover:text-text'
                     }`}
                     title={item.label}
+                    aria-label={item.label}
+                    aria-current={isActive ? 'page' : undefined}
                   >
-                    <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-acid' : 'text-dim'}`} />
+                    <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-acid' : 'text-dim'}`} aria-hidden="true" />
                     <span className="hidden xl:inline">{item.label}</span>
                     {isActive && (
-                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-acid" />
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-acid" aria-hidden="true" />
                     )}
                   </Link>
                 )
@@ -85,6 +95,7 @@ export default function Layout() {
                 <button
                   onClick={() => signOut()}
                   className="flex items-center justify-center h-8 px-3 rounded-sm bg-acid text-[#020617] dark:text-[#020617] font-mono text-xs uppercase tracking-wider transition-all duration-200 hover:brightness-105 active:scale-95"
+                  aria-label="Sign out"
                 >
                   Sign Out
                 </button>
@@ -95,7 +106,7 @@ export default function Layout() {
       </nav>
 
       {/* Bottom Navigation (Mobile) */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-xl border-t border-border md:hidden z-40">
+      <nav className="fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-xl border-t border-border md:hidden z-40" aria-label="Mobile navigation">
         <div className="flex justify-around relative">
           {/* Show Dashboard, Meals, Workouts, Chat, Analytics, and More */}
           {[
@@ -123,8 +134,10 @@ export default function Layout() {
                     ? 'text-acid'
                     : 'text-dim hover:text-text'
                 }`}
+                aria-label={item.label}
+                aria-current={isActive ? 'page' : undefined}
               >
-                <Icon className={`w-5 h-5 mb-1 ${isActive ? 'text-acid glow-acid' : 'text-dim'}`} />
+                <Icon className={`w-5 h-5 mb-1 ${isActive ? 'text-acid glow-acid' : 'text-dim'}`} aria-hidden="true" />
                 <span className="text-[10px] font-mono uppercase tracking-wider">{item.label}</span>
               </Link>
             )
@@ -140,13 +153,16 @@ export default function Layout() {
                 ? 'text-acid'
                 : 'text-dim hover:text-text'
             }`}
+            aria-label="More menu"
+            aria-expanded={showMoreMenu}
+            aria-haspopup="true"
           >
-            <MoreHorizontal className={`w-5 h-5 mb-1 ${(location.pathname === '/recipes' || location.pathname === '/meal-planning' || location.pathname === '/grocery-lists' || location.pathname === '/history' || location.pathname === '/achievements' || location.pathname === '/profile') ? 'text-acid glow-acid' : 'text-dim'}`} />
+            <MoreHorizontal className={`w-5 h-5 mb-1 ${(location.pathname === '/recipes' || location.pathname === '/meal-planning' || location.pathname === '/grocery-lists' || location.pathname === '/history' || location.pathname === '/achievements' || location.pathname === '/profile') ? 'text-acid glow-acid' : 'text-dim'}`} aria-hidden="true" />
             <span className="text-[10px] font-mono uppercase tracking-wider">More</span>
             {(location.pathname === '/recipes' || location.pathname === '/meal-planning' || 
               location.pathname === '/grocery-lists' || location.pathname === '/history' || 
               location.pathname === '/achievements' || location.pathname === '/profile') && (
-              <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-acid rounded-full"></span>
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-acid rounded-full" aria-hidden="true"></span>
             )}
           </button>
         </div>
@@ -184,8 +200,10 @@ export default function Layout() {
                           ? 'bg-panel text-acid'
                           : 'text-dim hover:text-text hover:bg-panel'
                       }`}
+                      aria-label={item.label}
+                      aria-current={isActive ? 'page' : undefined}
                     >
-                      <Icon className={`w-5 h-5 ${isActive ? 'text-acid' : 'text-dim'}`} />
+                      <Icon className={`w-5 h-5 ${isActive ? 'text-acid' : 'text-dim'}`} aria-hidden="true" />
                       <span className="text-sm font-mono uppercase tracking-wider">{mobileLabel}</span>
                     </Link>
                   )
@@ -197,7 +215,7 @@ export default function Layout() {
       </nav>
 
       {/* Main Content - Full Width */}
-      <main className="w-full pb-20 md:pb-6">
+      <main id="main-content" className="w-full pb-20 md:pb-6" role="main">
         <Outlet />
       </main>
     </div>

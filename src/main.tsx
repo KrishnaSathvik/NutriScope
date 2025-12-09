@@ -5,6 +5,8 @@ import App from './App.tsx'
 import './index.css'
 import { registerServiceWorker } from './utils/registerServiceWorker'
 import { initSentry } from './lib/sentry'
+import { trackPageLoad } from './utils/performance'
+import { initGoogleAnalytics } from './utils/analytics'
 
 // Initialize theme before React renders to prevent flash
 const initializeTheme = () => {
@@ -47,6 +49,9 @@ initSentry().catch(() => {
   // Sentry initialization failed - app continues without error tracking
 })
 
+// Initialize Google Analytics
+initGoogleAnalytics()
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -85,3 +90,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
 // Register Service Worker for PWA
 registerServiceWorker()
+
+// Initialize Performance Monitoring
+trackPageLoad()

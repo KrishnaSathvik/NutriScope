@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createWeightLog, getLatestWeight } from '@/services/weightTracking'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
-import { Scale, Plus, Minus, Check, X } from 'lucide-react'
+import { Weight, Plus, Minus, Check, X } from 'lucide-react'
 
 export function QuickWeightEntry() {
   const { profile } = useAuth()
@@ -102,7 +102,7 @@ export function QuickWeightEntry() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 md:gap-3">
             <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30 flex-shrink-0">
-              <Scale className="w-4 h-4 md:w-5 md:h-5 text-acid" />
+              <Weight className="w-4 h-4 md:w-5 md:h-5 text-acid" />
             </div>
             <div>
               <div className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Log Weight Today</div>
@@ -122,7 +122,7 @@ export function QuickWeightEntry() {
       <div className="flex items-center justify-between mb-4 md:mb-6">
         <div className="flex items-center gap-2 md:gap-3">
           <div className="w-10 h-10 md:w-12 md:h-12 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30 flex-shrink-0">
-            <Scale className="w-5 h-5 md:w-6 md:h-6 text-acid" />
+            <Weight className="w-5 h-5 md:w-6 md:h-6 text-acid" />
           </div>
           <div>
             <div className="text-xs md:text-sm text-dim font-mono uppercase tracking-wider">Log Weight</div>

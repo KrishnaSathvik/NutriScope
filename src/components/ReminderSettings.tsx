@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { ReminderSettings } from '@/types'
 import { notificationService } from '@/services/notifications'
-import { Bell, Clock, Droplet, Dumbbell, Target, CheckCircle2, X } from 'lucide-react'
+import { Bell, Clock, Droplet, Dumbbell, Target, CheckCircle2, X, Scale, Flame, FileText } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 export function ReminderSettingsSection() {
@@ -37,6 +37,20 @@ export function ReminderSettingsSection() {
     goal_reminders: {
       enabled: false,
       check_progress_time: '20:00',
+    },
+    weight_reminders: {
+      enabled: false,
+      time: '08:00',
+      days: [1, 2, 3, 4, 5, 6, 0], // Daily by default
+    },
+    streak_reminders: {
+      enabled: false,
+      time: '19:00',
+      check_days: [1, 2, 3, 4, 5], // Weekdays by default
+    },
+    summary_reminders: {
+      enabled: false,
+      time: '20:00',
     },
   }
 
@@ -515,6 +529,237 @@ export function ReminderSettingsSection() {
                           goal_reminders: {
                             ...settings.goal_reminders,
                             check_progress_time: e.target.value,
+                          },
+                        })
+                      }
+                      className="input-modern"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Weight Reminders */}
+              <div className="p-4 border border-border rounded-sm space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Scale className="w-4 h-4 text-acid" />
+                  <label className="text-sm font-bold text-text font-mono uppercase">
+                    Weight Logging Reminders
+                  </label>
+                  <label className="relative inline-flex items-center cursor-pointer ml-auto">
+                    <input
+                      type="checkbox"
+                      checked={settings.weight_reminders?.enabled || false}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          weight_reminders: {
+                            ...settings.weight_reminders,
+                            enabled: e.target.checked,
+                          },
+                        })
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid"></div>
+                  </label>
+                </div>
+
+                {settings.weight_reminders?.enabled && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-mono uppercase tracking-wider text-dim mb-2">
+                        Time
+                      </label>
+                      <input
+                        type="time"
+                        value={settings.weight_reminders.time || '08:00'}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            weight_reminders: {
+                              ...settings.weight_reminders,
+                              time: e.target.value,
+                            },
+                          })
+                        }
+                        className="input-modern"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-mono uppercase tracking-wider text-dim mb-2 mb-3">
+                        Days of Week
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {daysOfWeek.map((day) => (
+                          <label
+                            key={day.value}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                settings.weight_reminders.days?.includes(
+                                  day.value
+                                ) || false
+                              }
+                              onChange={(e) => {
+                                const currentDays =
+                                  settings.weight_reminders.days || []
+                                const newDays = e.target.checked
+                                  ? [...currentDays, day.value]
+                                  : currentDays.filter((d) => d !== day.value)
+                                setSettings({
+                                  ...settings,
+                                  weight_reminders: {
+                                    ...settings.weight_reminders,
+                                    days: newDays,
+                                  },
+                                })
+                              }}
+                              className="w-4 h-4 border-border bg-surface text-acid focus:ring-acid/20"
+                            />
+                            <span className="text-xs font-mono text-text">
+                              {day.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Streak Reminders */}
+              <div className="p-4 border border-border rounded-sm space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Flame className="w-4 h-4 text-acid" />
+                  <label className="text-sm font-bold text-text font-mono uppercase">
+                    Streak Reminders
+                  </label>
+                  <label className="relative inline-flex items-center cursor-pointer ml-auto">
+                    <input
+                      type="checkbox"
+                      checked={settings.streak_reminders?.enabled || false}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          streak_reminders: {
+                            ...settings.streak_reminders,
+                            enabled: e.target.checked,
+                          },
+                        })
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid"></div>
+                  </label>
+                </div>
+
+                {settings.streak_reminders?.enabled && (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-mono uppercase tracking-wider text-dim mb-2">
+                        Time
+                      </label>
+                      <input
+                        type="time"
+                        value={settings.streak_reminders.time || '19:00'}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            streak_reminders: {
+                              ...settings.streak_reminders,
+                              time: e.target.value,
+                            },
+                          })
+                        }
+                        className="input-modern"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-mono uppercase tracking-wider text-dim mb-2 mb-3">
+                        Check Days
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {daysOfWeek.map((day) => (
+                          <label
+                            key={day.value}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                settings.streak_reminders.check_days?.includes(
+                                  day.value
+                                ) || false
+                              }
+                              onChange={(e) => {
+                                const currentDays =
+                                  settings.streak_reminders.check_days || []
+                                const newDays = e.target.checked
+                                  ? [...currentDays, day.value]
+                                  : currentDays.filter((d) => d !== day.value)
+                                setSettings({
+                                  ...settings,
+                                  streak_reminders: {
+                                    ...settings.streak_reminders,
+                                    check_days: newDays,
+                                  },
+                                })
+                              }}
+                              className="w-4 h-4 border-border bg-surface text-acid focus:ring-acid/20"
+                            />
+                            <span className="text-xs font-mono text-text">
+                              {day.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Summary Reminders */}
+              <div className="p-4 border border-border rounded-sm space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <FileText className="w-4 h-4 text-acid" />
+                  <label className="text-sm font-bold text-text font-mono uppercase">
+                    Daily Summary Reminders
+                  </label>
+                  <label className="relative inline-flex items-center cursor-pointer ml-auto">
+                    <input
+                      type="checkbox"
+                      checked={settings.summary_reminders?.enabled || false}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          summary_reminders: {
+                            ...settings.summary_reminders,
+                            enabled: e.target.checked,
+                          },
+                        })
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid"></div>
+                  </label>
+                </div>
+
+                {settings.summary_reminders?.enabled && (
+                  <div>
+                    <label className="block text-xs font-mono uppercase tracking-wider text-dim mb-2">
+                      Summary Time
+                    </label>
+                    <input
+                      type="time"
+                      value={settings.summary_reminders.time || '20:00'}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          summary_reminders: {
+                            ...settings.summary_reminders,
+                            time: e.target.value,
                           },
                         })
                       }

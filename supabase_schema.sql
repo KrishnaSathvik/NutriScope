@@ -58,6 +58,20 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     "goal_reminders": {
       "enabled": false,
       "check_progress_time": "20:00"
+    },
+    "weight_reminders": {
+      "enabled": false,
+      "time": "08:00",
+      "days": [1,2,3,4,5,6,0]
+    },
+    "streak_reminders": {
+      "enabled": false,
+      "time": "19:00",
+      "check_days": [1,2,3,4,5]
+    },
+    "summary_reminders": {
+      "enabled": false,
+      "time": "20:00"
     }
   }'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

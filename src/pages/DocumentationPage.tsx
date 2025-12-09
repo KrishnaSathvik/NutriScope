@@ -18,6 +18,9 @@ import {
   TrendingUp,
   Target,
   Calendar,
+  Brain,
+  Zap,
+  ShieldCheck,
 } from 'lucide-react'
 
 export default function DocumentationPage() {
@@ -473,8 +476,8 @@ export default function DocumentationPage() {
                   },
                   {
                     icon: Clock,
-                    title: 'Reminders',
-                    description: 'Set up personalized reminders for meal logging and water intake. Never miss tracking.',
+                    title: 'Smart Reminders',
+                    description: 'Set up personalized reminders for meals, water, workouts, goals, weight logging, streaks, and daily summaries. Never miss tracking.',
                     color: 'accent',
                   },
                   {

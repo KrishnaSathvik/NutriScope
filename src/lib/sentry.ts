@@ -8,6 +8,7 @@
  * If Sentry is not installed or DSN is not set, it will gracefully degrade
  */
 
+// @ts-ignore - Sentry types may not be available in all environments
 import * as SentryModule from '@sentry/react'
 
 export async function initSentry() {
@@ -22,11 +23,14 @@ export async function initSentry() {
   }
 
   // Initialize Sentry
+  // @ts-ignore - Sentry types may not be available in all environments
   SentryModule.init({
     dsn,
     environment: import.meta.env.VITE_APP_ENV || import.meta.env.MODE || 'development',
     integrations: [
+      // @ts-ignore
       SentryModule.browserTracingIntegration(),
+      // @ts-ignore
       SentryModule.replayIntegration({
         maskAllText: true,
         blockAllMedia: true,
@@ -48,6 +52,7 @@ export async function initSentry() {
   })
 
   // Make Sentry available globally for ErrorBoundary
+  // @ts-ignore - Sentry types may not be available in all environments
   window.Sentry = SentryModule
 }
 

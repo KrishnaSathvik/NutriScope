@@ -11,7 +11,7 @@ export function handleSupabaseError(
   const errorMessage = error instanceof Error ? error.message : String(error)
   const errorCode = (error as any)?.code || (error as any)?.status
 
-  console.error(`[${context}] Supabase error:`, {
+  logger.error(`[${context}] Supabase error:`, {
     message: errorMessage,
     code: errorCode,
     error,

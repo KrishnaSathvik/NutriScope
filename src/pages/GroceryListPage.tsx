@@ -476,15 +476,6 @@ export default function GroceryListPage() {
             <p className="text-dim font-mono text-sm md:text-base mb-6 md:mb-8 max-w-md mx-auto leading-relaxed">
               Create a list manually or use the button above to generate one from your meal plan
             </p>
-            <div className="flex justify-center">
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="btn-primary gap-2 text-sm md:text-base py-2.5 md:py-3 px-4 md:px-6"
-              >
-                <Plus className="w-4 h-4 md:w-5 md:h-5" />
-                <span>Create List</span>
-              </button>
-            </div>
           </div>
         )}
       </div>

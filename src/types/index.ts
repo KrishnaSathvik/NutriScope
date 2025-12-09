@@ -118,6 +118,20 @@ export interface ReminderSettings {
     enabled: boolean
     check_progress_time?: string // HH:mm format
   }
+  weight_reminders: {
+    enabled: boolean
+    time?: string // HH:mm format
+    days?: number[] // 0-6, Sunday-Saturday (e.g., [1, 3, 5] for Mon, Wed, Fri)
+  }
+  streak_reminders: {
+    enabled: boolean
+    time?: string // HH:mm format
+    check_days?: number[] // Days to check streak (e.g., [1, 2, 3, 4, 5] for weekdays)
+  }
+  summary_reminders: {
+    enabled: boolean
+    time?: string // HH:mm format (e.g., "20:00" for 8 PM daily summary)
+  }
 }
 
 export interface UserProfile {
@@ -149,6 +163,9 @@ export interface ChatMessage {
   content: string
   timestamp: string
   image_url?: string
+  action?: AIAction // Action associated with this message
+  requires_confirmation?: boolean // Whether this message requires user confirmation
+  confirmed?: boolean // Whether user confirmed (for tracking)
 }
 
 export interface ChatConversation {
@@ -274,19 +291,49 @@ export interface AchievementDefinition {
 }
 
 export interface AIAction {
-  type: 'log_meal' | 'log_workout' | 'log_water' | 'get_summary' | 'none'
+  type: 'log_meal' | 'log_meal_with_confirmation' | 'log_workout' | 'log_water' | 
+        'get_summary' | 'generate_recipe' | 'save_recipe' | 'add_to_meal_plan' | 
+        'add_to_grocery_list' | 'answer_food_question' | 'none'
   data?: {
+    // Meal logging
     meal_type?: MealType
     calories?: number
     protein?: number
     carbs?: number
     fats?: number
+    food_items?: FoodItem[]
+    meal_description?: string
+    
+    // Workout
     exercise_name?: string
     exercise_type?: string
     duration?: number
     calories_burned?: number
+    
+    // Water
     water_amount?: number
+    
+    // Recipe
+    recipe?: Recipe
+    recipe_name?: string
+    recipe_description?: string
+    
+    // Meal Plan
+    day?: string // 'monday', 'tuesday', etc.
+    meal_plan_meal?: PlannedMeal
+    
+    // Grocery List
+    grocery_items?: string[]
+    grocery_list_name?: string
+    
+    // Food Question
+    question?: string
+    answer?: string
+    can_eat?: boolean
+    reasoning?: string
   }
+  requires_confirmation?: boolean
+  confirmation_message?: string
 }
 
 export type ReminderType = 'meal' | 'water' | 'workout' | 'goal'

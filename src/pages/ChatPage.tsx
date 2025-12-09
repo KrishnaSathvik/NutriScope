@@ -253,6 +253,80 @@ export default function ChatPage() {
     }
   }
 
+  // Handle action confirmation
+  const handleConfirmAction = async (messageId: string) => {
+    const message = messages.find(m => m.id === messageId)
+    if (!message || !message.action || !user?.id) return
+
+    // Mark message as confirmed
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, confirmed: true, requires_confirmation: false } : m
+      )
+    )
+
+    try {
+      // Execute the action
+      const actionResult = await executeAction(message.action!, user.id, today)
+
+      if (actionResult.success) {
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ['meals'] })
+        queryClient.invalidateQueries({ queryKey: ['exercises'] })
+        queryClient.invalidateQueries({ queryKey: ['waterIntake'] })
+        queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
+        queryClient.invalidateQueries({ queryKey: ['recipes'] })
+        queryClient.invalidateQueries({ queryKey: ['mealPlans'] })
+        queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
+
+        // Add confirmation message
+        const confirmationMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: actionResult.message,
+          timestamp: new Date().toISOString(),
+        }
+        setMessages((prev) => [...prev, confirmationMessage])
+      } else {
+        // Show error message
+        const errorMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: actionResult.message || 'Failed to execute action. Please try again.',
+          timestamp: new Date().toISOString(),
+        }
+        setMessages((prev) => [...prev, errorMessage])
+      }
+    } catch (error) {
+      console.error('Error executing action:', error)
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'I encountered an error while executing that action. Please try again.',
+        timestamp: new Date().toISOString(),
+      }
+      setMessages((prev) => [...prev, errorMessage])
+    }
+  }
+
+  // Handle action cancellation
+  const handleCancelAction = (messageId: string) => {
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === messageId ? { ...m, confirmed: false, requires_confirmation: false } : m
+      )
+    )
+
+    // Add cancellation message
+    const cancelMessage: ChatMessage = {
+      id: (Date.now() + 1).toString(),
+      role: 'assistant',
+      content: 'No problem! Let me know if you need anything else.',
+      timestamp: new Date().toISOString(),
+    }
+    setMessages((prev) => [...prev, cancelMessage])
+  }
+
   const handleSend = async () => {
     if ((!input.trim() && !selectedImage) || loading) return
 
@@ -310,54 +384,60 @@ export default function ChatPage() {
         } else {
           setIsStreaming(false)
           
-          // Add complete message to chat
+          // Add complete message to chat with action if present
           const assistantMessage: ChatMessage = {
             id: messageId,
             role: 'assistant',
             content: fullMessage,
             timestamp: new Date().toISOString(),
+            action: response.action,
+            requires_confirmation: response.action?.requires_confirmation || false,
           }
           
           setMessages((prev) => [...prev, assistantMessage])
           setStreamingMessage('')
+
+          // Execute action immediately if it doesn't require confirmation
+          if (response.action && response.action.type !== 'none' && !response.action.requires_confirmation && user?.id) {
+            // Execute action asynchronously
+            executeAction(response.action, user.id, today)
+              .then((actionResult) => {
+                if (actionResult.success) {
+                  // Invalidate queries to refresh data
+                  queryClient.invalidateQueries({ queryKey: ['meals'] })
+                  queryClient.invalidateQueries({ queryKey: ['exercises'] })
+                  queryClient.invalidateQueries({ queryKey: ['waterIntake'] })
+                  queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
+                  queryClient.invalidateQueries({ queryKey: ['recipes'] })
+                  queryClient.invalidateQueries({ queryKey: ['mealPlans'] })
+                  queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
+                  
+                  // Add confirmation message
+                  const confirmationMessage: ChatMessage = {
+                    id: (Date.now() + 2).toString(),
+                    role: 'assistant',
+                    content: actionResult.message,
+                    timestamp: new Date().toISOString(),
+                  }
+                  setMessages((prev) => [...prev, confirmationMessage])
+                }
+              })
+              .catch((actionError) => {
+                console.error('Error executing action:', actionError)
+                const errorMessage: ChatMessage = {
+                  id: (Date.now() + 2).toString(),
+                  role: 'assistant',
+                  content: 'I understood what you wanted to log, but encountered an error. Please try logging it manually.',
+                  timestamp: new Date().toISOString(),
+                }
+                setMessages((prev) => [...prev, errorMessage])
+              })
+          }
         }
       }
       
       // Start typing animation after a brief delay
       setTimeout(typeNextChar, 100)
-
-      // Execute action if present
-      if (response.action && response.action.type !== 'none' && user?.id) {
-        try {
-          const actionResult = await executeAction(response.action, user.id, today)
-          
-          if (actionResult.success) {
-            // Invalidate queries to refresh data
-            queryClient.invalidateQueries({ queryKey: ['meals'] })
-            queryClient.invalidateQueries({ queryKey: ['exercises'] })
-            queryClient.invalidateQueries({ queryKey: ['waterIntake'] })
-            queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
-            
-            // Add confirmation message
-            const confirmationMessage: ChatMessage = {
-              id: (Date.now() + 2).toString(),
-              role: 'assistant',
-              content: actionResult.message,
-              timestamp: new Date().toISOString(),
-            }
-            setMessages((prev) => [...prev, confirmationMessage])
-          }
-        } catch (actionError) {
-          console.error('Error executing action:', actionError)
-          const errorMessage: ChatMessage = {
-            id: (Date.now() + 2).toString(),
-            role: 'assistant',
-            content: 'I understood what you wanted to log, but encountered an error. Please try logging it manually.',
-            timestamp: new Date().toISOString(),
-          }
-          setMessages((prev) => [...prev, errorMessage])
-        }
-      }
     } catch (error) {
       console.error('Error:', error)
       const errorMessage: ChatMessage = {
@@ -551,6 +631,8 @@ export default function ChatPage() {
           loading={loading}
           isStreaming={isStreaming}
           streamingMessage={streamingMessage}
+          onConfirmAction={handleConfirmAction}
+          onCancelAction={handleCancelAction}
         />
         <ChatInput
           input={input}

@@ -130,7 +130,7 @@ export default function ProductPage() {
                   {
                     icon: Clock,
                     title: 'Smart Reminders',
-                    description: 'Get personalized reminders for meal logging and water intake. Never miss tracking your nutrition.',
+                    description: 'Get personalized reminders for meals, water, workouts, goals, weight logging, streaks, and daily summaries. Never miss tracking your nutrition.',
                     color: 'accent',
                   },
                   {
@@ -276,8 +276,8 @@ export default function ProductPage() {
                   },
                   {
                     icon: Sparkles,
-                    title: 'Personalized Responses',
-                    description: 'The AI remembers your goals, dietary preferences, and activity level to provide relevant advice and answers to your questions.',
+                    title: 'Deep Personalization',
+                    description: 'The AI uses your name, age, weight, height, activity level, dietary preferences, and daily progress to provide highly personalized advice, meal suggestions, and goal-specific recommendations.',
                     color: 'accent',
                   },
                   {

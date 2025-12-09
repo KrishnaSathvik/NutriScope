@@ -41,6 +41,7 @@ export function ChatInput({
             onClick={() => setSelectedImage(null)}
             className="absolute top-1 right-1 bg-void/50 text-text rounded-full p-1 hover:bg-void/70 transition-colors"
             title="Remove image"
+            aria-label="Remove image"
           >
             <X className="w-3 h-3" />
           </button>
@@ -60,6 +61,8 @@ export function ChatInput({
           placeholder="Ask me anything..."
           className="flex-1 input-modern bg-surface text-sm md:text-base"
           disabled={loading || isRecording || isTranscribing || uploadingImage}
+          aria-label="Chat message input"
+          aria-describedby={loading ? "chat-loading" : isRecording ? "chat-recording" : undefined}
         />
         <div className="flex gap-1.5 md:gap-2">
           {/* Image Upload Button */}
@@ -69,6 +72,7 @@ export function ChatInput({
             disabled={loading || isRecording || isTranscribing || uploadingImage}
             className="btn-secondary px-2.5 md:px-4 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
             title="Upload image"
+            aria-label="Upload image"
           >
             {uploadingImage ? (
               <Loader2 className="w-3.5 h-3.5 md:w-4 md:h-4 animate-spin text-acid" />
@@ -80,6 +84,7 @@ export function ChatInput({
           {!isRecording ? (
             <button
               type="button"
+              aria-label="Start voice recording"
               onClick={onStartRecording}
               disabled={loading || isTranscribing || uploadingImage}
               className="btn-secondary px-2.5 md:px-4 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
@@ -97,6 +102,7 @@ export function ChatInput({
               onClick={onStopRecording}
               className="btn-primary px-2.5 md:px-4 bg-error hover:bg-error/80 border-error active:scale-95"
               title="Stop recording"
+              aria-label="Stop voice recording"
             >
               <MicOff className="w-3.5 h-3.5 md:w-4 md:h-4" />
             </button>
@@ -106,6 +112,7 @@ export function ChatInput({
             type="submit"
             disabled={loading || (!input.trim() && !selectedImage) || isRecording || isTranscribing || uploadingImage}
             className="btn-primary gap-1 md:gap-2 px-3 md:px-4 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+            aria-label="Send message"
           >
             <Send className="w-3.5 h-3.5 md:w-4 md:h-4" />
             <span className="hidden sm:inline">Send</span>

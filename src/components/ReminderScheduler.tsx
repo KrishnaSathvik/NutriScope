@@ -169,6 +169,56 @@ export function ReminderScheduler() {
       )
     }
 
+    // Schedule weight logging reminders
+    if (settings.weight_reminders?.enabled && settings.weight_reminders.time) {
+      const weightReminders = settings.weight_reminders
+      const days = weightReminders.days || [1, 2, 3, 4, 5, 6, 0] // Default: daily
+
+      notificationService.scheduleWeeklyReminder(
+        'weight-reminder',
+        weightReminders.time,
+        days,
+        {
+          title: 'Log Your Weight',
+          body: 'Time to track your weight and monitor your progress.',
+          tag: 'weight-reminder',
+          data: { url: '/dashboard' },
+        }
+      )
+    }
+
+    // Schedule streak reminders
+    if (settings.streak_reminders?.enabled && settings.streak_reminders.time) {
+      const streakReminders = settings.streak_reminders
+      const days = streakReminders.check_days || [1, 2, 3, 4, 5] // Default: weekdays
+
+      notificationService.scheduleWeeklyReminder(
+        'streak-reminder',
+        streakReminders.time,
+        days,
+        {
+          title: 'Keep Your Streak Going!',
+          body: 'Don\'t forget to log your meals, workouts, or water to maintain your streak.',
+          tag: 'streak-reminder',
+          data: { url: '/dashboard' },
+        }
+      )
+    }
+
+    // Schedule daily summary reminders
+    if (settings.summary_reminders?.enabled && settings.summary_reminders.time) {
+      notificationService.scheduleDailyReminder(
+        'summary-reminder',
+        settings.summary_reminders.time,
+        {
+          title: 'Daily Summary Ready',
+          body: 'Check out your daily summary and AI insights for today.',
+          tag: 'summary-reminder',
+          data: { url: '/dashboard' },
+        }
+      )
+    }
+
     // Cleanup on unmount
     return () => {
       notificationService.cancelAllReminders()

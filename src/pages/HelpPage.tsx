@@ -80,7 +80,7 @@ export default function HelpPage() {
       questions: [
         {
           q: 'What can I ask the AI chat assistant?',
-          a: "You can ask questions about your nutrition data, get meal suggestions, ask about macros, request advice based on your goals, and more. The AI can also log meals/workouts/water automatically when you ask. Use voice input or upload images for analysis.",
+          a: "You can ask questions about your nutrition data, get meal suggestions, ask about macros, request advice based on your goals, and more. The AI uses your profile data (name, age, weight, height, activity level, dietary preferences, and daily progress) to provide highly personalized responses. The AI can also log meals/workouts/water automatically when you ask. Use voice input or upload images for analysis.",
         },
         {
           q: 'Is my data private?',
@@ -88,7 +88,11 @@ export default function HelpPage() {
         },
         {
           q: 'Can the AI help me plan meals?',
-          a: 'Yes! Ask the AI for meal suggestions based on your goals, dietary preferences, and past meals. It can provide recipes and nutrition information.',
+          a: 'Yes! Ask the AI for meal suggestions based on your goals, dietary preferences, and past meals. It can provide recipes and nutrition information. The AI considers your personalized calorie and protein targets when making suggestions.',
+        },
+        {
+          q: 'How personalized are AI responses?',
+          a: 'The AI uses comprehensive user profile data including your name, age, weight, height, activity level, dietary preferences, restrictions, and daily progress to provide highly personalized advice. It references your specific targets and adapts suggestions to your current intake and goals.',
         },
       ],
     },
@@ -105,7 +109,7 @@ export default function HelpPage() {
         },
         {
           q: "How do I track my weight?",
-          a: "Go to Profile page and use the Weight Tracking section. Log daily weight with optional body fat % and muscle mass. View trends chart with BMI calculation. You can also use Quick Weight Entry on the Dashboard.",
+          a: "Go to Profile page and use the Weight Tracking section. Log daily weight with optional body fat % and muscle mass. View trends chart with BMI calculation. You can also use Quick Weight Entry on the Dashboard. Set up weight logging reminders to maintain consistent tracking.",
         },
         {
           q: "Voice input isn't working",
@@ -114,6 +118,10 @@ export default function HelpPage() {
         {
           q: "Charts aren't showing data",
           a: "Make sure you've logged meals or workouts. Charts need at least a few days of data to display properly. Use the time range selector (7d, 30d, 3m, 1y, custom) to view different periods. Try logging data for multiple days.",
+        },
+        {
+          q: "The app seems slow",
+          a: "We've implemented code splitting and performance monitoring to optimize load times. If you experience slowness, check your internet connection. Performance metrics are tracked automatically to help us improve.",
         },
       ],
     },
@@ -164,7 +172,7 @@ export default function HelpPage() {
       questions: [
         {
           q: 'How do I change my goals?',
-          a: "Go to your Profile page, click Edit, then update your calorie, protein, and water goals. You can also set weight goals and configure reminder settings. Changes apply immediately.",
+          a: "Go to your Profile page, click Edit, then update your calorie, protein, and water goals. You can also set weight goals and configure reminder settings (meals, water, workouts, goals, weight logging, streaks, and daily summaries). Changes apply immediately.",
         },
         {
           q: 'What is streak tracking?',

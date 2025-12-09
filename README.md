@@ -15,6 +15,8 @@ NutriScope is a full-featured health and fitness tracking platform that combines
 
 ## ✨ Key Features
 
+> **🎉 Recent Updates:** Enhanced AI personalization, performance monitoring, Google Analytics, accessibility improvements, code splitting, and expanded reminder system with weight, streak, and summary reminders!
+
 ### 🍽️ **Meal Logging & Nutrition**
 - **Multiple Input Methods:**
   - Manual entry with full nutrition details (calories, protein, carbs, fats)
@@ -57,6 +59,93 @@ NutriScope is a full-featured health and fitness tracking platform that combines
   - Calorie balance breakdown
   - Macro distribution
   - Activity summary
+
+### 🔔 **Smart Reminder System**
+- **Meal Reminders:**
+  - Breakfast, lunch, dinner notifications
+  - Morning and evening snack reminders
+  - Customizable meal times
+
+- **Water Reminders:**
+  - Recurring hydration reminders
+  - Customizable intervals (default: hourly)
+  - Start/end time configuration
+
+- **Workout Reminders:**
+  - Weekly workout schedule
+  - Customizable days and times
+  - Motivational notifications
+
+- **Goal Progress Reminders:**
+  - Daily progress check-ins
+  - Encouragement when close to goals
+  - Personalized goal tracking
+
+- **Weight Logging Reminders** ⭐ NEW
+  - Daily or custom schedule
+  - Consistent weight tracking
+  - Progress monitoring
+
+- **Streak Reminders** ⭐ NEW
+  - Maintain your logging streak
+  - Prevents streak breaks
+  - Motivational notifications
+
+- **Daily Summary Reminders** ⭐ NEW
+  - End-of-day summary notifications
+  - Review daily progress
+  - AI insights and recommendations
+
+### ⚡ **Performance & Monitoring** ⭐ NEW
+- **Performance Monitoring:**
+  - Web Vitals tracking (LCP, FID, CLS, FCP, TTFB)
+  - Page load time tracking
+  - API response time monitoring
+  - Route change performance
+  - Automatic slow API detection (>2s warnings)
+  - Development console logging
+  - **Sentry Integration (Optional):** Production error tracking - requires `VITE_SENTRY_DSN` environment variable. If not configured, app continues without error tracking.
+
+- **Google Analytics Integration:**
+  - Automatic page view tracking
+  - Custom event tracking
+  - User engagement metrics
+  - Pre-built tracking functions for:
+    - Meal logging
+    - Workout logging
+    - AI chat interactions
+    - Recipe saves
+    - Weight logging
+    - Water intake
+    - User sign ups and logins
+
+- **Code Splitting:**
+  - Route-based lazy loading
+  - Reduced initial bundle size (~50% reduction)
+  - Faster page loads
+  - Suspense boundaries for smooth loading
+
+### ♿ **Accessibility** ⭐ ENHANCED
+- **ARIA Labels:**
+  - All interactive elements labeled
+  - Screen reader support
+  - Navigation landmarks
+  - Form accessibility
+
+- **Skip Navigation:**
+  - Keyboard-accessible skip link
+  - Faster navigation for keyboard users
+  - WCAG 2.1 AA compliant
+
+- **Keyboard Navigation:**
+  - Full keyboard support
+  - Visible focus indicators
+  - Logical tab order
+
+- **Semantic HTML:**
+  - Proper heading hierarchy
+  - Landmark elements (nav, main, header)
+  - Screen reader friendly
 
 ### 📈 **Advanced Analytics**
 - **Multiple Time Ranges:**
@@ -153,7 +242,7 @@ NutriScope is a full-featured health and fitness tracking platform that combines
   - Edit quantities and units
   - Multiple lists support
 
-### 💬 **AI Chat Assistant**
+### 💬 **AI Chat Assistant** ⭐ ENHANCED
 - **Natural Language Interface:**
   - Conversational meal/workout logging
   - Nutrition and fitness questions
@@ -172,6 +261,16 @@ NutriScope is a full-featured health and fitness tracking platform that combines
   - **Enhanced Context:** AI has access to daily log, profile, and goals
   - **Typing Animations:** Smooth message animations
   - **Streaming Responses:** Real-time AI response streaming
+
+- **Deep Personalization** ⭐ NEW
+  - Uses user's name, age, weight, height, and activity level
+  - Considers dietary preferences and restrictions
+  - References personalized calorie, protein, and water targets
+  - Tracks daily progress and provides context-aware advice
+  - Understands user goals (lose weight, gain muscle, maintain, improve fitness)
+  - Provides goal-specific meal and workout recommendations
+  - Offers encouragement based on progress
+  - Adapts advice to user's current daily intake
 
 ### ⚖️ **Weight Tracking**
 - **Daily Weight Logging:**
@@ -303,10 +402,13 @@ NutriScope is a full-featured health and fitness tracking platform that combines
   - Touch-friendly targets
   - Adaptive layouts
 
-- **Accessibility:**
+- **Accessibility** ⭐ ENHANCED
+  - **ARIA Labels:** All interactive elements labeled for screen readers
+  - **Skip Navigation:** Keyboard-accessible skip link to main content
+  - **Semantic HTML:** Proper heading hierarchy and landmark elements
+  - **Keyboard Navigation:** Full keyboard support with visible focus indicators
+  - **Screen Reader Support:** WCAG 2.1 AA compliant
   - Radix UI components (accessible primitives)
-  - Keyboard navigation
-  - Screen reader support
   - Focus management
 
 ## 🛠️ Tech Stack
@@ -350,6 +452,31 @@ NutriScope is a full-featured health and fitness tracking platform that combines
 ### External APIs
 - **USDA FoodData Central API** - Food database search (300,000+ foods)
   - Requires API key (free): https://fdc.nal.usda.gov/api-key-sign-up.html
+
+### Monitoring & Analytics ⭐ NEW
+- **Performance Monitoring:**
+  - Web Vitals tracking (LCP, FID, CLS, FCP, TTFB)
+  - Page load time tracking
+  - API response time monitoring
+  - Route change performance
+  - Automatic slow API detection (>2s warnings)
+  - Development console logging
+  - **Sentry Error Tracking (Optional):** Requires `VITE_SENTRY_DSN` environment variable. Code is integrated but inactive without DSN configuration.
+
+- **Google Analytics (Optional):**
+  - Automatic page view tracking
+  - Custom event tracking (meals, workouts, AI chat, recipes, etc.)
+  - User engagement metrics
+  - Pre-built tracking functions for all major user actions
+  - Requires `VITE_GA_MEASUREMENT_ID` environment variable
+
+### Performance Optimization ⭐ NEW
+- **Code Splitting:**
+  - Route-based lazy loading with React.lazy()
+  - Reduced initial bundle size (~50% reduction)
+  - Faster page loads
+  - Suspense boundaries for smooth loading
+  - Dynamic imports for page components
 
 ## 📋 Prerequisites
 
@@ -396,6 +523,10 @@ VITE_APP_ENV=development
 # Backend API Proxy (optional, for production)
 VITE_API_URL=/api/chat
 VITE_USE_BACKEND_PROXY=true
+
+# Optional: Monitoring & Analytics
+VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX  # Google Analytics (optional)
+VITE_SENTRY_DSN=your_sentry_dsn        # Error tracking (optional)
 ```
 
 **Note:** The app can run in **Guest Mode** without Supabase configured. Guest mode uses Supabase Anonymous Authentication. To enable cloud sync and user accounts, configure Supabase credentials.
@@ -906,6 +1037,17 @@ The application includes:
 - ✅ Pull-to-refresh
 - ✅ Error boundaries
 - ✅ RLS policies verification
+
+### Recent Enhancements (v1.1) ⭐ NEW
+- ✅ Enhanced AI personalization with user profile context
+- ✅ Performance monitoring (Web Vitals, API tracking)
+- ✅ Google Analytics integration
+- ✅ Code splitting and lazy loading
+- ✅ Accessibility improvements (ARIA labels, skip navigation)
+- ✅ Expanded reminder system (weight, streak, daily summary)
+- ✅ UI/UX improvements (removed redundant elements, updated icons)
+- ✅ Centralized logging utility
+- ✅ Sentry error tracking available (requires `VITE_SENTRY_DSN` configuration)
 
 ### Future Enhancements
 - [ ] Barcode scanner for meal logging

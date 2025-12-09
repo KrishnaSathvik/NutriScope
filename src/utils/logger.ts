@@ -1,85 +1,62 @@
 /**
- * Production-safe logger utility
- * 
- * In development: Logs to console
- * In production: Only logs errors (to console and Sentry)
+ * Logger Utility
+ * Centralized logging with different log levels
  */
 
-const isDev = import.meta.env.DEV
-const isProd = import.meta.env.PROD
+type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
-interface Logger {
-  log: (...args: any[]) => void
-  warn: (...args: any[]) => void
-  error: (...args: any[]) => void
-  debug: (...args: any[]) => void
-  info: (...args: any[]) => void
-}
+class Logger {
+  private isDevelopment = import.meta.env.DEV
+  private isProduction = import.meta.env.PROD
 
-export const logger: Logger = {
-  /**
-   * Log informational messages (dev only)
-   */
-  log: (...args: any[]) => {
-    if (isDev) {
-      console.log(...args)
+  private log(level: LogLevel, ...args: any[]) {
+    // In production, only log errors and warnings
+    if (this.isProduction && (level === 'debug' || level === 'info')) {
+      return
     }
-  },
 
-  /**
-   * Log warnings (dev only)
-   */
-  warn: (...args: any[]) => {
-    if (isDev) {
-      console.warn(...args)
-    }
-  },
+    const timestamp = new Date().toISOString()
+    const prefix = `[${timestamp}] [${level.toUpperCase()}]`
 
-  /**
-   * Log errors (always logged, sent to Sentry in production)
-   */
-  error: (...args: any[]) => {
-    // Always log errors
-    console.error(...args)
-    
-    // Send to Sentry in production if available
-    if (isProd && typeof window !== 'undefined' && window.Sentry) {
-      try {
-        const error = args[0] instanceof Error ? args[0] : new Error(String(args[0]))
-        window.Sentry.captureException(error, {
-          extra: args.slice(1),
-        })
-      } catch (e) {
-        // Fail silently if Sentry fails
-      }
+    switch (level) {
+      case 'debug':
+        console.debug(prefix, ...args)
+        break
+      case 'info':
+        console.info(prefix, ...args)
+        break
+      case 'warn':
+        console.warn(prefix, ...args)
+        break
+      case 'error':
+        console.error(prefix, ...args)
+        // Send to Sentry if available
+        if (typeof window !== 'undefined' && (window as any).Sentry) {
+          try {
+            ;(window as any).Sentry.captureException(new Error(args.join(' ')))
+          } catch (e) {
+            // Sentry not available
+          }
+        }
+        break
     }
-  },
+  }
 
-  /**
-   * Debug messages (dev only)
-   */
-  debug: (...args: any[]) => {
-    if (isDev) {
-      console.debug(...args)
-    }
-  },
+  debug(...args: any[]) {
+    this.log('debug', ...args)
+  }
 
-  /**
-   * Info messages (dev only)
-   */
-  info: (...args: any[]) => {
-    if (isDev) {
-      console.info(...args)
-    }
-  },
-}
+  info(...args: any[]) {
+    this.log('info', ...args)
+  }
 
-// Type declaration for Sentry
-declare global {
-  interface Window {
-    Sentry?: {
-      captureException: (error: Error, options?: any) => void
-    }
+  warn(...args: any[]) {
+    this.log('warn', ...args)
+  }
+
+  error(...args: any[]) {
+    this.log('error', ...args)
   }
 }
 
+export const logger = new Logger()

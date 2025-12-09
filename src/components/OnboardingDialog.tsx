@@ -1,7 +1,8 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { calculatePersonalizedTargets, estimateGenderFromName } from "@/services/personalizedTargets"
 import {
   Dialog,
   DialogContent,
@@ -14,9 +15,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { supabase, isUsingDummyClient } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
 import type { UserGoal, DietaryPreference, ActivityLevel } from "@/types"
 import { Progress } from "@/components/ui/progress"
-import { ArrowRight, User, TrendingDown, Dumbbell, Activity, Heart, UtensilsCrossed, Leaf, Fish, Apple, Footprints, Coffee, Briefcase, Zap, Droplet, Lightbulb } from "lucide-react"
+import { ArrowRight, User, TrendingDown, Dumbbell, Activity, Heart, UtensilsCrossed, Leaf, Fish, Apple, Footprints, Coffee, Briefcase, Zap, Droplet, Lightbulb, Sparkles } from "lucide-react"
 
 const onboardingSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -48,6 +50,7 @@ export function OnboardingDialog({
 }: OnboardingDialogProps) {
   const [step, setStep] = useState(1)
   const { toast } = useToast()
+  const { user } = useAuth()
   const {
     register,
     handleSubmit,
@@ -101,21 +104,46 @@ export function OnboardingDialog({
         return
       }
 
-      const { error } = await supabase.from("user_profiles").upsert({
+      // Use target_calories/target_protein from form, convert to calorie_target/protein_target
+      const calorieTarget = data.target_calories || 2000
+      const proteinTarget = data.target_protein || 150
+
+      // Build profile data - use only calorie_target and protein_target (these definitely exist)
+      const profileData: Record<string, any> = {
         id: userId,
-        name: data.name,
-        age: data.age,
-        weight: data.weight,
-        height: data.height,
+        name: data.name || null,
+        age: data.age || null,
+        weight: data.weight || null,
+        height: data.height || null,
         goal: data.goal,
         dietary_preference: data.dietary_preference,
         activity_level: data.activity_level,
-        target_protein: data.target_protein,
-        target_calories: data.target_calories,
+        calorie_target: calorieTarget,
+        protein_target: proteinTarget,
         water_goal: data.water_goal || 2000,
+      }
+
+      // Add email if user has one (not for anonymous/guest users)
+      if (user?.email && !user.is_anonymous) {
+        profileData.email = user.email
+      }
+
+      // Try upsert - use only columns that definitely exist
+      const { error, data: insertedData } = await supabase.from("user_profiles").upsert(profileData, {
+        onConflict: 'id'
       })
 
-      if (error) throw error
+      if (error) {
+        console.error("Onboarding upsert error:", error)
+        console.error("Error details:", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        })
+        console.error("Profile data attempted:", profileData)
+        throw new Error(error.message || `Failed to create profile: ${JSON.stringify(error)}`)
+      }
 
       toast({
         title: "Profile created!",
@@ -136,6 +164,50 @@ export function OnboardingDialog({
   const goal = watch("goal")
   const dietaryPreference = watch("dietary_preference")
   const activityLevel = watch("activity_level")
+  const name = watch("name")
+  const age = watch("age")
+  const weight = watch("weight")
+  const height = watch("height")
+
+  // Calculate personalized targets when moving to step 3
+  useEffect(() => {
+    if (step === 3 && weight && height && age && goal && activityLevel) {
+      const isMale = name ? estimateGenderFromName(name) ?? true : true // Default to male if unknown
+      
+      const targets = calculatePersonalizedTargets({
+        weight,
+        height,
+        age,
+        goal,
+        activityLevel,
+        dietaryPreference,
+        isMale,
+      })
+
+      // Pre-fill the target fields with calculated values
+      setValue("target_calories", targets.calorie_target)
+      setValue("target_protein", targets.protein_target)
+      setValue("water_goal", targets.water_goal)
+    }
+  }, [step, weight, height, age, goal, activityLevel, dietaryPreference, name, setValue])
+
+  // Calculate personalized explanation for step 3
+  const personalizedExplanation = (() => {
+    if (step === 3 && weight && height && age && goal && activityLevel) {
+      const isMale = name ? estimateGenderFromName(name) ?? true : true
+      const targets = calculatePersonalizedTargets({
+        weight,
+        height,
+        age,
+        goal,
+        activityLevel,
+        dietaryPreference,
+        isMale,
+      })
+      return targets.explanation
+    }
+    return ""
+  })()
 
   const goalIcons = {
     lose_weight: TrendingDown,
@@ -417,7 +489,34 @@ export function OnboardingDialog({
                   </Button>
                   <Button 
                     type="button" 
-                    onClick={() => setStep(3)} 
+                    onClick={() => {
+                      // Calculate personalized targets before moving to step 3
+                      const currentWeight = watch("weight")
+                      const currentHeight = watch("height")
+                      const currentAge = watch("age")
+                      const currentGoal = watch("goal")
+                      const currentActivityLevel = watch("activity_level")
+                      const currentName = watch("name")
+                      
+                      if (currentWeight && currentHeight && currentAge && currentGoal && currentActivityLevel) {
+                        const isMale = currentName ? estimateGenderFromName(currentName) ?? true : true
+                        const targets = calculatePersonalizedTargets({
+                          weight: currentWeight,
+                          height: currentHeight,
+                          age: currentAge,
+                          goal: currentGoal,
+                          activityLevel: currentActivityLevel,
+                          dietaryPreference: watch("dietary_preference"),
+                          isMale,
+                        })
+                        
+                        // Pre-fill targets
+                        setValue("target_calories", targets.calorie_target)
+                        setValue("target_protein", targets.protein_target)
+                        setValue("water_goal", targets.water_goal)
+                      }
+                      setStep(3)
+                    }} 
                     className="group flex-1 inline-flex items-center gap-3"
                   >
                     <span>Continue</span>
@@ -428,10 +527,28 @@ export function OnboardingDialog({
             )}
 
             {step === 3 && (
-              <div className="space-y-6">
+              <div className="space-y-4 md:space-y-6">
+                {/* Personalized Explanation */}
+                {personalizedExplanation && (
+                  <div className="bg-acid/10 border border-acid/30 rounded-sm p-3 md:p-4 animate-slide-up">
+                    <div className="flex items-start gap-2 md:gap-3">
+                      <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-acid flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-xs md:text-sm font-bold text-acid font-mono mb-2">✨ Personalized for You</p>
+                        <p className="text-xs md:text-sm font-mono text-text whitespace-pre-line leading-relaxed">
+                          {personalizedExplanation}
+                        </p>
+                        <p className="text-[10px] md:text-xs text-dim font-mono mt-2">
+                          💡 You can adjust these values if needed
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 <div>
                   <Label htmlFor="target_protein" className="text-sm font-medium text-text font-mono mb-2 block">
-                    Target Protein (g/day, optional)
+                    Target Protein (g/day)
                   </Label>
                   <Input
                     id="target_protein"
@@ -439,15 +556,11 @@ export function OnboardingDialog({
                     {...register("target_protein", { valueAsNumber: true })}
                     placeholder="e.g., 150"
                   />
-                  <p className="text-sm text-dim mt-2 font-mono flex items-center gap-2">
-                    <Lightbulb className="w-4 h-4 text-acid" />
-                    <span>A common goal is 1.6-2.2g per kg of body weight</span>
-                  </p>
                 </div>
 
                 <div>
                   <Label htmlFor="target_calories" className="text-sm font-medium text-text font-mono mb-2 block">
-                    Target Calories (kcal/day, optional)
+                    Target Calories (kcal/day)
                   </Label>
                   <Input
                     id="target_calories"
@@ -455,15 +568,11 @@ export function OnboardingDialog({
                     {...register("target_calories", { valueAsNumber: true })}
                     placeholder="e.g., 2000"
                   />
-                  <p className="text-sm text-dim mt-2 font-mono flex items-center gap-2">
-                    <Zap className="w-4 h-4 text-acid" />
-                    <span>We'll calculate this based on your goals if you skip</span>
-                  </p>
                 </div>
 
                 <div>
                   <Label htmlFor="water_goal" className="text-sm font-medium text-text font-mono mb-2 block">
-                    Daily Water Goal (ml, optional)
+                    Daily Water Goal (ml)
                   </Label>
                   <Input
                     id="water_goal"
@@ -471,10 +580,6 @@ export function OnboardingDialog({
                     {...register("water_goal", { valueAsNumber: true })}
                     placeholder="e.g., 2000"
                   />
-                  <p className="text-sm text-dim mt-2 font-mono flex items-center gap-2">
-                    <Droplet className="w-4 h-4 text-acid" />
-                    <span>Default: 2000ml (8 cups). Adjust based on your activity level</span>
-                  </p>
                 </div>
 
                 <div className="flex gap-3 pt-4">
