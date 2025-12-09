@@ -6,7 +6,7 @@ import { UserProfile } from '@/types'
 import { ReminderSettingsSection } from '@/components/ReminderSettings'
 import { getLatestWeight } from '@/services/weightTracking'
 import AchievementWidget from '@/components/AchievementWidget'
-import { Edit, X, User, Target, Activity, UtensilsCrossed, Flame, Droplet, Mail, CheckCircle2, Scale, ArrowRight, Shield, UserCircle, Calendar, Weight } from 'lucide-react'
+import { Edit, X, User, Target, Activity, UtensilsCrossed, Flame, Droplet, Mail, CheckCircle2, Scale, ArrowRight, Shield, UserCircle, Calendar, Weight, Beef } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
@@ -407,12 +407,12 @@ export default function ProfilePage() {
                   <div className="font-bold text-orange-500 dark:text-acid font-mono text-xl md:text-2xl">{profile?.calorie_target || 2000}</div>
                   <div className="text-[10px] md:text-xs text-dim font-mono mt-1">calories per day</div>
                 </div>
-                <div className="p-3 md:p-4 border border-success/30 rounded-sm bg-success/5">
+                <div className="p-3 md:p-4 border border-emerald-500/30 dark:border-acid/30 rounded-sm bg-emerald-500/5 dark:bg-acid/5">
                   <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
-                    <Target className="w-3.5 h-3.5 md:w-4 md:h-4 text-success flex-shrink-0" />
+                    <Beef className="w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-500 fill-emerald-500 dark:text-emerald-500 dark:fill-emerald-500 flex-shrink-0" />
                     <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Protein Target</span>
                   </div>
-                  <div className="font-bold text-success font-mono text-xl md:text-2xl">{profile?.protein_target || 150}g</div>
+                  <div className="font-bold text-emerald-500 dark:text-text font-mono text-xl md:text-2xl">{profile?.protein_target || 150}g</div>
                   <div className="text-[10px] md:text-xs text-dim font-mono mt-1">grams per day</div>
                 </div>
                 <div className="p-3 md:p-4 border border-blue-500/30 dark:border-acid/30 rounded-sm bg-blue-500/5 dark:bg-acid/5">

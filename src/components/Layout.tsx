@@ -215,7 +215,7 @@ export default function Layout() {
       </nav>
 
       {/* Main Content - Full Width */}
-      <main id="main-content" className="w-full pb-20 md:pb-6" role="main">
+      <main id="main-content" className="w-full pb-20 md:pb-6 overflow-y-auto md:overflow-y-visible" role="main">
         <Outlet />
       </main>
     </div>

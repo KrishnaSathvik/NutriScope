@@ -7,6 +7,7 @@ import { ExerciseSelector } from '@/components/ExerciseSelector'
 import { ExerciseLibraryItem } from '@/services/exerciseLibrary'
 import PullToRefresh from '@/components/PullToRefresh'
 import { Plus, Trash2, X, Activity, Flame, Clock, Dumbbell, Heart, Zap, Target, TrendingUp, Search, Edit, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Exercise } from '@/types'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
@@ -201,7 +202,7 @@ export default function WorkoutsPage() {
   const workoutTypeConfig = {
     cardio: {
       icon: Heart,
-      color: 'bg-red-500/20 text-red-400 border-red-500/30',
+      color: 'bg-red-500/20 text-red-600 dark:text-red-500 border-red-500/30',
       bgGradient: 'from-red-500/10 to-orange-500/10',
     },
     strength: {
@@ -335,12 +336,12 @@ export default function WorkoutsPage() {
               {selectedDate === today ? 'burned today' : 'burned'}
             </div>
           </div>
-          <div className="card-modern border-success/30 p-3 md:p-4">
+          <div className="card-modern border-success/30 dark:border-acid/30 p-3 md:p-4">
             <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2">
-              <Clock className="w-3.5 h-3.5 md:w-4 md:h-4 text-success flex-shrink-0" />
+              <Clock className="w-3.5 h-3.5 md:w-4 md:h-4 text-success fill-success dark:text-success dark:fill-success flex-shrink-0" />
               <span className="text-[10px] md:text-xs text-dim font-mono uppercase truncate">Duration</span>
             </div>
-            <div className="text-xl md:text-2xl font-bold text-success font-mono">{totalDuration}</div>
+            <div className="text-xl md:text-2xl font-bold text-success dark:text-success font-mono">{totalDuration}</div>
             <div className="text-[10px] md:text-xs text-dim font-mono mt-1">minutes</div>
           </div>
           <div className="card-modern border-purple-500/30 dark:border-acid/30 p-3 md:p-4">
@@ -356,30 +357,45 @@ export default function WorkoutsPage() {
         </div>
       )}
 
-      {(showAddForm || editingExerciseId) && (
-        <div className="card-modern border-acid/30 p-4 md:p-6">
-          <div className="flex items-center justify-between mb-4 md:mb-6">
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30 flex-shrink-0">
-                <Activity className="w-4 h-4 md:w-5 md:h-5 text-acid" />
+      {/* Log/Edit Workout Dialog */}
+      <Dialog open={showAddForm || !!editingExerciseId} onOpenChange={(open) => {
+        if (!open) {
+          handleCancel()
+        }
+      }}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto" hideClose={true}>
+          <DialogHeader>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <Activity className="w-5 h-5 text-acid" />
+                  <DialogTitle className="text-2xl md:text-3xl font-bold text-text font-mono uppercase">
+                    {editingExerciseId ? 'Edit Workout' : 'Log Workout'}
+                  </DialogTitle>
+                </div>
+                <DialogDescription className="text-sm text-dim font-mono mt-2">
+                  {editingExerciseId 
+                    ? 'Update your workout information below.'
+                    : 'Enter workout details manually or browse the exercise library for accurate calorie calculations.'
+                  }
+                </DialogDescription>
               </div>
-              <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
-                {editingExerciseId ? 'Edit Workout' : 'Log Workout'}
-              </h2>
+              <button
+                onClick={handleCancel}
+                className="text-dim hover:text-text transition-colors p-1 -mt-1 -mr-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button
-              onClick={handleCancel}
-              className="text-dim hover:text-text transition-colors p-1 -mr-1"
+          </DialogHeader>
+
+          <div className="space-y-6">
+            <form 
+              key={editingExerciseId || 'new'} 
+              ref={formRef} 
+              onSubmit={handleSubmit} 
+              className="space-y-4 md:space-y-6"
             >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <form 
-            key={editingExerciseId || 'new'} 
-            ref={formRef} 
-            onSubmit={handleSubmit} 
-            className="space-y-4 md:space-y-6"
-          >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
               <div>
                 <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2 flex items-center gap-1.5 md:gap-2">
@@ -500,8 +516,9 @@ export default function WorkoutsPage() {
               </button>
             </div>
           </form>
-        </div>
-      )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Exercise Selector Dialog */}
       <ExerciseSelector
@@ -539,14 +556,18 @@ export default function WorkoutsPage() {
                     {/* Header */}
                     <div className="flex items-center gap-2 md:gap-4 mb-3 md:mb-4">
                       <div className={`w-10 h-10 md:w-14 md:h-14 rounded-sm ${config.color} flex items-center justify-center border flex-shrink-0`}>
-                        <IconComponent className="w-5 h-5 md:w-7 md:h-7" />
+                        {workoutType === 'cardio' ? (
+                          <Heart className="w-5 h-5 md:w-7 md:h-7 text-red-500 fill-red-500 dark:text-red-500 dark:fill-red-500" />
+                        ) : (
+                          <IconComponent className="w-5 h-5 md:w-7 md:h-7" />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-1">
                           <h3 className="text-base md:text-lg font-bold text-text font-mono uppercase tracking-wider truncate">
                             {exercise.exercises[0]?.name || 'Workout'}
                           </h3>
-                          <span className={`px-2 py-0.5 md:py-1 ${config.color} text-[10px] md:text-xs font-mono uppercase rounded-sm border self-start`}>
+                          <span className={`px-2 py-0.5 md:py-1 ${config.color} text-[10px] md:text-xs font-bold font-mono uppercase rounded-sm border self-start`}>
                             {workoutType}
                           </span>
                         </div>
@@ -572,23 +593,23 @@ export default function WorkoutsPage() {
                       </div>
                       {exercise.duration && (
                         <div className="flex items-center gap-1.5 md:gap-2">
-                          <div className="w-7 h-7 md:w-8 md:h-8 rounded-sm bg-blue-500/20 dark:bg-success/20 flex items-center justify-center flex-shrink-0">
-                            <Clock className="w-3.5 h-3.5 md:w-4 md:h-4 text-blue-500 dark:text-success" />
+                          <div className="w-7 h-7 md:w-8 md:h-8 rounded-sm bg-success/20 dark:bg-success/20 flex items-center justify-center flex-shrink-0">
+                            <Clock className="w-3.5 h-3.5 md:w-4 md:h-4 text-success fill-success dark:text-success dark:fill-success" />
                           </div>
                           <div className="min-w-0">
                             <div className="text-[10px] md:text-xs text-dim font-mono uppercase">Duration</div>
-                            <div className="text-sm md:text-lg font-bold text-blue-500 dark:text-success font-mono">{exercise.duration} min</div>
+                            <div className="text-sm md:text-lg font-bold text-success dark:text-success font-mono">{exercise.duration} min</div>
                           </div>
                         </div>
                       )}
                       {exercise.duration && exercise.calories_burned && (
                         <div className="flex items-center gap-1.5 md:gap-2 col-span-2 md:col-span-1">
-                          <div className="w-7 h-7 md:w-8 md:h-8 rounded-sm bg-purple-500/20 dark:bg-acid/20 flex items-center justify-center flex-shrink-0">
-                            <TrendingUp className="w-3.5 h-3.5 md:w-4 md:h-4 text-purple-500 dark:text-acid" />
+                          <div className="w-7 h-7 md:w-8 md:h-8 rounded-sm bg-purple-500/20 dark:bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                            <TrendingUp className="w-3.5 h-3.5 md:w-4 md:h-4 text-purple-500 fill-purple-500 dark:text-purple-500 dark:fill-purple-500" />
                           </div>
                           <div className="min-w-0">
                             <div className="text-[10px] md:text-xs text-dim font-mono uppercase">Rate</div>
-                            <div className="text-sm md:text-lg font-bold text-purple-500 dark:text-text font-mono">
+                            <div className="text-sm md:text-lg font-bold text-purple-500 dark:text-purple-500 font-mono">
                               {Math.round(exercise.calories_burned / exercise.duration)} cal/min
                             </div>
                           </div>

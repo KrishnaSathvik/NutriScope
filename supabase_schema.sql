@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS meals (
   date DATE NOT NULL,
   time TIME,
   meal_type TEXT CHECK (meal_type IN ('pre_breakfast', 'breakfast', 'morning_snack', 'lunch', 'evening_snack', 'dinner', 'post_dinner')),
+  name TEXT, -- Optional meal name/description
   calories INTEGER NOT NULL DEFAULT 0,
   protein INTEGER NOT NULL DEFAULT 0,
   carbs INTEGER,

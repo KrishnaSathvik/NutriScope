@@ -101,7 +101,11 @@ export default function LandingPage() {
               {/* Left: Copy */}
               <section className="order-1 lg:order-1 relative">
                 <div className="inline-flex items-center gap-2 text-xs text-dim font-mono bg-surface/50 border border-border rounded-full px-3 py-1.5 backdrop-blur-md mb-6">
-                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-acid"></span>
+                  <div className="flex items-center gap-1">
+                    <span className="inline-flex h-1.5 w-1.5 rounded-full bg-orange-500"></span>
+                    <span className="inline-flex h-1.5 w-1.5 rounded-full bg-purple-500"></span>
+                    <span className="inline-flex h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                  </div>
                   Real‑time Health Platform
                 </div>
 
@@ -187,7 +191,7 @@ export default function LandingPage() {
                     <div className="card-modern p-3 sm:p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 bg-orange-500/20 border border-orange-500/30 rounded-sm flex items-center justify-center">
-                          <Flame className="w-6 h-6 sm:w-8 sm:h-8 text-orange-500 fill-orange-500" />
+                          <Flame className="w-6 h-6 sm:w-8 sm:h-8 text-orange-500 stroke-orange-500 stroke-2" />
                         </div>
                         <span className="text-xs text-success font-mono font-bold">+12%</span>
                       </div>
@@ -196,33 +200,33 @@ export default function LandingPage() {
                     </div>
                     <div className="card-modern p-3 sm:p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-success/20 border border-success/30 rounded-sm flex items-center justify-center">
-                          <Beef className="w-6 h-6 sm:w-8 sm:h-8 text-success fill-success/80 stroke-success stroke-1" />
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-emerald-500/20 border border-emerald-500/30 rounded-sm flex items-center justify-center">
+                          <Beef className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-600 dark:text-success stroke-emerald-600 dark:stroke-success stroke-2" />
                         </div>
                         <span className="text-xs text-success font-mono font-bold">+8%</span>
                       </div>
                       <p className="text-[10px] sm:text-xs text-dim font-mono uppercase mb-1">Protein</p>
-                      <p className="text-lg sm:text-xl font-bold text-success font-mono tracking-tight">145g</p>
+                      <p className="text-lg sm:text-xl font-bold text-emerald-600 dark:text-success font-mono tracking-tight">145g</p>
                     </div>
                     <div className="card-modern p-3 sm:p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-acid/20 border border-acid/30 rounded-sm flex items-center justify-center">
-                          <UtensilsCrossed className="w-6 h-6 sm:w-8 sm:h-8 text-acid" />
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-amber-500/20 border border-amber-500/30 rounded-sm flex items-center justify-center">
+                          <UtensilsCrossed className="w-6 h-6 sm:w-8 sm:h-8 text-amber-600 dark:text-acid stroke-amber-600 dark:stroke-acid stroke-2" />
                         </div>
                         <span className="text-xs text-dim font-mono font-bold">+24</span>
                       </div>
                       <p className="text-[10px] sm:text-xs text-dim font-mono uppercase mb-1">Meals Logged</p>
-                      <p className="text-lg sm:text-xl font-bold text-text font-mono tracking-tight">47</p>
+                      <p className="text-lg sm:text-xl font-bold text-amber-600 dark:text-text font-mono tracking-tight">47</p>
                     </div>
                     <div className="card-modern p-3 sm:p-4">
                       <div className="flex items-center justify-between mb-2">
-                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-success/20 border border-success/30 rounded-sm flex items-center justify-center">
-                          <Target className="w-6 h-6 sm:w-8 sm:h-8 text-success" />
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-indigo-500/20 border border-indigo-500/30 rounded-sm flex items-center justify-center">
+                          <Target className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-600 dark:text-success stroke-indigo-600 dark:stroke-success stroke-2" />
                         </div>
                         <span className="text-xs text-success font-mono font-bold">+18%</span>
                       </div>
                       <p className="text-[10px] sm:text-xs text-dim font-mono uppercase mb-1">Goal Progress</p>
-                      <p className="text-lg sm:text-xl font-bold text-text font-mono tracking-tight">87%</p>
+                      <p className="text-lg sm:text-xl font-bold text-indigo-600 dark:text-text font-mono tracking-tight">87%</p>
                     </div>
                   </div>
 

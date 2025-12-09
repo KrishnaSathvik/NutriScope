@@ -8,16 +8,24 @@ export async function createMeal(meal: Omit<Meal, 'id' | 'user_id' | 'created_at
   if (!user) throw new Error('Not authenticated')
 
   // Ensure required fields are present and properly formatted
-  // Round to integers as database expects INTEGER type
+  // Convert to integers as database expects INTEGER type, preserving exact values
+  // Use Math.floor to ensure we don't round up (preserve user-entered values)
+  const caloriesValue = Number(meal.calories) || 0
+  const proteinValue = Number(meal.protein) || 0
+  
   const mealData = {
     user_id: user.id,
     date: meal.date,
-    calories: Math.round(meal.calories || 0),
-    protein: Math.round(meal.protein || 0),
+    calories: Number.isInteger(caloriesValue) ? caloriesValue : Math.floor(caloriesValue),
+    protein: Number.isInteger(proteinValue) ? proteinValue : Math.floor(proteinValue),
     meal_type: meal.meal_type || null,
     name: meal.name || null,
-    carbs: meal.carbs ? Math.round(meal.carbs) : null,
-    fats: meal.fats ? Math.round(meal.fats) : null,
+    carbs: meal.carbs !== undefined && meal.carbs !== null 
+      ? (Number.isInteger(Number(meal.carbs)) ? Number(meal.carbs) : Math.floor(Number(meal.carbs)))
+      : null,
+    fats: meal.fats !== undefined && meal.fats !== null 
+      ? (Number.isInteger(Number(meal.fats)) ? Number(meal.fats) : Math.floor(Number(meal.fats)))
+      : null,
     food_items: meal.food_items || [],
     time: meal.time || null,
     notes: meal.notes || null,
@@ -64,10 +72,29 @@ export async function updateMeal(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
+  // Preserve exact calorie values - only convert to integer if needed
+  const updateData: any = { ...updates }
+  if (updateData.calories !== undefined) {
+    const caloriesValue = Number(updateData.calories) || 0
+    updateData.calories = Number.isInteger(caloriesValue) ? caloriesValue : Math.floor(caloriesValue)
+  }
+  if (updateData.protein !== undefined) {
+    const proteinValue = Number(updateData.protein) || 0
+    updateData.protein = Number.isInteger(proteinValue) ? proteinValue : Math.floor(proteinValue)
+  }
+  if (updateData.carbs !== undefined && updateData.carbs !== null) {
+    const carbsValue = Number(updateData.carbs)
+    updateData.carbs = Number.isInteger(carbsValue) ? carbsValue : Math.floor(carbsValue)
+  }
+  if (updateData.fats !== undefined && updateData.fats !== null) {
+    const fatsValue = Number(updateData.fats)
+    updateData.fats = Number.isInteger(fatsValue) ? fatsValue : Math.floor(fatsValue)
+  }
+
   const { data, error } = await supabase
     .from('meals')
     .update({
-      ...updates,
+      ...updateData,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)

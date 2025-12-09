@@ -44,6 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Check for existing session
+    if (!supabase) {
+      setLoading(false)
+      return
+    }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
@@ -61,6 +65,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     // Listen for auth changes
+    if (!supabase) {
+      setLoading(false)
+      return
+    }
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -129,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
-    if (!isSupabaseConfigured()) {
+    if (!isSupabaseConfigured() || !supabase) {
       throw new Error('Supabase is not configured. Please set up your environment variables.')
     }
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -143,7 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signUp = async (email: string, password: string) => {
-    if (!isSupabaseConfigured()) {
+    if (!isSupabaseConfigured() || !supabase) {
       throw new Error('Supabase is not configured. Please set up your environment variables.')
     }
 
@@ -154,9 +162,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedGuestUserId = typeof window !== 'undefined' ? localStorage.getItem('nutriscope_guest_user_id') : null
     const guestUserId = isCurrentGuest ? currentUser.id : (storedGuestUserId || null)
 
+    // Get the current origin for redirect URL
+    const redirectTo = typeof window !== 'undefined' 
+      ? `${window.location.origin}/auth?verified=true`
+      : undefined
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: redirectTo,
+      },
     })
     if (error) throw error
 
@@ -221,7 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signInAnonymously = async () => {
-    if (!isSupabaseConfigured()) {
+    if (!isSupabaseConfigured() || !supabase) {
       throw new Error('Supabase is not configured. Please set up your environment variables.')
     }
 
@@ -263,7 +279,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     // Keep guest user ID in localStorage even after sign out for detection
     // Only clear it if user explicitly wants to start fresh
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && supabase) {
       await supabase.auth.signOut()
     }
     setUser(null)

@@ -21,7 +21,7 @@ export async function chatWithAI(
       const apiUrl = import.meta.env.VITE_API_URL || '/api/chat'
       
       // Track API call performance
-      return trackAPICall(apiUrl, async () => {
+      const result = await trackAPICall(apiUrl, async () => {
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
@@ -59,28 +59,61 @@ export async function chatWithAI(
         })
 
         if (!response.ok) {
-          if (response.status === 429) {
-            const error = await response.json()
-            throw new Error(error.message || 'Rate limit exceeded. Please try again later.')
+          // Handle 404 (API endpoint doesn't exist in dev) - fall back to direct OpenAI
+          if (response.status === 404) {
+            throw new Error('API_ENDPOINT_NOT_FOUND')
           }
-          const error = await response.json()
-          throw new Error(error.error || 'Failed to get AI response')
+          if (response.status === 429) {
+            try {
+              const error = await response.json()
+              throw new Error(error.message || 'Rate limit exceeded. Please try again later.')
+            } catch (e) {
+              throw new Error('Rate limit exceeded. Please try again later.')
+            }
+          }
+          // Try to parse error, but don't fail if it's not JSON
+          try {
+            const error = await response.json()
+            throw new Error(error.error || error.message || 'Failed to get AI response')
+          } catch (e) {
+            throw new Error(`Failed to get AI response (${response.status})`)
+          }
         }
 
-        const data = await response.json()
+        let data
+        try {
+          data = await response.json()
+        } catch (e) {
+          // If response is not JSON, it's likely an error page or empty response
+          throw new Error('Invalid response from server')
+        }
         return {
           message: data.message,
           action: data.action,
         }
       })
-    } catch (error) {
+      return result
+    } catch (error: any) {
       // In production, always use backend proxy - no fallback
       if (import.meta.env.PROD) {
         logger.error('Backend proxy failed in production:', error)
         throw new Error('AI service unavailable. Please try again later.')
       }
       // Fall back to direct OpenAI only in development
-      logger.warn('Backend proxy failed, falling back to direct OpenAI:', error)
+      // Check if it's a 404 (endpoint doesn't exist) or network error
+      const errorMessage = error?.message || String(error || '')
+      const is404 = errorMessage === 'API_ENDPOINT_NOT_FOUND' || 
+                    errorMessage.includes('404') ||
+                    errorMessage.includes('Not Found') ||
+                    errorMessage.includes('ERR_ABORTED') ||
+                    errorMessage.includes('Failed to fetch')
+      
+      if (is404) {
+        logger.debug('API endpoint not found in development, using direct OpenAI')
+      } else {
+        logger.warn('Backend proxy failed, falling back to direct OpenAI:', error)
+      }
+      // Always fall back to direct OpenAI in development
       return chatWithAIDirect(messages, profile, dailyLog, imageUrl)
     }
   }
@@ -162,7 +195,8 @@ You can help users with:
 
 3. **Recipe Generation:**
    - Generate recipes from descriptions or images
-   - Include ingredients, instructions, prep/cook time, servings, nutrition
+   - Include name, instructions (as text/paragraphs), prep/cook time, servings, and nutrition (calories, protein, carbs, fats)
+   - Do NOT include ingredients - recipes are simplified to just name, instructions, and nutrition info
    - Ask if user wants to save recipe
    - Use action type: "generate_recipe" then "save_recipe" if confirmed
 
@@ -209,7 +243,9 @@ Always respond with JSON:
 **For Recipe Generation:**
 - If user says "I have this recipe" or provides recipe details, automatically save it (requires_confirmation: false)
 - If user asks to generate a recipe, generate it and ask for confirmation (requires_confirmation: true)
-- Generate complete recipe with ingredients, instructions, prep/cook time, servings, nutrition
+- Generate complete recipe with name, instructions (as text - can be paragraphs or numbered steps), prep/cook time, servings, and nutrition (calories, protein, carbs, fats per serving)
+- Do NOT include ingredients - recipes are simplified and only need name, instructions, and nutrition info
+- Instructions should be a single text string (not an array) - users can type paragraphs or numbered steps
 - Include all recipe details in action.data.recipe
 
 **For Meal Planning:**
@@ -451,6 +487,7 @@ export async function executeAction(
         await createMeal({
           date,
           meal_type: action.data.meal_type || 'lunch',
+          name: action.data.meal_description || undefined,
           calories: action.data.calories || 0,
           protein: action.data.protein || 0,
           carbs: action.data.carbs,
@@ -509,21 +546,31 @@ export async function executeAction(
           // Try to create recipe from action data if recipe object not provided
           if (action.data?.recipe_name) {
             const { createRecipe } = await import('./recipes')
-            const { calculateRecipeNutrition } = await import('./recipes')
             
             // Build recipe from action data
+            let instructions = ''
+            const recipeInstructions = action.data.recipe?.instructions
+            if (recipeInstructions) {
+              if (typeof recipeInstructions === 'string') {
+                instructions = recipeInstructions
+              } else if (Array.isArray(recipeInstructions)) {
+                instructions = (recipeInstructions as string[]).join('\n')
+              }
+            }
+            
             const recipeData = {
               name: action.data.recipe_name,
               description: action.data.recipe_description || '',
               servings: action.data.recipe?.servings || 4,
               prep_time: action.data.recipe?.prep_time,
               cook_time: action.data.recipe?.cook_time,
-              ingredients: action.data.recipe?.ingredients || [],
-              instructions: action.data.recipe?.instructions || [],
-              nutrition_per_serving: action.data.recipe?.nutrition_per_serving || calculateRecipeNutrition(
-                action.data.recipe?.ingredients || [],
-                action.data.recipe?.servings || 4
-              ),
+              instructions,
+              nutrition_per_serving: action.data.recipe?.nutrition_per_serving || {
+                calories: 0,
+                protein: 0,
+                carbs: 0,
+                fats: 0,
+              },
               tags: action.data.recipe?.tags || [],
               is_favorite: false,
             }
@@ -533,6 +580,28 @@ export async function executeAction(
           return { success: false, message: 'Missing recipe data' }
         }
         const { createRecipe } = await import('./recipes')
+        const { logger } = await import('@/utils/logger')
+        
+        // Log recipe data for debugging
+        logger.debug('Saving recipe from AI:', {
+          name: action.data.recipe?.name,
+          ingredientsCount: action.data.recipe?.ingredients?.length,
+          ingredients: action.data.recipe?.ingredients,
+          servings: action.data.recipe?.servings,
+          fullRecipe: action.data.recipe,
+        })
+        
+        // Validate recipe exists and has required fields
+        if (!action.data.recipe) {
+          logger.error('Recipe data is missing in save_recipe action')
+          return { success: false, message: 'Recipe data is missing. Please try generating the recipe again.' }
+        }
+        
+        if (!action.data.recipe.name || !action.data.recipe.name.trim()) {
+          logger.error('Recipe name is missing:', action.data.recipe)
+          return { success: false, message: 'Recipe name is missing. Please try generating the recipe again.' }
+        }
+        
         const recipe = await createRecipe(action.data.recipe)
         return { success: true, message: `Recipe "${recipe.name}" saved successfully!`, data: recipe }
 
@@ -556,36 +625,70 @@ export async function executeAction(
         return { success: true, message: `Meal added to ${dayKey}'s meal plan!` }
 
       case 'add_to_grocery_list':
-        if (!action.data?.grocery_items || action.data.grocery_items.length === 0) {
-          return { success: false, message: 'Missing grocery items' }
+        // Handle both array and string formats for grocery_items
+        let groceryItems: string[] = []
+        const actionData = action.data as { grocery_items?: string[] | string; grocery_list_name?: string; items?: string[] | any[] } | undefined
+        
+        if (actionData?.grocery_items) {
+          if (Array.isArray(actionData.grocery_items)) {
+            groceryItems = actionData.grocery_items
+          } else if (typeof actionData.grocery_items === 'string') {
+            // If it's a string, try to parse it as comma-separated or JSON
+            try {
+              const parsed = JSON.parse(actionData.grocery_items)
+              groceryItems = Array.isArray(parsed) ? parsed : [actionData.grocery_items]
+            } catch {
+              // If not JSON, treat as comma-separated string
+              groceryItems = actionData.grocery_items.split(',').map((item: string) => item.trim()).filter(Boolean)
+            }
+          }
         }
-        const { createGroceryList, updateGroceryList, getGroceryLists } = await import('./groceryLists')
+        
+        // Also check for alternative field names
+        if (groceryItems.length === 0 && actionData?.items) {
+          if (Array.isArray(actionData.items)) {
+            groceryItems = actionData.items.map((item: string | { name?: string }) => 
+              typeof item === 'string' ? item : (item.name || String(item))
+            ).filter(Boolean) as string[]
+          }
+        }
+        
+        if (groceryItems.length === 0) {
+          return { success: false, message: 'Missing grocery items. Please specify which items to add.' }
+        }
+        
+        const { getOrCreateDefaultList, updateGroceryList, categorizeGroceryItem } = await import('./groceryLists')
         // Get or create default grocery list
-        const lists = await getGroceryLists()
-        let list = lists.find(l => l.name === (action.data?.grocery_list_name || 'Shopping List'))
+        const list = await getOrCreateDefaultList()
         
-        const newItems = action.data.grocery_items.map(name => ({
-          name,
-          quantity: 1,
-          unit: 'item',
-          category: 'other',
-          checked: false,
-        }))
+        // Parse quantities from item names (e.g., "2 eggs" -> quantity: 2, name: "eggs")
+        const newItems = groceryItems.map(item => {
+          const itemStr = typeof item === 'string' ? item.trim() : String(item).trim()
+          // Try to extract quantity from the beginning (e.g., "2 eggs", "3x milk", "1 bread")
+          const quantityMatch = itemStr.match(/^(\d+)\s*x?\s*(.+)$/i) || itemStr.match(/^(\d+)\s+(.+)$/i)
+          const itemName = quantityMatch ? quantityMatch[2].trim() : itemStr
+          const quantity = quantityMatch ? (parseInt(quantityMatch[1], 10) || 1) : 1
+          
+          return {
+            name: itemName,
+            quantity: quantity,
+            unit: 'item',
+            category: categorizeGroceryItem(itemName), // Auto-categorize
+            checked: false,
+          }
+        }).filter(item => item.name.length > 0)
         
-        if (!list) {
-          list = await createGroceryList({
-            name: action.data.grocery_list_name || 'Shopping List',
-            items: newItems,
-          })
-        } else {
-          // Add items to existing list
-          list = await updateGroceryList(list.id, {
-            ...list,
-            items: [...list.items, ...newItems],
-          })
+        if (newItems.length === 0) {
+          return { success: false, message: 'No valid grocery items found. Please specify items to add.' }
         }
         
-        return { success: true, message: `Added ${newItems.length} item(s) to "${list.name}"!` }
+        // Add items to default list
+        const updatedList = await updateGroceryList(list.id, {
+          ...list,
+          items: [...list.items, ...newItems],
+        })
+        
+        return { success: true, message: `Added ${newItems.length} item(s) to "${updatedList.name}"!` }
 
       case 'answer_food_question':
         // Just return the answer - no action needed

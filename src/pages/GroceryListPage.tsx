@@ -1,24 +1,59 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
-import { getGroceryLists, createGroceryList, updateGroceryList, deleteGroceryList, toggleGroceryItem, generateGroceryListFromMealPlan } from '@/services/groceryLists'
+import { getGroceryLists, getOrCreateDefaultList, updateGroceryList, toggleGroceryItem, generateGroceryListFromMealPlan, categorizeGroceryItem } from '@/services/groceryLists'
+import { searchGroceryItems, incrementSearchCount, addGroceryItem } from '@/services/groceryItemsDatabase'
 import { getCurrentWeekMealPlan } from '@/services/mealPlanning'
 import { GroceryList, GroceryItem } from '@/types'
 import PullToRefresh from '@/components/PullToRefresh'
 import { format, startOfWeek } from 'date-fns'
-import { Plus, Trash2, X, ShoppingCart, CheckCircle2, Circle, Package, Edit, Check, ChefHat } from 'lucide-react'
+import { X, ShoppingCart, CheckCircle2, Circle, Package, ChefHat, Search, Trash2, Loader2 } from 'lucide-react'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
 export default function GroceryListPage() {
   const { user } = useAuth()
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [newItemName, setNewItemName] = useState('')
-  const [newItemQuantity, setNewItemQuantity] = useState(1)
-  const [newItemUnit, setNewItemUnit] = useState('g')
-  const [editingItemIndex, setEditingItemIndex] = useState<{ listId: string; itemIndex: number } | null>(null)
-  const [editQuantity, setEditQuantity] = useState(1)
-  const [editUnit, setEditUnit] = useState('g')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const suggestionsRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery)
+    }, 300) // 300ms delay
+
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  // Search grocery items database
+  const { data: suggestions = [], isLoading: isLoadingSuggestions } = useQuery({
+    queryKey: ['groceryItemsSearch', debouncedQuery],
+    queryFn: () => searchGroceryItems(debouncedQuery, 8),
+    enabled: debouncedQuery.length >= 2 && showSuggestions,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+  })
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target as Node) &&
+        searchInputRef.current &&
+        !searchInputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false)
+        setSelectedSuggestionIndex(-1)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
 
@@ -28,9 +63,16 @@ export default function GroceryListPage() {
 
   const { data: groceryLists = [], isLoading } = useQuery({
     queryKey: ['groceryLists'],
-    queryFn: getGroceryLists,
+    queryFn: async () => {
+      // Ensure default list exists
+      await getOrCreateDefaultList()
+      return getGroceryLists()
+    },
     enabled: !!user,
   })
+  
+  // Get the default shopping list (first/only list)
+  const defaultList = groceryLists.length > 0 ? groceryLists[0] : null
 
   const { data: mealPlan } = useQuery({
     queryKey: ['mealPlan', weekStart],
@@ -38,13 +80,6 @@ export default function GroceryListPage() {
     enabled: !!user,
   })
 
-  const createMutation = useMutation({
-    mutationFn: createGroceryList,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
-      setShowAddForm(false)
-    },
-  })
 
   const updateMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<GroceryList> }) =>
@@ -54,12 +89,6 @@ export default function GroceryListPage() {
     },
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: deleteGroceryList,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
-    },
-  })
 
   const toggleItemMutation = useMutation({
     mutationFn: ({ listId, itemIndex }: { listId: string; itemIndex: number }) =>
@@ -69,50 +98,18 @@ export default function GroceryListPage() {
     },
   })
 
-  const updateItemQuantityMutation = useMutation({
-    mutationFn: ({ listId, itemIndex, quantity, unit }: { listId: string; itemIndex: number; quantity: number; unit: string }) => {
+  const deleteItemMutation = useMutation({
+    mutationFn: ({ listId, itemIndex }: { listId: string; itemIndex: number }) => {
       const list = groceryLists.find(l => l.id === listId)
       if (!list) throw new Error('List not found')
       
-      const updatedItems = [...list.items]
-      updatedItems[itemIndex] = {
-        ...updatedItems[itemIndex],
-        quantity,
-        unit,
-      }
-      
+      const updatedItems = list.items.filter((_, idx) => idx !== itemIndex)
       return updateGroceryList(listId, { items: updatedItems })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
-      setEditingItemIndex(null)
     },
   })
-
-  const handleStartEdit = (listId: string, itemIndex: number) => {
-    const list = groceryLists.find(l => l.id === listId)
-    if (!list) return
-    
-    const item = list.items[itemIndex]
-    setEditingItemIndex({ listId, itemIndex })
-    setEditQuantity(item.quantity)
-    setEditUnit(item.unit)
-  }
-
-  const handleSaveEdit = (listId: string, itemIndex: number) => {
-    updateItemQuantityMutation.mutate({
-      listId,
-      itemIndex,
-      quantity: editQuantity,
-      unit: editUnit,
-    })
-  }
-
-  const handleCancelEdit = () => {
-    setEditingItemIndex(null)
-    setEditQuantity(1)
-    setEditUnit('g')
-  }
 
   const generateFromPlanMutation = useMutation({
     mutationFn: (weekStartDate: string) => generateGroceryListFromMealPlan(weekStartDate),
@@ -125,39 +122,95 @@ export default function GroceryListPage() {
     await queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
   }
 
-  const handleAddItem = (listId: string) => {
-    if (!newItemName.trim()) return
+  const handleAddItem = async (itemName?: string, category?: string) => {
+    const itemToAdd = (itemName || searchQuery).trim()
+    if (!itemToAdd || !defaultList) return
 
-    const list = groceryLists.find(l => l.id === listId)
-    if (!list) return
+    // Check if item already exists (case-insensitive)
+    const itemExists = defaultList.items.some(
+      item => item.name.toLowerCase() === itemToAdd.toLowerCase()
+    )
+    
+    if (itemExists) {
+      // Item already exists, just clear search
+      setSearchQuery('')
+      setShowSuggestions(false)
+      return
+    }
+
+    // Use provided category or auto-categorize
+    const itemCategory = category || categorizeGroceryItem(itemToAdd)
+
+    // Increment search count in database (for popularity tracking)
+    await incrementSearchCount(itemToAdd)
+
+    // If item doesn't exist in database, optionally add it
+    if (!category && suggestions.length === 0 && debouncedQuery.length >= 2) {
+      // User is adding a custom item, add it to database for future suggestions
+      await addGroceryItem(itemToAdd, itemCategory)
+    }
 
     const newItem: GroceryItem = {
-      name: newItemName.trim(),
-      quantity: newItemQuantity,
-      unit: newItemUnit,
+      name: itemToAdd,
+      quantity: 1, // Default to 1
+      unit: 'item',
       checked: false,
-      category: 'other',
+      category: itemCategory,
     }
 
     updateMutation.mutate({
-      id: listId,
+      id: defaultList.id,
       updates: {
-        items: [...list.items, newItem],
+        items: [...defaultList.items, newItem],
       },
     })
 
-    setNewItemName('')
-    setNewItemQuantity(1)
-    setNewItemUnit('g')
+    setSearchQuery('')
+    setShowSuggestions(false)
+    setSelectedSuggestionIndex(-1)
   }
 
-  const handleCreateList = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    createMutation.mutate({
-      name: formData.get('name') as string,
-      items: [],
-    })
+  const handleSelectSuggestion = (suggestion: { name: string; category: string }) => {
+    handleAddItem(suggestion.name, suggestion.category)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions || suggestions.length === 0) {
+      if (e.key === 'Enter' && searchQuery.trim()) {
+        e.preventDefault()
+        handleAddItem()
+      }
+      return
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        setSelectedSuggestionIndex((prev) =>
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        )
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        setSelectedSuggestionIndex((prev) => (prev > 0 ? prev - 1 : -1))
+        break
+      case 'Enter':
+        e.preventDefault()
+        if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < suggestions.length) {
+          handleSelectSuggestion(suggestions[selectedSuggestionIndex])
+        } else {
+          handleAddItem()
+        }
+        break
+      case 'Escape':
+        setShowSuggestions(false)
+        setSelectedSuggestionIndex(-1)
+        break
+    }
+  }
+
+  const handleDeleteItem = (listId: string, itemIndex: number) => {
+    deleteItemMutation.mutate({ listId, itemIndex })
   }
 
   const getItemsByCategory = (items: GroceryItem[]) => {
@@ -168,6 +221,13 @@ export default function GroceryListPage() {
       categories[cat].push(item)
     })
     return categories
+  }
+
+  // Filter items based on search query
+  const getFilteredItems = (items: GroceryItem[]) => {
+    if (!searchQuery.trim()) return items
+    const query = searchQuery.toLowerCase()
+    return items.filter(item => item.name.toLowerCase().includes(query))
   }
 
   return (
@@ -184,110 +244,49 @@ export default function GroceryListPage() {
             </div>
             <div className="flex items-center justify-between">
               <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-text tracking-tighter mt-2 md:mt-4">
-                Grocery Lists
+                Grocery List
               </h1>
-              <div className="flex gap-2">
-                {mealPlan && (
-                  <button
-                    onClick={() => generateFromPlanMutation.mutate(weekStart)}
-                    disabled={generateFromPlanMutation.isPending}
-                    className="btn-secondary text-xs md:text-sm px-3 md:px-4 py-2 gap-2"
-                    title="Generate grocery list from meal plan"
-                  >
-                    <ChefHat className="w-3 h-3 md:w-4 md:h-4" />
-                    <span className="hidden sm:inline">From Meal Plan</span>
-                  </button>
-                )}
+              {mealPlan && (
                 <button
-                  onClick={() => setShowAddForm(true)}
-                  className="btn-secondary gap-2 text-xs md:text-sm px-3 md:px-4 py-2"
+                  onClick={() => generateFromPlanMutation.mutate(weekStart)}
+                  disabled={generateFromPlanMutation.isPending}
+                  className="btn-secondary text-xs md:text-sm px-3 md:px-4 py-2 gap-2"
+                  title="Generate grocery list from meal plan"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">New List</span>
+                  <ChefHat className="w-3 h-3 md:w-4 md:h-4" />
+                  <span className="hidden sm:inline">From Meal Plan</span>
                 </button>
-              </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Create New List Form */}
-        {showAddForm && (
-          <div className="card-modern border-acid/30 p-4 md:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
-                New Grocery List
-              </h2>
-              <button
-                onClick={() => setShowAddForm(false)}
-                className="text-dim hover:text-text transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateList} className="space-y-4">
-              <div>
-                <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">
-                  List Name *
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  required
-                  className="input-modern"
-                  placeholder="e.g., Weekly Shopping"
-                  defaultValue="Shopping List"
-                />
-              </div>
-              <div className="flex gap-4">
-                <button
-                  type="submit"
-                  className="btn-primary flex-1"
-                  disabled={createMutation.isPending}
-                >
-                  {createMutation.isPending ? 'Creating...' : 'Create List'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAddForm(false)}
-                  className="btn-secondary"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* Grocery Lists */}
+        {/* Grocery List */}
         {isLoading ? (
-          <div className="text-center py-12 text-dim font-mono text-xs">Loading lists...</div>
-        ) : groceryLists.length > 0 ? (
-          <div className="space-y-4">
-            {groceryLists.map((list) => {
-              const itemsByCategory = getItemsByCategory(list.items)
-              const checkedCount = list.items.filter(i => i.checked).length
-              const totalItems = list.items.length
+          <div className="text-center py-12 text-dim font-mono text-xs">Loading...</div>
+        ) : defaultList ? (
+          <div className="card-modern p-4 md:p-6">
+            {(() => {
+              const filteredItems = getFilteredItems(defaultList.items)
+              const itemsByCategory = getItemsByCategory(filteredItems)
+              const checkedCount = defaultList.items.filter(i => i.checked).length
+              const totalItems = defaultList.items.length
 
               return (
-                <div key={list.id} className="card-modern p-4 md:p-6">
+                <>
+                  {/* Header */}
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2 md:gap-3">
                       <ShoppingCart className="w-4 h-4 md:w-5 md:h-5 text-acid" />
                       <div>
                         <h2 className="text-sm md:text-base font-bold text-text font-mono uppercase">
-                          {list.name}
+                          {defaultList.name}
                         </h2>
                         <div className="text-[10px] md:text-xs text-dim font-mono">
                           {checkedCount} / {totalItems} items
                         </div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => deleteMutation.mutate(list.id)}
-                      className="text-error hover:text-error/80 transition-colors p-1"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
 
                   {/* Progress Bar */}
@@ -302,6 +301,89 @@ export default function GroceryListPage() {
                     </div>
                   )}
 
+                  {/* Search Box with Autocomplete */}
+                  <div className="mb-4 md:mb-6">
+                    <div className="space-y-2">
+                      <label className="block text-xs font-mono uppercase tracking-wider text-dim mb-2">
+                        Search & Add Items
+                      </label>
+                      <div className="relative" ref={suggestionsRef}>
+                        <div className="flex items-center gap-3 bg-panel border border-border rounded-sm px-4 py-3 focus-within:border-acid/50 focus-within:ring-1 focus-within:ring-acid/20 transition-all">
+                          <Search className="w-5 h-5 text-dim flex-shrink-0" />
+                          <input
+                            ref={searchInputRef}
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => {
+                              setSearchQuery(e.target.value)
+                              setShowSuggestions(true)
+                              setSelectedSuggestionIndex(-1)
+                            }}
+                            onFocus={() => {
+                              if (debouncedQuery.length >= 2) {
+                                setShowSuggestions(true)
+                              }
+                            }}
+                            onKeyDown={handleKeyDown}
+                            className="flex-1 bg-transparent border-none outline-none text-sm md:text-base text-text placeholder:text-dim/50 font-mono"
+                            placeholder="Type item name and press Enter to add..."
+                            title="Search for items or press Enter/Return to add groceries"
+                          />
+                          {isLoadingSuggestions && (
+                            <Loader2 className="w-4 h-4 text-acid animate-spin flex-shrink-0" />
+                          )}
+                          {searchQuery && !isLoadingSuggestions && (
+                            <button
+                              onClick={() => {
+                                setSearchQuery('')
+                                setShowSuggestions(false)
+                                setSelectedSuggestionIndex(-1)
+                              }}
+                              className="text-dim hover:text-text transition-colors flex-shrink-0 p-1"
+                              aria-label="Clear search"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-dim/70 font-mono mt-1.5 px-1">
+                          💡 Tip: Search for items or press Enter/Return to add
+                        </div>
+                        
+                        {/* Suggestions Dropdown */}
+                        {showSuggestions && debouncedQuery.length >= 2 && (
+                          <div className="absolute top-full left-0 right-0 mt-2 bg-surface border border-border rounded-sm shadow-lg z-50 max-h-64 overflow-y-auto">
+                          {suggestions.length > 0 ? (
+                            <div className="py-1">
+                              {suggestions.map((suggestion, index) => (
+                                <button
+                                  key={suggestion.id}
+                                  onClick={() => handleSelectSuggestion(suggestion)}
+                                  className={`w-full text-left px-4 py-2 hover:bg-panel transition-colors flex items-center justify-between ${
+                                    index === selectedSuggestionIndex ? 'bg-panel' : ''
+                                  }`}
+                                >
+                                  <span className="font-mono text-sm text-text">{suggestion.name}</span>
+                                  <span className="text-xs text-dim uppercase">{suggestion.category}</span>
+                                </button>
+                              ))}
+                            </div>
+                          ) : !isLoadingSuggestions ? (
+                            <div className="px-4 py-3 text-sm text-dim font-mono">
+                              No suggestions found. Press Enter to add "{searchQuery}"
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                      </div>
+                    </div>
+                    {searchQuery && filteredItems.length === 0 && defaultList.items.length > 0 && !showSuggestions && (
+                      <div className="mt-2 text-xs text-dim font-mono">
+                        No items found. Press Enter to add "{searchQuery}"
+                      </div>
+                    )}
+                  </div>
+
                   {/* Items by Category */}
                   {Object.keys(itemsByCategory).length > 0 ? (
                     <div className="space-y-4">
@@ -315,8 +397,7 @@ export default function GroceryListPage() {
                           </div>
                           <div className="space-y-2">
                             {items.map((item, idx) => {
-                              const itemIndex = list.items.indexOf(item)
-                              const isEditing = editingItemIndex?.listId === list.id && editingItemIndex?.itemIndex === itemIndex
+                              const itemIndex = defaultList.items.indexOf(item)
                               
                               return (
                                 <div
@@ -328,14 +409,14 @@ export default function GroceryListPage() {
                                   }`}
                                 >
                                   <button
-                                    onClick={() => toggleItemMutation.mutate({ listId: list.id, itemIndex })}
+                                    onClick={() => toggleItemMutation.mutate({ listId: defaultList.id, itemIndex })}
                                     className="flex-shrink-0"
-                                    disabled={isEditing}
+                                    aria-label={item.checked ? 'Uncheck item' : 'Check item'}
                                   >
                                     {item.checked ? (
                                       <CheckCircle2 className="w-5 h-5 text-success" />
                                     ) : (
-                                      <Circle className="w-5 h-5 text-dim" />
+                                      <Circle className="w-5 h-5 text-dim hover:text-acid transition-colors" />
                                     )}
                                   </button>
                                   <div className="flex-1 min-w-0">
@@ -343,67 +424,13 @@ export default function GroceryListPage() {
                                       {item.name}
                                     </div>
                                   </div>
-                                  
-                                  {isEditing ? (
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                      <input
-                                        type="number"
-                                        value={editQuantity}
-                                        onChange={(e) => setEditQuantity(Number(e.target.value) || 0)}
-                                        min="0"
-                                        step="0.01"
-                                        className="input-modern w-16 text-xs"
-                                        autoFocus
-                                        onKeyPress={(e) => {
-                                          if (e.key === 'Enter') {
-                                            handleSaveEdit(list.id, itemIndex)
-                                          } else if (e.key === 'Escape') {
-                                            handleCancelEdit()
-                                          }
-                                        }}
-                                      />
-                                      <select
-                                        value={editUnit}
-                                        onChange={(e) => setEditUnit(e.target.value)}
-                                        className="input-modern text-xs w-16"
-                                      >
-                                        <option value="g">g</option>
-                                        <option value="kg">kg</option>
-                                        <option value="ml">ml</option>
-                                        <option value="l">l</option>
-                                        <option value="cup">cup</option>
-                                        <option value="piece">piece</option>
-                                      </select>
-                                      <button
-                                        onClick={() => handleSaveEdit(list.id, itemIndex)}
-                                        className="text-success hover:text-success/80 transition-colors p-1"
-                                        disabled={updateItemQuantityMutation.isPending}
-                                      >
-                                        <Check className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={handleCancelEdit}
-                                        className="text-error hover:text-error/80 transition-colors p-1"
-                                      >
-                                        <X className="w-4 h-4" />
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                      <div className="text-xs font-mono text-dim">
-                                        {item.quantity} {item.unit}
-                                      </div>
-                                      {!item.checked && (
-                                        <button
-                                          onClick={() => handleStartEdit(list.id, itemIndex)}
-                                          className="text-dim hover:text-acid transition-colors p-1"
-                                          title="Edit quantity"
-                                        >
-                                          <Edit className="w-3 h-3" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  )}
+                                  <button
+                                    onClick={() => handleDeleteItem(defaultList.id, itemIndex)}
+                                    className="text-error hover:text-error/80 transition-colors p-1 flex-shrink-0"
+                                    aria-label="Delete item"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
                                 </div>
                               )
                             })}
@@ -411,70 +438,27 @@ export default function GroceryListPage() {
                         </div>
                       ))}
                     </div>
+                  ) : searchQuery ? (
+                    <div className="text-center py-8 text-dim font-mono text-xs">
+                      No items found matching "{searchQuery}". Press Enter to add it.
+                    </div>
                   ) : (
                     <div className="text-center py-8 text-dim font-mono text-xs">
-                      No items yet. Add items below.
+                      No items yet. Type an item name above and press Enter to add.
                     </div>
                   )}
-
-                  {/* Add Item Form */}
-                  <div className="mt-4 pt-4 border-t border-border">
-                    <div className="grid grid-cols-12 gap-2">
-                      <input
-                        type="text"
-                        value={newItemName}
-                        onChange={(e) => setNewItemName(e.target.value)}
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault()
-                            handleAddItem(list.id)
-                          }
-                        }}
-                        className="input-modern col-span-5"
-                        placeholder="Item name"
-                      />
-                      <input
-                        type="number"
-                        value={newItemQuantity}
-                        onChange={(e) => setNewItemQuantity(Number(e.target.value) || 1)}
-                        min="0"
-                        step="0.01"
-                        className="input-modern col-span-2"
-                        placeholder="Qty"
-                      />
-                      <select
-                        value={newItemUnit}
-                        onChange={(e) => setNewItemUnit(e.target.value)}
-                        className="input-modern col-span-2"
-                      >
-                        <option value="g">g</option>
-                        <option value="kg">kg</option>
-                        <option value="ml">ml</option>
-                        <option value="l">l</option>
-                        <option value="cup">cup</option>
-                        <option value="piece">piece</option>
-                      </select>
-                      <button
-                        onClick={() => handleAddItem(list.id)}
-                        disabled={!newItemName.trim()}
-                        className="btn-primary col-span-3 text-xs py-2"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                </>
               )
-            })}
+            })()}
           </div>
         ) : (
           <div className="card-modern text-center border-dashed py-12 md:py-16 px-4">
             <div className="w-16 h-16 md:w-20 md:h-20 rounded-sm bg-acid/10 border border-acid/20 flex items-center justify-center mx-auto mb-6 md:mb-8">
               <ShoppingCart className="w-8 h-8 md:w-10 md:h-10 text-acid/60" />
             </div>
-            <h3 className="text-text font-mono font-bold text-lg md:text-xl mb-3 md:mb-4">No grocery lists yet</h3>
+            <h3 className="text-text font-mono font-bold text-lg md:text-xl mb-3 md:mb-4">Your Grocery List</h3>
             <p className="text-dim font-mono text-sm md:text-base mb-6 md:mb-8 max-w-md mx-auto leading-relaxed">
-              Create a list manually or use the button above to generate one from your meal plan
+              Start adding items and they'll be automatically organized by category
             </p>
           </div>
         )}

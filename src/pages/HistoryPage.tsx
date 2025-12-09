@@ -81,14 +81,14 @@ export default function HistoryPage() {
                 onClick={() => setSelectedDate(day)}
                 className={`relative p-2 md:p-3 rounded-sm text-center transition-all active:scale-95 ${
                   isSelected
-                    ? 'bg-acid text-void font-bold'
+                    ? 'bg-acid text-[#020617] dark:text-[#020617] font-bold'
                     : isToday
                     ? 'bg-panel border-2 border-acid/50 text-text'
                     : 'bg-panel border border-border hover:border-acid text-text'
                 }`}
               >
-                <div className="text-[9px] md:text-xs text-dim mb-0.5 md:mb-1 font-mono uppercase">{format(day, 'EEE')}</div>
-                <div className="text-sm md:text-base font-bold font-mono">{format(day, 'd')}</div>
+                <div className={`text-[9px] md:text-xs mb-0.5 md:mb-1 font-mono uppercase ${isSelected ? 'text-[#020617] dark:text-[#020617]' : 'text-dim'}`}>{format(day, 'EEE')}</div>
+                <div className={`text-sm md:text-base font-bold font-mono ${isSelected ? 'text-[#020617] dark:text-[#020617]' : ''}`}>{format(day, 'd')}</div>
                 {hasActivity && !isSelected && (
                   <div className="absolute bottom-0.5 md:bottom-1 left-1/2 transform -translate-x-1/2 flex gap-0.5">
                     {dayLog.meals.length > 0 && (
@@ -114,13 +114,7 @@ export default function HistoryPage() {
       ) : dailyLog ? (
         <div className="space-y-4 md:space-y-6">
           <div className="card-modern border-acid/30 p-4 md:p-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4 mb-4 md:mb-6">
-              <div className="flex items-center gap-2 md:gap-3">
-                <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30 flex-shrink-0">
-                  <Calendar className="w-4 h-4 md:w-5 md:h-5 text-acid" />
-                </div>
-                <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono break-words">{format(selectedDate, 'EEEE, MMMM d, yyyy').toUpperCase()}</h2>
-              </div>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-end gap-3 md:gap-4 mb-4 md:mb-6">
               <button
                 onClick={() => navigate(`/summary/${dateStr}`)}
                 className="btn-secondary gap-1.5 md:gap-2 text-[10px] md:text-xs"
@@ -140,10 +134,10 @@ export default function HistoryPage() {
               </div>
               <div className="border-b md:border-b-0 md:border-r border-border pb-4 md:pb-0 md:pr-6">
                 <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2">
-                  <Beef className="w-3.5 h-3.5 md:w-4 md:h-4 text-success fill-success/80 dark:text-success dark:fill-success/80 stroke-success stroke-1 flex-shrink-0" />
+                  <Beef className="w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-500 fill-emerald-500 dark:text-emerald-500 dark:fill-emerald-500 flex-shrink-0" />
                   <div className="text-[10px] md:text-xs text-dim font-mono uppercase">Protein</div>
                 </div>
-                <div className="text-2xl md:text-3xl font-bold text-success font-mono">{dailyLog.protein}g</div>
+                <div className="text-2xl md:text-3xl font-bold text-emerald-500 dark:text-text font-mono">{dailyLog.protein}g</div>
               </div>
               <div className="border-b md:border-b-0 md:border-r border-border pb-4 md:pb-0 md:pr-6">
                 <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2">

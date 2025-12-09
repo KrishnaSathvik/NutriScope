@@ -109,6 +109,23 @@ export async function generateDailyInsights(
   dailyLog: DailyLog,
   profile: UserProfile | null
 ): Promise<string> {
+  // In production, use backend proxy (if available) or show appropriate message
+  const useBackendProxy = import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
+  const isProduction = import.meta.env.PROD
+  
+  if (!openai && !useBackendProxy) {
+    if (isProduction) {
+      return 'AI insights are temporarily unavailable. Please try again later.'
+    }
+    return 'AI insights are not available. Please configure your OpenAI API key in development or set up backend proxy for production.'
+  }
+  
+  // For now, only use direct OpenAI in development
+  // TODO: Create backend proxy endpoint for insights (similar to /api/chat)
+  if (isProduction && !openai) {
+    return 'AI insights are temporarily unavailable. Please try again later.'
+  }
+  
   if (!openai) {
     return 'AI insights are not available. Please configure your OpenAI API key.'
   }

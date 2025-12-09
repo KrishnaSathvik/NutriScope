@@ -2,10 +2,10 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import {
   Target,
-  Lightbulb,
   Zap,
   ArrowRight,
   CheckCircle2,
+  XCircle,
   ShieldCheck,
   BarChart3,
   MessageSquare,
@@ -13,7 +13,6 @@ import {
   Plug,
   Users,
   Heart,
-  Sparkles,
 } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
@@ -38,7 +37,11 @@ export default function AboutPage() {
           <section className="max-w-7xl mx-auto pt-16 md:pt-24 lg:pt-32 px-4 sm:px-6 lg:px-8 pb-16 md:pb-24">
             <div className="text-center max-w-4xl mx-auto">
               <div className="inline-flex items-center gap-2 text-xs text-dim font-mono bg-surface/50 border border-border rounded-full px-3 py-1.5 backdrop-blur-md mb-6">
-                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-acid"></span>
+                <div className="flex items-center gap-1">
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-orange-500"></span>
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-purple-500"></span>
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                </div>
                 About NutriScope
               </div>
 
@@ -102,15 +105,15 @@ export default function AboutPage() {
                     className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300"
                   >
                     <div className={`flex w-12 h-12 md:w-14 md:h-14 rounded-sm items-center justify-center mb-4 ${
-                      goal.color === "acid" ? "bg-acid/20 border border-acid/30" :
-                      goal.color === "success" ? "bg-success/20 border border-success/30" :
-                      "bg-accent/20 border border-accent/30"
+                      goal.color === "acid" ? "bg-indigo-500/20 border border-indigo-500/30" :
+                      goal.color === "success" ? "bg-emerald-500/20 border border-emerald-500/30" :
+                      "bg-orange-500/20 border border-orange-500/30"
                     }`}>
                       <goal.icon className={`h-6 w-6 md:h-7 md:w-7 ${
-                        goal.color === "acid" ? "text-acid" :
-                        goal.color === "success" ? "text-success" :
-                        "text-accent"
-                      }`} />
+                        goal.color === "acid" ? "text-indigo-500 stroke-indigo-500 dark:text-indigo-400 dark:stroke-indigo-400" :
+                        goal.color === "success" ? "text-emerald-500 stroke-emerald-500 dark:text-emerald-400 dark:stroke-emerald-400" :
+                        "text-orange-500 stroke-orange-500 dark:text-orange-400 dark:stroke-orange-400"
+                      } stroke-2 fill-none`} />
                     </div>
                     <h3 className="text-xl md:text-2xl font-bold tracking-tight text-text mb-2 font-mono uppercase">
                       {goal.title}
@@ -154,19 +157,24 @@ export default function AboutPage() {
                   {
                     title: "Our Solution",
                     items: [
-                      "AI-powered natural language processing for effortless logging",
+                      "AI-powered natural language processing for effortless meal and workout logging",
                       "Multi-modal input: text, voice, photos with OpenAI Whisper & Vision",
                       "USDA Food Database integration - search 300,000+ foods with accurate nutrition",
-                      "Recipe management with automatic nutrition calculation and scaling",
-                      "Weekly meal planning with calendar view",
-                      "Smart grocery list generation from meal plans",
-                      "Comprehensive analytics with correlations, predictions, and insights",
+                      "Simplified recipe management: name, servings, instructions, and nutrition",
+                      "Save recipes as meal templates for quick logging",
+                      "Favorite recipes for quick access",
+                      "Weekly meal planning with calendar view (Monday-Sunday)",
+                      "Smart grocery list with search, autocomplete, and auto-categorization",
+                      "Real-world grocery format: simple quantity and name (e.g., '2x Eggs')",
+                      "Comprehensive analytics with line charts, area charts, and correlations",
+                      "Weight vs Calories and Protein vs Workouts correlation analysis",
+                      "Weight predictions and trend analysis",
                       "Achievement system with streaks, goals, and milestones",
                       "All-in-one platform: nutrition, workouts, water, weight tracking",
                       "Intelligent chat assistant with voice, image, and auto-logging",
                       "Deep AI personalization using user profile data for tailored responses",
                       "Edit meals and workouts - no need to delete and recreate",
-                      "Copy previous day meals with one click",
+                      "Copy previous day meals with one-click selection",
                       "Exercise library with 150+ exercises and METs-based calorie calculation",
                       "Weight tracking with BMI, trends, and body composition",
                       "Streak tracking to keep you motivated",
@@ -175,7 +183,7 @@ export default function AboutPage() {
                       "Google Analytics integration for user engagement insights",
                       "Code splitting for faster page loads",
                       "Accessibility improvements (ARIA labels, skip navigation)",
-                      "Expanded reminder system (weight, streak, daily summary reminders)",
+                      "Expanded reminder system (meals, water, workouts, goals, weight, streak, daily summary)",
                     ],
                     color: "success",
                   },
@@ -192,9 +200,11 @@ export default function AboutPage() {
                     <ul className="space-y-3">
                       {section.items.map((item, j) => (
                         <li key={j} className="flex items-start gap-3">
-                          <CheckCircle2 className={`h-5 w-5 mt-0.5 flex-shrink-0 ${
-                            section.color === "error" ? "text-error" : "text-success"
-                          }`} />
+                          {section.color === "error" ? (
+                            <XCircle className="h-5 w-5 mt-0.5 flex-shrink-0 text-red-500 fill-red-500 dark:text-red-400 dark:fill-red-400 stroke-red-500 dark:stroke-red-400 stroke-2" />
+                          ) : (
+                            <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0 text-emerald-500 fill-emerald-500 dark:text-emerald-400 dark:fill-emerald-400 stroke-emerald-500 dark:stroke-emerald-400 stroke-2" />
+                          )}
                           <span className="text-sm md:text-base text-dim font-mono leading-relaxed">{item}</span>
                         </li>
                       ))}
@@ -261,17 +271,17 @@ export default function AboutPage() {
                     className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300"
                   >
                     <div className={`flex w-12 h-12 md:w-14 md:h-14 rounded-sm items-center justify-center mb-4 ${
-                      feature.color === "warning" ? "bg-warning/20 border border-warning/30" :
-                      feature.color === "accent" ? "bg-accent/20 border border-accent/30" :
-                      feature.color === "success" ? "bg-success/20 border border-success/30" :
-                      "bg-acid/20 border border-acid/30"
+                      feature.color === "warning" ? "bg-amber-500/20 border border-amber-500/30" :
+                      feature.color === "accent" ? "bg-orange-500/20 border border-orange-500/30" :
+                      feature.color === "success" ? "bg-emerald-500/20 border border-emerald-500/30" :
+                      "bg-indigo-500/20 border border-indigo-500/30"
                     }`}>
                       <feature.icon className={`h-6 w-6 md:h-7 md:w-7 ${
-                        feature.color === "warning" ? "text-warning" :
-                        feature.color === "accent" ? "text-accent" :
-                        feature.color === "success" ? "text-success" :
-                        "text-acid"
-                      }`} />
+                        feature.color === "warning" ? "text-amber-500 stroke-amber-500 dark:text-amber-400 dark:stroke-amber-400" :
+                        feature.color === "accent" ? "text-orange-500 stroke-orange-500 dark:text-orange-400 dark:stroke-orange-400" :
+                        feature.color === "success" ? "text-emerald-500 stroke-emerald-500 dark:text-emerald-400 dark:stroke-emerald-400" :
+                        "text-indigo-500 stroke-indigo-500 dark:text-indigo-400 dark:stroke-indigo-400"
+                      } stroke-2 fill-none`} />
                     </div>
                     <h3 className="text-xl md:text-2xl font-bold tracking-tight text-text mb-2 font-mono uppercase">
                       {feature.title}

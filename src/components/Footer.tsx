@@ -31,7 +31,7 @@ export function Footer() {
                 <li>
                   <Link
                     to="/product"
-                    className="text-sm text-dim hover:text-text transition font-mono"
+                    className="text-sm !text-blue-500 dark:!text-blue-400 hover:!text-blue-600 dark:hover:!text-blue-300 transition font-mono"
                   >
                     How it works
                   </Link>
@@ -39,7 +39,7 @@ export function Footer() {
                 <li>
                   <Link
                     to="/about"
-                    className="text-sm text-dim hover:text-text transition font-mono"
+                    className="text-sm !text-blue-500 dark:!text-blue-400 hover:!text-blue-600 dark:hover:!text-blue-300 transition font-mono"
                   >
                     About
                   </Link>
@@ -56,7 +56,7 @@ export function Footer() {
                 <li>
                   <Link
                     to="/documentation"
-                    className="text-sm text-dim hover:text-text transition font-mono"
+                    className="text-sm !text-blue-500 dark:!text-blue-400 hover:!text-blue-600 dark:hover:!text-blue-300 transition font-mono"
                   >
                     Documentation
                   </Link>
@@ -64,7 +64,7 @@ export function Footer() {
                 <li>
                   <Link
                     to="/help"
-                    className="text-sm text-dim hover:text-text transition font-mono"
+                    className="text-sm !text-blue-500 dark:!text-blue-400 hover:!text-blue-600 dark:hover:!text-blue-300 transition font-mono"
                   >
                     Help Center
                   </Link>
@@ -81,7 +81,7 @@ export function Footer() {
                 <li>
                   <Link
                     to="/privacy"
-                    className="text-sm text-dim hover:text-text transition font-mono"
+                    className="text-sm !text-blue-500 dark:!text-blue-400 hover:!text-blue-600 dark:hover:!text-blue-300 transition font-mono"
                   >
                     Privacy
                   </Link>
@@ -89,7 +89,7 @@ export function Footer() {
                 <li>
                   <Link
                     to="/terms"
-                    className="text-sm text-dim hover:text-text transition font-mono"
+                    className="text-sm !text-blue-500 dark:!text-blue-400 hover:!text-blue-600 dark:hover:!text-blue-300 transition font-mono"
                   >
                     Terms
                   </Link>
@@ -97,7 +97,7 @@ export function Footer() {
                 <li>
                   <Link
                     to="/cookies"
-                    className="text-sm text-dim hover:text-text transition font-mono"
+                    className="text-sm !text-blue-500 dark:!text-blue-400 hover:!text-blue-600 dark:hover:!text-blue-300 transition font-mono"
                   >
                     Cookie Policy
                   </Link>
@@ -119,12 +119,6 @@ export function Footer() {
                 <span>All systems normal</span>
               </div>
             </div>
-            <a
-              href="mailto:nutriscopeteam@gmail.com"
-              className="text-xs text-dim hover:text-acid transition-colors font-mono whitespace-nowrap"
-            >
-              nutriscopeteam@gmail.com
-            </a>
           </div>
         </div>
       </div>

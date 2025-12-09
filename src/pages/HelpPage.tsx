@@ -130,19 +130,19 @@ export default function HelpPage() {
       questions: [
         {
           q: 'How do I create a recipe?',
-          a: 'Go to the Recipes page, click "Create Recipe", enter name, description, servings, add ingredients with quantities and units, add instructions, and save. Nutrition is calculated automatically from ingredients.',
+          a: 'Go to the Recipes page, click "Create Recipe", enter recipe name, description, servings, add instructions in a single text field (step-by-step or paragraphs), enter nutrition per serving (calories, protein, carbs, fats), add prep time and cook time (optional), and save. You can also save recipes as meal templates for quick logging.',
         },
         {
-          q: 'Can I scale recipes for different serving sizes?',
-          a: 'Yes! Open any recipe and click "Scale Recipe". Enter the new serving size, and ingredients and nutrition will scale automatically. Perfect for meal prep.',
+          q: 'How do I use recipes?',
+          a: 'Create recipes with name, servings, instructions, and nutrition. View recipe details in full-screen dialog. Save recipes as meal templates for quick logging. Add recipes to meal plans. Favorite recipes for quick access. Edit or delete recipes anytime.',
         },
         {
           q: 'How does meal planning work?',
           a: 'Go to Meal Planning page, view the weekly calendar (Monday-Sunday), click "+" on any meal type, choose a recipe from your collection or add a custom meal. Plan meals for the entire week.',
         },
         {
-          q: 'How do I generate a grocery list from meal plans?',
-          a: 'After planning meals for the week, go to Grocery Lists page and click "Generate from Meal Plan". Ingredients are automatically aggregated, categorized, and quantities are combined.',
+          q: 'How do I use the grocery list?',
+          a: 'Go to Grocery Lists page and use the search box to find and add items. Type an item name to see autocomplete suggestions from the database. Press Enter/Return to add items. Items are auto-categorized (produce, meat, dairy, pantry, beverages, frozen, other) and displayed in a simple format (quantity and name, e.g., "2x Eggs"). Check off items as you shop. You can also optionally generate lists from meal plans.',
         },
       ],
     },

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { Recipe, RecipeIngredient, RecipeNutrition } from '@/types'
+import { logger } from '@/utils/logger'
 
 /**
  * Calculate nutrition per serving from ingredients
@@ -17,9 +18,14 @@ export function calculateRecipeNutrition(
   // Simple calculation - in production, use a nutrition database
   // For now, estimate based on common ingredients
   ingredients.forEach((ingredient) => {
-    const name = ingredient.name.toLowerCase()
-    const quantity = ingredient.quantity
-    const unit = ingredient.unit.toLowerCase()
+    // Skip invalid ingredients - ensure name and unit exist
+    if (!ingredient || !ingredient.name || !ingredient.unit) {
+      return
+    }
+    
+    const name = String(ingredient.name).toLowerCase()
+    const quantity = ingredient.quantity || 0
+    const unit = String(ingredient.unit).toLowerCase()
 
     // Convert to grams for calculation
     let grams = quantity
@@ -140,27 +146,98 @@ export async function createRecipe(recipe: Omit<Recipe, 'id' | 'user_id' | 'crea
     throw new Error('Not authenticated')
   }
 
-  // Calculate nutrition if not provided
+  // Log incoming recipe data for debugging
+  logger.debug('Creating recipe:', {
+    name: recipe.name,
+    servings: recipe.servings,
+    instructionsLength: typeof recipe.instructions === 'string' ? recipe.instructions.length : 0,
+  })
+
+  // Validate required fields
+  if (!recipe.name || !recipe.name.trim()) {
+    logger.error('Recipe name is required')
+    throw new Error('Recipe name is required')
+  }
+  
+  if (!recipe.servings || recipe.servings <= 0) {
+    logger.error('Recipe must have a valid number of servings')
+    throw new Error('Recipe must have a valid number of servings')
+  }
+  
+  if (!recipe.instructions || !recipe.instructions.trim()) {
+    logger.error('Recipe instructions are required')
+    throw new Error('Recipe instructions are required')
+  }
+  
+  // Ensure nutrition is provided
   let nutrition = recipe.nutrition_per_serving
-  if (!nutrition || (nutrition.calories === 0 && nutrition.protein === 0)) {
-    nutrition = calculateRecipeNutrition(recipe.ingredients, recipe.servings)
+  if (!nutrition) {
+    nutrition = {
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fats: 0,
+    }
+  }
+  
+  // Parse prep_time and cook_time to ensure they're integers
+  // Handle cases where AI sends strings like "30 minutes" or "0 minutes"
+  const parseTime = (time: number | string | undefined): number | undefined => {
+    if (time === undefined || time === null) return undefined
+    if (typeof time === 'number') return time > 0 ? time : undefined
+    if (typeof time === 'string') {
+      // Extract number from strings like "30 minutes", "0 minutes", "45 mins", etc.
+      const match = time.match(/(\d+)/)
+      if (match) {
+        const num = parseInt(match[1], 10)
+        return num > 0 ? num : undefined
+      }
+    }
+    return undefined
+  }
+
+  // Normalize instructions - ensure it's a string
+  const instructions = typeof recipe.instructions === 'string' 
+    ? recipe.instructions 
+    : Array.isArray(recipe.instructions) 
+      ? recipe.instructions.join('\n')
+      : ''
+
+  // Only include fields that exist in the database schema
+  const recipeToSave = {
+    name: recipe.name,
+    description: recipe.description,
+    servings: recipe.servings,
+    prep_time: parseTime(recipe.prep_time),
+    cook_time: parseTime(recipe.cook_time),
+    instructions,
+    image_url: recipe.image_url,
+    tags: recipe.tags || [],
+    is_favorite: recipe.is_favorite || false,
+    nutrition_per_serving: nutrition,
   }
 
   const { data, error } = await supabase
     .from('recipes')
     .insert({
       user_id: user.id,
-      ...recipe,
-      nutrition_per_serving: nutrition,
+      ...recipeToSave,
     })
     .select()
     .single()
 
   if (error) {
     console.error('Error creating recipe:', error)
-    throw new Error('Failed to create recipe')
+    logger.error('Error creating recipe:', error)
+    throw new Error(`Failed to create recipe: ${error.message}`)
   }
 
+  if (!data) {
+    logger.error('Recipe creation returned no data')
+    throw new Error('Failed to create recipe: No data returned')
+  }
+
+  logger.debug('Recipe created successfully:', data.id)
   return data
 }
 
@@ -180,13 +257,15 @@ export async function updateRecipe(
     throw new Error('Not authenticated')
   }
 
-  // Recalculate nutrition if ingredients or servings changed
-  if (updates.ingredients || updates.servings) {
+  // Recalculate nutrition if ingredients or servings changed (only if ingredients exist)
+  if ((updates.ingredients || updates.servings) && updates.ingredients && updates.ingredients.length > 0) {
     const existingRecipe = await getRecipe(recipeId)
     if (existingRecipe) {
-      const newIngredients = updates.ingredients || existingRecipe.ingredients
+      const newIngredients = updates.ingredients || existingRecipe.ingredients || []
       const newServings = updates.servings || existingRecipe.servings
-      updates.nutrition_per_serving = calculateRecipeNutrition(newIngredients, newServings)
+      if (newIngredients.length > 0) {
+        updates.nutrition_per_serving = calculateRecipeNutrition(newIngredients, newServings)
+      }
     }
   }
 
@@ -200,9 +279,16 @@ export async function updateRecipe(
 
   if (error) {
     console.error('Error updating recipe:', error)
-    throw new Error('Failed to update recipe')
+    logger.error('Error updating recipe:', error)
+    throw new Error(`Failed to update recipe: ${error.message}`)
   }
 
+  if (!data) {
+    logger.error('Recipe update returned no data')
+    throw new Error('Failed to update recipe: No data returned')
+  }
+
+  logger.debug('Recipe updated successfully:', data.id)
   return data
 }
 

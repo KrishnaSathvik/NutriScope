@@ -12,6 +12,7 @@ import { getDailyLog } from '@/services/dailyLogs'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
+import { logger } from '@/utils/logger'
 
 export default function ChatPage() {
   const { profile, user, isGuest } = useAuth()
@@ -266,8 +267,20 @@ export default function ChatPage() {
     )
 
     try {
+      // If confirming a generate_recipe action, convert it to save_recipe
+      let actionToExecute = message.action!
+      if (actionToExecute.type === 'generate_recipe' && actionToExecute.data?.recipe) {
+        actionToExecute = {
+          type: 'save_recipe',
+          data: {
+            recipe: actionToExecute.data.recipe,
+          },
+          requires_confirmation: false,
+        }
+      }
+      
       // Execute the action
-      const actionResult = await executeAction(message.action!, user.id, today)
+      const actionResult = await executeAction(actionToExecute, user.id, today)
 
       if (actionResult.success) {
         // Invalidate queries to refresh data
@@ -275,19 +288,15 @@ export default function ChatPage() {
         queryClient.invalidateQueries({ queryKey: ['exercises'] })
         queryClient.invalidateQueries({ queryKey: ['waterIntake'] })
         queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
+        // Force refetch recipes immediately after saving
         queryClient.invalidateQueries({ queryKey: ['recipes'] })
+        queryClient.refetchQueries({ queryKey: ['recipes'] })
         queryClient.invalidateQueries({ queryKey: ['mealPlans'] })
         queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
         queryClient.invalidateQueries({ queryKey: ['streak'] }) // Update streak when actions are executed
 
-        // Add confirmation message
-        const confirmationMessage: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: actionResult.message,
-          timestamp: new Date().toISOString(),
-        }
-        setMessages((prev) => [...prev, confirmationMessage])
+        // Don't add another message when user confirms - the AI already responded
+        // The action execution happens silently in the background
       } else {
         // Show error message
         const errorMessage: ChatMessage = {
@@ -300,10 +309,11 @@ export default function ChatPage() {
       }
     } catch (error) {
       console.error('Error executing action:', error)
+      logger.error('Error executing action:', error)
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'I encountered an error while executing that action. Please try again.',
+        content: `Failed to execute action: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
         timestamp: new Date().toISOString(),
       }
       setMessages((prev) => [...prev, errorMessage])
@@ -409,7 +419,9 @@ export default function ChatPage() {
                   queryClient.invalidateQueries({ queryKey: ['exercises'] })
                   queryClient.invalidateQueries({ queryKey: ['waterIntake'] })
                   queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
+                  // Force refetch recipes immediately after saving
                   queryClient.invalidateQueries({ queryKey: ['recipes'] })
+                  queryClient.refetchQueries({ queryKey: ['recipes'] })
                   queryClient.invalidateQueries({ queryKey: ['mealPlans'] })
                   queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
                   queryClient.invalidateQueries({ queryKey: ['streak'] }) // Update streak when actions are executed

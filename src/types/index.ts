@@ -202,8 +202,8 @@ export interface Recipe {
   servings: number
   prep_time?: number // minutes
   cook_time?: number // minutes
-  ingredients: RecipeIngredient[]
-  instructions: string[]
+  ingredients?: RecipeIngredient[] // Optional - kept for backward compatibility
+  instructions: string // Text field - can be paragraphs or numbered steps
   nutrition_per_serving: RecipeNutrition
   image_url?: string
   tags: string[]

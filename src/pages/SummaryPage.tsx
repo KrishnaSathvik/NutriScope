@@ -7,6 +7,7 @@ import { generateDailyInsights } from '@/services/aiInsights'
 import { useAuth } from '@/contexts/AuthContext'
 import { Sparkles, TrendingUp, TrendingDown, Target, AlertCircle, CheckCircle2, Droplet, Flame, Activity, Cookie, Beef, Circle, UtensilsCrossed } from 'lucide-react'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
+import { formatOptionalNutrition, stripMarkdown } from '@/utils/format'
 
 export default function SummaryPage() {
   const { date } = useParams<{ date: string }>()
@@ -171,7 +172,7 @@ export default function SummaryPage() {
                 </div>
               ) : aiInsight ? (
                 <>
-                  <p className="text-xs md:text-sm text-text font-mono leading-relaxed break-words mb-2">{aiInsight}</p>
+                  <p className="text-xs md:text-sm text-text font-mono leading-relaxed break-words mb-2">{stripMarkdown(aiInsight)}</p>
                   <p className="text-[9px] md:text-[10px] text-dim/70 font-mono italic">
                     Insights update automatically when you log new meals or workouts
                   </p>
@@ -222,12 +223,12 @@ export default function SummaryPage() {
         </div>
 
         {/* Protein */}
-        <div className="card-modern border-success/30 p-3 md:p-4">
+        <div className="card-modern border-emerald-500/30 dark:border-acid/30 p-3 md:p-4">
           <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
-            <Beef className="w-3.5 h-3.5 md:w-4 md:h-4 text-success fill-success/80 dark:text-success dark:fill-success/80 stroke-success stroke-1 flex-shrink-0" />
+            <Beef className="w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-500 fill-emerald-500 dark:text-emerald-500 dark:fill-emerald-500 flex-shrink-0" />
             <span className="text-[10px] md:text-xs text-dim font-mono uppercase truncate">Protein</span>
           </div>
-          <div className="text-xl md:text-2xl font-bold text-success font-mono mb-1">
+          <div className="text-xl md:text-2xl font-bold text-emerald-500 dark:text-text font-mono mb-1">
             {dailyLog?.protein || 0}g
           </div>
           <div className="text-[10px] md:text-xs text-dim font-mono mb-1 md:mb-2">
@@ -235,7 +236,7 @@ export default function SummaryPage() {
           </div>
           <div className="relative w-full bg-border h-1 rounded-full overflow-hidden">
             <div
-              className="absolute top-0 left-0 h-full bg-success transition-all duration-1000"
+              className="absolute top-0 left-0 h-full bg-emerald-500 dark:bg-emerald-500 transition-all duration-1000"
               style={{ width: `${proteinProgress}%` }}
             />
           </div>
@@ -314,7 +315,6 @@ export default function SummaryPage() {
         {/* Additional Macros */}
         <div className="card-modern p-4 md:p-6">
           <div className="flex items-center gap-2 mb-4 md:mb-6">
-            <Cookie className="w-4 h-4 md:w-5 md:h-5 text-yellow-500 fill-yellow-500 dark:text-yellow-500 dark:fill-yellow-500 flex-shrink-0" />
             <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Additional Macros</h2>
           </div>
           <div className="space-y-3 md:space-y-4">
@@ -323,14 +323,18 @@ export default function SummaryPage() {
                 <Cookie className="w-3.5 h-3.5 md:w-4 md:h-4 text-yellow-500 fill-yellow-500 dark:text-yellow-500 dark:fill-yellow-500 flex-shrink-0" />
                 <span className="text-[10px] md:text-xs text-dim font-mono uppercase">Carbs</span>
               </div>
-              <span className="font-bold text-yellow-500 dark:text-text font-mono text-base md:text-lg">{dailyLog.carbs || 0}g</span>
+              <span className="font-bold text-yellow-500 dark:text-text font-mono text-base md:text-lg">
+                {formatOptionalNutrition(dailyLog.carbs)}
+              </span>
             </div>
             <div className="flex justify-between items-center py-2.5 md:py-3">
               <div className="flex items-center gap-1.5 md:gap-2">
                 <Circle className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500 flex-shrink-0" />
                 <span className="text-[10px] md:text-xs text-dim font-mono uppercase">Fats</span>
               </div>
-              <span className="font-bold text-amber-500 dark:text-text font-mono text-base md:text-lg">{dailyLog.fats || 0}g</span>
+              <span className="font-bold text-amber-500 dark:text-text font-mono text-base md:text-lg">
+                {formatOptionalNutrition(dailyLog.fats)}
+              </span>
             </div>
           </div>
         </div>
@@ -436,18 +440,18 @@ export default function SummaryPage() {
                 <div className="grid grid-cols-3 gap-2 md:gap-3 pt-2 md:pt-3 border-t border-border">
                   <div>
                     <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-0.5 md:mb-1">Protein</div>
-                    <div className="text-xs md:text-sm font-bold text-success font-mono">{meal.protein}g</div>
+                    <div className="text-xs md:text-sm font-bold text-emerald-500 dark:text-text font-mono">{meal.protein}g</div>
                   </div>
                   <div>
                     <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-0.5 md:mb-1">Carbs</div>
                     <div className="text-xs md:text-sm font-bold text-text font-mono">
-                      {meal.carbs !== undefined ? `${meal.carbs}g` : '-'}
+                      {formatOptionalNutrition(meal.carbs)}
                     </div>
                   </div>
                   <div>
                     <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-0.5 md:mb-1">Fats</div>
                     <div className="text-xs md:text-sm font-bold text-text font-mono">
-                      {meal.fats !== undefined ? `${meal.fats}g` : '-'}
+                      {formatOptionalNutrition(meal.fats)}
                     </div>
                   </div>
                 </div>

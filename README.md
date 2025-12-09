@@ -26,7 +26,7 @@ NutriScope is a full-featured health and fitness tracking platform that combines
   - Meal templates for quick logging
   - Copy previous day's meals with one click
 
-- **Meal Types:** Pre Breakfast, Breakfast, Morning Snack, Lunch, Evening Snack, Dinner, Post Dinner
+- **Meal Types:** Pre Breakfast, Breakfast, Morning Snack, Lunch, Evening Snack, Dinner, Post Dinner (7 meal types total)
 - **Nutrition Tracking:** Calories, protein, carbs, fats (carbs and fats optional)
 - **Edit & Delete:** Full CRUD operations for meal management
 - **Food Database:** Integration with USDA FoodData Central API for accurate nutrition data
@@ -50,10 +50,10 @@ NutriScope is a full-featured health and fitness tracking platform that combines
   - Achievement widget
 
 - **Quick Actions:**
-  - Add meal/workout shortcuts
-  - Quick water intake buttons
+  - Quick water intake buttons (250ml, 500ml, 750ml, 1000ml)
+  - Custom water amount entry
   - Weight entry from dashboard
-  - Navigate to detailed pages
+  - Navigate to detailed pages via header navigation
 
 - **Summary Cards:**
   - Calorie balance breakdown
@@ -153,10 +153,10 @@ NutriScope is a full-featured health and fitness tracking platform that combines
   - Custom date range picker
 
 - **Comprehensive Charts:**
-  - Calorie balance trends (bar charts)
+  - Calorie balance trends (line charts showing consumed vs burned over time)
   - Protein intake trends (line charts)
-  - Macronutrients breakdown (area charts)
-  - Weight trends with BMI tracking
+  - Macronutrients breakdown (stacked area charts for calories, protein, carbs, fats)
+  - Weight trends with BMI tracking (line charts with goal lines)
   - Water intake statistics
   - Workout frequency and calories burned
 
@@ -193,22 +193,23 @@ NutriScope is a full-featured health and fitness tracking platform that combines
   - Unlock notifications
 
 ### 📝 **Recipe Management**
-- **Create & Manage Recipes:**
+- **Simplified Recipe Structure:**
   - Recipe name, description, servings
-  - Ingredient list with quantities and units
-  - Step-by-step instructions
-  - Prep time and cook time
-  - Nutrition per serving (auto-calculated or manual)
-  - Recipe images
-  - Tags and categories
+  - Single text field for instructions (step-by-step or paragraphs)
+  - Nutrition per serving (calories, protein, carbs, fats)
+  - Prep time and cook time (optional)
+  - Recipe images (optional)
+  - Tags (optional)
   - Favorite recipes
 
 - **Recipe Features:**
-  - **Recipe Scaling:** Scale ingredients and nutrition for different serving sizes
-  - **Nutrition Calculation:** Automatic nutrition calculation from ingredients
+  - **Manual Nutrition Entry:** Enter nutrition values directly
   - **Recipe Browser:** Browse all your recipes
+  - **Save as Meal Template:** Convert recipes to reusable meal templates
   - **Quick Add:** Add recipes directly to meal plans
   - **Edit & Delete:** Full recipe management
+  - **Recipe Detail View:** Full-screen responsive dialog with all recipe information
+  - **Favorite Recipes:** Star recipes for quick access
 
 ### 📅 **Meal Planning**
 - **Weekly Calendar View:**
@@ -229,18 +230,26 @@ NutriScope is a full-featured health and fitness tracking platform that combines
   - Track planned vs actual meals
 
 ### 🛒 **Grocery Lists**
-- **Smart List Generation:**
-  - Auto-generate from meal plans
-  - Aggregate ingredients across all planned meals
-  - Automatic categorization (produce, meat, dairy, pantry, other)
-  - Quantity aggregation and unit conversion
+- **Simplified Real-World Format:**
+  - Single default grocery list
+  - Simple format: item name and quantity (e.g., "2x Eggs")
+  - No complex units - just quantity and name
+  - Auto-categorization (produce, meat, dairy, pantry, beverages, frozen, other)
+
+- **Smart Search & Autocomplete:**
+  - **Search Box:** Type to search and add items instantly
+  - **Database-Backed:** Search from database of common grocery items
+  - **Autocomplete Suggestions:** See suggestions as you type
+  - **Keyboard Navigation:** Arrow keys to navigate, Enter to add
+  - **Auto-Add on Enter:** Press Enter/Return to add item to list
+  - **Popularity Tracking:** Most searched items appear first
 
 - **List Management:**
-  - Create custom grocery lists
-  - Add/remove items manually
+  - Auto-generate from meal plans (optional)
+  - Add items via search or manual entry
   - Check off items as you shop
-  - Edit quantities and units
-  - Multiple lists support
+  - Delete items with trash icon
+  - Items grouped by category automatically
 
 ### 💬 **AI Chat Assistant** ⭐ ENHANCED
 - **Natural Language Interface:**
@@ -705,7 +714,7 @@ The application uses Supabase (PostgreSQL) with the following tables:
 - **meal_templates** - Saved meal templates for quick logging
 
 ### Advanced Features
-- **recipes** - User recipes with ingredients and instructions
+- **recipes** - User recipes with name, servings, instructions (text), and nutrition per serving
 - **meal_plans** - Weekly meal planning data
 - **grocery_lists** - Shopping lists generated from meal plans
 - **achievements** - User achievement records
@@ -825,11 +834,11 @@ The application uses a custom dark theme design system:
 - Chat history management
 
 ### Recipe Management
-- Create recipes with ingredients and instructions
-- Recipe scaling for different serving sizes
-- Automatic nutrition calculation
-- Recipe images
-- Tags and categories
+- Create recipes with name, servings, instructions (single text field), and nutrition
+- Save recipes as meal templates
+- Manual nutrition entry (calories, protein, carbs, fats)
+- Recipe images (optional)
+- Tags (optional)
 - Favorite recipes
 - Edit and delete functionality
 - Integration with meal planning

@@ -7,12 +7,17 @@ export async function createExercise(exercise: Omit<Exercise, 'id' | 'user_id' |
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
+  // Preserve exact calorie values - only convert to integer if needed
+  const caloriesBurnedValue = Number(exercise.calories_burned) || 0
+  const exerciseData = {
+    ...exercise,
+    user_id: user.id,
+    calories_burned: Number.isInteger(caloriesBurnedValue) ? caloriesBurnedValue : Math.floor(caloriesBurnedValue),
+  }
+
   const { data, error } = await supabase
     .from('exercises')
-    .insert({
-      ...exercise,
-      user_id: user.id,
-    })
+    .insert(exerciseData)
     .select()
     .single()
 
@@ -47,10 +52,17 @@ export async function updateExercise(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
+  // Preserve exact calorie values
+  const updateData: any = { ...updates }
+  if (updateData.calories_burned !== undefined) {
+    const caloriesValue = Number(updateData.calories_burned) || 0
+    updateData.calories_burned = Number.isInteger(caloriesValue) ? caloriesValue : Math.floor(caloriesValue)
+  }
+
   const { data, error } = await supabase
     .from('exercises')
     .update({
-      ...updates,
+      ...updateData,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)

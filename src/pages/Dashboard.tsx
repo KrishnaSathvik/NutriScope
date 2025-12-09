@@ -20,7 +20,7 @@ export default function Dashboard() {
   useUserRealtimeSubscription('meals', ['meals', 'dailyLog', 'aiInsights'], user?.id)
   useUserRealtimeSubscription('exercises', ['exercises', 'dailyLog', 'aiInsights'], user?.id)
   useUserRealtimeSubscription('daily_logs', ['dailyLog', 'waterIntake'], user?.id)
-  useUserRealtimeSubscription('weight_logs', ['weightLogs'], user?.id)
+  useUserRealtimeSubscription('weight_logs', ['weightLogs', 'latestWeight'], user?.id)
 
   const { data: dailyLog } = useQuery({
     queryKey: ['dailyLog', today],
@@ -134,12 +134,12 @@ export default function Dashboard() {
         {/* Protein Card */}
         <div className="card-modern p-3 md:p-4">
           <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-            <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-success/20 flex items-center justify-center flex-shrink-0">
-              <Beef className="w-4 h-4 md:w-5 md:h-5 text-success fill-success/80 dark:text-success dark:fill-success/80 stroke-success stroke-1" />
+            <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-emerald-500/20 dark:bg-acid/20 flex items-center justify-center flex-shrink-0">
+              <Beef className="w-4 h-4 md:w-5 md:h-5 text-emerald-500 fill-emerald-500 dark:text-emerald-500 dark:fill-emerald-500" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider mb-1 truncate">Protein</div>
-              <div className="text-lg md:text-xl font-bold text-success font-mono">
+              <div className="text-lg md:text-xl font-bold text-emerald-500 dark:text-text font-mono">
                 {dailyLog?.protein || 0}g
                 <span className="text-[10px] md:text-xs text-dim font-normal ml-1">
                   / {profile?.protein_target || 150}g
@@ -149,7 +149,7 @@ export default function Dashboard() {
           </div>
           <div className="relative w-full bg-border h-1 overflow-hidden rounded-full">
             <div
-              className="absolute top-0 left-0 h-full bg-success transition-all duration-1000 ease-out"
+              className="absolute top-0 left-0 h-full bg-emerald-500 dark:bg-emerald-500 transition-all duration-1000 ease-out"
               style={{ width: `${Math.min(proteinProgress, 100)}%` }}
             />
           </div>

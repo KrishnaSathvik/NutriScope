@@ -91,7 +91,7 @@ export default function AchievementBadge({
         {showProgress && achievement.progress !== undefined && achievement.progress < 100 && (
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-border">
             <div
-              className="h-full bg-success dark:bg-amber-500 transition-all duration-300"
+              className="h-full bg-orange-500 dark:bg-amber-500 transition-all duration-300"
               style={{ width: `${achievement.progress}%` }}
             />
           </div>

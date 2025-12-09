@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
-import { getRecipes, createRecipe, updateRecipe, deleteRecipe, scaleRecipe } from '@/services/recipes'
-import { Recipe, RecipeIngredient } from '@/types'
+import { getRecipes, createRecipe, updateRecipe, deleteRecipe } from '@/services/recipes'
+import { createMealTemplate } from '@/services/mealTemplates'
+import { Recipe, RecipeIngredient, MealType } from '@/types'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { Plus, Trash2, X, Edit, ChefHat, Clock, Users, Scale, Star, StarOff } from 'lucide-react'
+import { Plus, Trash2, X, Edit, ChefHat, Clock, Users, Save, Star, StarOff, Flame, Beef, Eye } from 'lucide-react'
 import PullToRefresh from '@/components/PullToRefresh'
 import { format } from 'date-fns'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
@@ -13,18 +14,21 @@ export default function RecipesPage() {
   const { user } = useAuth()
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null)
-  const [showScaleDialog, setShowScaleDialog] = useState(false)
-  const [scalingRecipe, setScalingRecipe] = useState<Recipe | null>(null)
-  const [newServings, setNewServings] = useState(4)
+  const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false)
+  const [recipeToSaveAsTemplate, setRecipeToSaveAsTemplate] = useState<Recipe | null>(null)
+  const [templateMealType, setTemplateMealType] = useState<MealType>('lunch')
+  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null)
   const queryClient = useQueryClient()
 
   // Set up realtime subscription for recipes
   useUserRealtimeSubscription('recipes', ['recipes'], user?.id)
 
-  const { data: recipes = [], isLoading } = useQuery({
+  const { data: recipes = [], isLoading, refetch } = useQuery({
     queryKey: ['recipes'],
     queryFn: getRecipes,
     enabled: !!user,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   })
 
   const createMutation = useMutation({
@@ -56,6 +60,10 @@ export default function RecipesPage() {
       updateRecipe(id, { is_favorite: !isFavorite }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recipes'] })
+      queryClient.refetchQueries({ queryKey: ['recipes'] })
+    },
+    onError: (error) => {
+      console.error('Error toggling favorite:', error)
     },
   })
 
@@ -69,25 +77,7 @@ export default function RecipesPage() {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
 
-    const ingredients: RecipeIngredient[] = []
-    const ingredientNames = formData.getAll('ingredient_name') as string[]
-    const ingredientQuantities = formData.getAll('ingredient_quantity') as string[]
-    const ingredientUnits = formData.getAll('ingredient_unit') as string[]
-
-    for (let i = 0; i < ingredientNames.length; i++) {
-      if (ingredientNames[i].trim()) {
-        ingredients.push({
-          name: ingredientNames[i],
-          quantity: Number(ingredientQuantities[i]) || 0,
-          unit: ingredientUnits[i] || 'g',
-        })
-      }
-    }
-
-    const instructions = (formData.get('instructions') as string)
-      ?.split('\n')
-      .filter(line => line.trim())
-      || []
+    const instructions = (formData.get('instructions') as string)?.trim() || ''
 
     const recipeData = {
       name: formData.get('name') as string,
@@ -95,15 +85,14 @@ export default function RecipesPage() {
       servings: Number(formData.get('servings')) || 1,
       prep_time: formData.get('prep_time') ? Number(formData.get('prep_time')) : undefined,
       cook_time: formData.get('cook_time') ? Number(formData.get('cook_time')) : undefined,
-      ingredients,
       instructions,
       tags: (formData.get('tags') as string)?.split(',').map(t => t.trim()).filter(Boolean) || [],
       is_favorite: false,
       nutrition_per_serving: {
-        calories: 0,
-        protein: 0,
-        carbs: 0,
-        fats: 0,
+        calories: Number(formData.get('calories')) || 0,
+        protein: Number(formData.get('protein')) || 0,
+        carbs: Number(formData.get('carbs')) || 0,
+        fats: Number(formData.get('fats')) || 0,
       },
     }
 
@@ -114,19 +103,30 @@ export default function RecipesPage() {
     }
   }
 
-  const handleScale = () => {
-    if (!scalingRecipe) return
-    const scaled = scaleRecipe(scalingRecipe, newServings)
-    updateMutation.mutate({
-      id: scalingRecipe.id,
-      updates: {
-        servings: scaled.servings,
-        ingredients: scaled.ingredients,
-        nutrition_per_serving: scaled.nutrition_per_serving,
-      },
-    })
-    setShowScaleDialog(false)
-    setScalingRecipe(null)
+  const saveTemplateMutation = useMutation({
+    mutationFn: async ({ recipe, mealType }: { recipe: Recipe; mealType: MealType }) => {
+      if (!user?.id) throw new Error('Not authenticated')
+      return createMealTemplate(user.id, {
+        name: recipe.name,
+        description: recipe.description,
+        meal_type: mealType,
+        calories: recipe.nutrition_per_serving.calories,
+        protein: recipe.nutrition_per_serving.protein,
+        carbs: recipe.nutrition_per_serving.carbs,
+        fats: recipe.nutrition_per_serving.fats,
+        image_url: recipe.image_url,
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mealTemplates'] })
+      setShowSaveTemplateDialog(false)
+      setRecipeToSaveAsTemplate(null)
+    },
+  })
+
+  const handleSaveToTemplate = () => {
+    if (!recipeToSaveAsTemplate) return
+    saveTemplateMutation.mutate({ recipe: recipeToSaveAsTemplate, mealType: templateMealType })
   }
 
   return (
@@ -159,23 +159,31 @@ export default function RecipesPage() {
           </div>
         </div>
 
-        {/* Add/Edit Recipe Form */}
-        {(showAddForm || editingRecipeId) && (
-          <div className="card-modern border-acid/30 p-4 md:p-6">
-            <div className="flex items-center justify-between mb-4 md:mb-6">
-              <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
-                {editingRecipeId ? 'Edit Recipe' : 'New Recipe'}
-              </h2>
-              <button
-                onClick={() => {
-                  setShowAddForm(false)
-                  setEditingRecipeId(null)
-                }}
-                className="text-dim hover:text-text transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        {/* Add/Edit Recipe Form Dialog */}
+        <Dialog open={showAddForm || !!editingRecipeId} onOpenChange={(open) => {
+          if (!open) {
+            setShowAddForm(false)
+            setEditingRecipeId(null)
+          }
+        }}>
+          <DialogContent className="w-full h-full max-w-full max-h-full sm:h-[95vh] sm:max-h-[95vh] sm:w-[95vw] sm:max-w-[95vw] sm:m-4 p-4 md:p-6 lg:p-8 overflow-y-auto translate-x-0 translate-y-0 left-0 top-0 sm:left-[50%] sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%]" hideClose={true}>
+            <DialogHeader>
+              <div className="flex items-center justify-between mb-4 md:mb-6">
+                <DialogTitle className="text-lg md:text-2xl font-bold text-text uppercase tracking-widest font-mono">
+                  {editingRecipeId ? 'Edit Recipe' : 'New Recipe'}
+                </DialogTitle>
+                <button
+                  onClick={() => {
+                    setShowAddForm(false)
+                    setEditingRecipeId(null)
+                  }}
+                  className="text-dim hover:text-text transition-colors p-1"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5 md:w-6 md:h-6" />
+                </button>
+              </div>
+            </DialogHeader>
 
             <form onSubmit={handleSubmit} className="space-y-4 md:space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -249,137 +257,86 @@ export default function RecipesPage() {
                 </div>
               </div>
 
-              {/* Ingredients */}
+              {/* Nutrition Info */}
               <div>
                 <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">
-                  Ingredients *
+                  Nutrition Per Serving *
                 </label>
-                <div id="ingredients-list" className="space-y-2">
-                  {(editingRecipe?.ingredients.length || 0) > 0 ? (
-                    editingRecipe!.ingredients.map((ing, idx) => (
-                      <div key={idx} className="grid grid-cols-12 gap-2">
-                        <input
-                          type="text"
-                          name="ingredient_name"
-                          required
-                          className="input-modern col-span-5"
-                          defaultValue={ing.name}
-                          placeholder="Ingredient"
-                        />
-                        <input
-                          type="number"
-                          name="ingredient_quantity"
-                          required
-                          min="0"
-                          step="0.01"
-                          className="input-modern col-span-3"
-                          defaultValue={ing.quantity}
-                          placeholder="Qty"
-                        />
-                        <select
-                          name="ingredient_unit"
-                          className="input-modern col-span-2"
-                          defaultValue={ing.unit}
-                        >
-                          <option value="g">g</option>
-                          <option value="kg">kg</option>
-                          <option value="ml">ml</option>
-                          <option value="l">l</option>
-                          <option value="cup">cup</option>
-                          <option value="tbsp">tbsp</option>
-                          <option value="tsp">tsp</option>
-                          <option value="piece">piece</option>
-                        </select>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            const list = document.getElementById('ingredients-list')
-                            if (list && e.currentTarget.parentElement) {
-                              list.removeChild(e.currentTarget.parentElement)
-                            }
-                          }}
-                          className="btn-secondary col-span-2 text-xs px-2"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="grid grid-cols-12 gap-2">
-                      <input
-                        type="text"
-                        name="ingredient_name"
-                        required
-                        className="input-modern col-span-5"
-                        placeholder="Ingredient"
-                      />
-                      <input
-                        type="number"
-                        name="ingredient_quantity"
-                        required
-                        min="0"
-                        step="0.01"
-                        className="input-modern col-span-3"
-                        placeholder="Qty"
-                      />
-                      <select name="ingredient_unit" className="input-modern col-span-2">
-                        <option value="g">g</option>
-                        <option value="kg">kg</option>
-                        <option value="ml">ml</option>
-                        <option value="l">l</option>
-                        <option value="cup">cup</option>
-                        <option value="tbsp">tbsp</option>
-                        <option value="tsp">tsp</option>
-                        <option value="piece">piece</option>
-                      </select>
-                    </div>
-                  )}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-[9px] md:text-[10px] font-mono uppercase tracking-wider text-dim mb-1">
+                      Calories
+                    </label>
+                    <input
+                      type="number"
+                      name="calories"
+                      required
+                      min="0"
+                      className="input-modern"
+                      defaultValue={editingRecipe?.nutrition_per_serving.calories || 0}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] md:text-[10px] font-mono uppercase tracking-wider text-dim mb-1">
+                      Protein (g)
+                    </label>
+                    <input
+                      type="number"
+                      name="protein"
+                      required
+                      min="0"
+                      step="0.1"
+                      className="input-modern"
+                      defaultValue={editingRecipe?.nutrition_per_serving.protein || 0}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] md:text-[10px] font-mono uppercase tracking-wider text-dim mb-1">
+                      Carbs (g)
+                    </label>
+                    <input
+                      type="number"
+                      name="carbs"
+                      required
+                      min="0"
+                      step="0.1"
+                      className="input-modern"
+                      defaultValue={editingRecipe?.nutrition_per_serving.carbs || 0}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] md:text-[10px] font-mono uppercase tracking-wider text-dim mb-1">
+                      Fats (g)
+                    </label>
+                    <input
+                      type="number"
+                      name="fats"
+                      required
+                      min="0"
+                      step="0.1"
+                      className="input-modern"
+                      defaultValue={editingRecipe?.nutrition_per_serving.fats || 0}
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    const list = document.getElementById('ingredients-list')
-                    if (list) {
-                      const newRow = document.createElement('div')
-                      newRow.className = 'grid grid-cols-12 gap-2'
-                      newRow.innerHTML = `
-                        <input type="text" name="ingredient_name" class="input-modern col-span-5" placeholder="Ingredient" />
-                        <input type="number" name="ingredient_quantity" min="0" step="0.01" class="input-modern col-span-3" placeholder="Qty" />
-                        <select name="ingredient_unit" class="input-modern col-span-2">
-                          <option value="g">g</option>
-                          <option value="kg">kg</option>
-                          <option value="ml">ml</option>
-                          <option value="l">l</option>
-                          <option value="cup">cup</option>
-                          <option value="tbsp">tbsp</option>
-                          <option value="tsp">tsp</option>
-                          <option value="piece">piece</option>
-                        </select>
-                        <button type="button" onclick="this.parentElement.remove()" class="btn-secondary col-span-2 text-xs px-2">Remove</button>
-                      `
-                      list.appendChild(newRow)
-                    }
-                  }}
-                  className="btn-secondary text-xs mt-2"
-                >
-                  + Add Ingredient
-                </button>
               </div>
 
               {/* Instructions */}
               <div>
                 <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">
-                  Instructions (one per line) *
+                  Instructions *
                 </label>
                 <textarea
                   name="instructions"
                   required
                   className="input-modern"
-                  rows={6}
-                  defaultValue={editingRecipe?.instructions.join('\n') || ''}
-                  placeholder="Step 1: ...&#10;Step 2: ..."
+                  rows={8}
+                  defaultValue={editingRecipe?.instructions || ''}
+                  placeholder="Type your recipe instructions here. You can use paragraphs or numbered steps:&#10;&#10;1. First step...&#10;2. Second step...&#10;&#10;Or write in paragraphs for a more detailed description."
                 />
               </div>
 
@@ -418,8 +375,8 @@ export default function RecipesPage() {
                 </button>
               </div>
             </form>
-          </div>
-        )}
+          </DialogContent>
+        </Dialog>
 
         {/* Recipes List */}
         {isLoading ? (
@@ -427,7 +384,11 @@ export default function RecipesPage() {
         ) : recipes.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {recipes.map((recipe) => (
-              <div key={recipe.id} className="card-modern group hover:border-acid/50 transition-all p-4 md:p-6">
+              <div 
+                key={recipe.id} 
+                className="card-modern group hover:border-acid/50 transition-all p-4 md:p-6 cursor-pointer"
+                onClick={() => setSelectedRecipe(recipe)}
+              >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -443,7 +404,8 @@ export default function RecipesPage() {
                     )}
                   </div>
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation()
                       toggleFavoriteMutation.mutate({
                         id: recipe.id,
                         isFavorite: recipe.is_favorite,
@@ -501,36 +463,16 @@ export default function RecipesPage() {
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setEditingRecipeId(recipe.id)
-                      setShowAddForm(true)
-                    }}
-                    className="btn-secondary flex-1 text-xs py-2 flex items-center justify-center gap-1"
-                  >
-                    <Edit className="w-3 h-3" />
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => {
-                      setScalingRecipe(recipe)
-                      setNewServings(recipe.servings)
-                      setShowScaleDialog(true)
-                    }}
-                    className="btn-secondary flex-1 text-xs py-2 flex items-center justify-center gap-1"
-                    title="Scale recipe"
-                  >
-                    <Scale className="w-3 h-3" />
-                    Scale
-                  </button>
-                  <button
-                    onClick={() => deleteMutation.mutate(recipe.id)}
-                    className="btn-secondary text-xs py-2 px-3 text-error hover:bg-error/10"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setSelectedRecipe(recipe)
+                  }}
+                  className="btn-secondary w-full text-xs py-2.5 flex items-center justify-center gap-1.5 hover:bg-acid/10 hover:text-acid transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>View</span>
+                </button>
               </div>
             ))}
           </div>
@@ -546,51 +488,310 @@ export default function RecipesPage() {
           </div>
         )}
 
-        {/* Scale Recipe Dialog */}
-        <Dialog open={showScaleDialog} onOpenChange={setShowScaleDialog}>
-          <DialogContent>
+        {/* Save to Template Dialog */}
+        <Dialog open={showSaveTemplateDialog} onOpenChange={setShowSaveTemplateDialog}>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Scale Recipe</DialogTitle>
-              <DialogDescription>
-                Adjust the serving size. Ingredients and nutrition will be automatically calculated.
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30">
+                  <Save className="w-5 h-5 text-acid" />
+                </div>
+                <DialogTitle className="text-lg font-bold text-text uppercase tracking-widest font-mono">
+                  Save as Template
+                </DialogTitle>
+              </div>
+              <DialogDescription className="text-sm text-dim font-mono">
+                Save this recipe as a meal template for quick logging. Select the meal type.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-4 py-4">
+              {recipeToSaveAsTemplate && (
+                <div className="p-4 bg-panel border border-border rounded-sm">
+                  <div className="font-mono text-base font-bold text-text mb-2">{recipeToSaveAsTemplate.name}</div>
+                  <div className="grid grid-cols-4 gap-3 text-xs font-mono">
+                    <div>
+                      <div className="text-dim">Calories</div>
+                      <div className="text-text font-bold">{recipeToSaveAsTemplate.nutrition_per_serving.calories}</div>
+                    </div>
+                    <div>
+                      <div className="text-dim">Protein</div>
+                      <div className="text-text font-bold">{recipeToSaveAsTemplate.nutrition_per_serving.protein}g</div>
+                    </div>
+                    <div>
+                      <div className="text-dim">Carbs</div>
+                      <div className="text-text font-bold">{recipeToSaveAsTemplate.nutrition_per_serving.carbs}g</div>
+                    </div>
+                    <div>
+                      <div className="text-dim">Fats</div>
+                      <div className="text-text font-bold">{recipeToSaveAsTemplate.nutrition_per_serving.fats}g</div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-mono uppercase tracking-wider text-dim mb-2">
-                  New Serving Size
+                  Meal Type *
                 </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={newServings}
-                  onChange={(e) => setNewServings(Number(e.target.value) || 1)}
-                  className="input-modern w-full"
-                />
-                {scalingRecipe && (
-                  <div className="text-xs text-dim font-mono mt-2">
-                    Current: {scalingRecipe.servings} servings
-                  </div>
-                )}
+                <select
+                  value={templateMealType}
+                  onChange={(e) => setTemplateMealType(e.target.value as MealType)}
+                  className="input-modern w-full text-sm"
+                >
+                  <option value="pre_breakfast">Pre-Breakfast</option>
+                  <option value="breakfast">Breakfast</option>
+                  <option value="morning_snack">Morning Snack</option>
+                  <option value="lunch">Lunch</option>
+                  <option value="evening_snack">Evening Snack</option>
+                  <option value="dinner">Dinner</option>
+                  <option value="post_dinner">Post-Dinner</option>
+                </select>
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex gap-2">
               <button
-                onClick={() => setShowScaleDialog(false)}
+                onClick={() => {
+                  setShowSaveTemplateDialog(false)
+                  setRecipeToSaveAsTemplate(null)
+                }}
                 className="btn-secondary"
+                disabled={saveTemplateMutation.isPending}
               >
                 Cancel
               </button>
               <button
-                onClick={handleScale}
-                className="btn-primary"
-                disabled={updateMutation.isPending}
+                onClick={handleSaveToTemplate}
+                className="btn-primary flex items-center gap-2"
+                disabled={saveTemplateMutation.isPending}
               >
-                {updateMutation.isPending ? 'Scaling...' : 'Scale Recipe'}
+                <Save className="w-4 h-4" />
+                {saveTemplateMutation.isPending ? 'Saving...' : 'Save Template'}
               </button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+      {/* Recipe Detail Dialog */}
+      <Dialog open={!!selectedRecipe} onOpenChange={(open) => !open && setSelectedRecipe(null)}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          {selectedRecipe && (
+            <>
+              <DialogHeader>
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ChefHat className="w-5 h-5 text-acid" />
+                      <DialogTitle className="text-2xl md:text-3xl font-bold text-text font-mono uppercase">
+                        {selectedRecipe.name}
+                      </DialogTitle>
+                    </div>
+                    {selectedRecipe.description && (
+                      <DialogDescription className="text-sm text-dim font-mono mt-2">
+                        {selectedRecipe.description}
+                      </DialogDescription>
+                    )}
+                  </div>
+                </div>
+                {/* Favorite button - positioned separately below title, left-aligned */}
+                <div className="flex items-center justify-start mb-4 -mt-2">
+                  <button
+                    onClick={() => {
+                      toggleFavoriteMutation.mutate({
+                        id: selectedRecipe.id,
+                        isFavorite: selectedRecipe.is_favorite,
+                      })
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-sm border transition-colors bg-panel hover:bg-acid/10 hover:border-acid/50"
+                    title={selectedRecipe.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+                  >
+                    {selectedRecipe.is_favorite ? (
+                      <>
+                        <Star className="w-4 h-4 fill-acid text-acid" />
+                        <span className="text-xs font-mono uppercase text-acid">Favorited</span>
+                      </>
+                    ) : (
+                      <>
+                        <StarOff className="w-4 h-4 text-dim" />
+                        <span className="text-xs font-mono uppercase text-dim">Add to Favorites</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-6">
+                {/* Recipe Image */}
+                {selectedRecipe.image_url && (
+                  <div className="w-full h-48 md:h-64 rounded-sm overflow-hidden border border-border">
+                    <img 
+                      src={selectedRecipe.image_url} 
+                      alt={selectedRecipe.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+
+                {/* Recipe Info */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-panel rounded-sm border border-border">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-acid" />
+                    <div>
+                      <div className="text-xs text-dim font-mono uppercase">Servings</div>
+                      <div className="text-sm font-bold text-text font-mono">{selectedRecipe.servings}</div>
+                    </div>
+                  </div>
+                  {selectedRecipe.prep_time && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-acid" />
+                      <div>
+                        <div className="text-xs text-dim font-mono uppercase">Prep Time</div>
+                        <div className="text-sm font-bold text-text font-mono">{selectedRecipe.prep_time} min</div>
+                      </div>
+                    </div>
+                  )}
+                  {selectedRecipe.cook_time && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-acid" />
+                      <div>
+                        <div className="text-xs text-dim font-mono uppercase">Cook Time</div>
+                        <div className="text-sm font-bold text-text font-mono">{selectedRecipe.cook_time} min</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Nutrition Information */}
+                <div className="p-4 bg-panel rounded-sm border border-border">
+                  <h3 className="text-sm font-bold text-text font-mono uppercase mb-3 flex items-center gap-2">
+                    <Flame className="w-4 h-4 text-acid" />
+                    Nutrition Per Serving
+                  </h3>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-orange-500 dark:text-acid font-mono">
+                        {selectedRecipe.nutrition_per_serving.calories}
+                      </div>
+                      <div className="text-xs text-dim font-mono uppercase">Calories</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-success font-mono">
+                        {selectedRecipe.nutrition_per_serving.protein}g
+                      </div>
+                      <div className="text-xs text-dim font-mono uppercase">Protein</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-yellow-500 dark:text-text font-mono">
+                        {selectedRecipe.nutrition_per_serving.carbs}g
+                      </div>
+                      <div className="text-xs text-dim font-mono uppercase">Carbs</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-amber-500 dark:text-text font-mono">
+                        {selectedRecipe.nutrition_per_serving.fats}g
+                      </div>
+                      <div className="text-xs text-dim font-mono uppercase">Fats</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Instructions */}
+                {selectedRecipe.instructions && (
+                  <div className="p-4 bg-panel rounded-sm border border-border">
+                    <h3 className="text-sm font-bold text-text font-mono uppercase mb-3 flex items-center gap-2">
+                      <ChefHat className="w-4 h-4 text-acid" />
+                      Instructions
+                    </h3>
+                    <div className="prose prose-sm max-w-none">
+                      <div className="text-sm text-text font-mono whitespace-pre-wrap leading-relaxed">
+                        {(() => {
+                          // Handle both string and array formats
+                          let instructionsText = ''
+                          if (typeof selectedRecipe.instructions === 'string') {
+                            instructionsText = selectedRecipe.instructions
+                          } else if (Array.isArray(selectedRecipe.instructions)) {
+                            instructionsText = selectedRecipe.instructions.join('\n')
+                          } else {
+                            instructionsText = String(selectedRecipe.instructions || '')
+                          }
+
+                          return instructionsText.split('\n').map((step, index) => {
+                            // Check if step starts with a number (e.g., "1.", "2.", etc.)
+                            const isNumbered = /^\d+[\.\)]\s/.test(step.trim())
+                            if (isNumbered || step.trim()) {
+                              return (
+                                <div key={index} className="mb-3 flex gap-3">
+                                  {isNumbered ? (
+                                    <>
+                                      <span className="text-acid font-bold flex-shrink-0">{step.match(/^\d+[\.\)]/)?.[0]}</span>
+                                      <span className="flex-1">{step.replace(/^\d+[\.\)]\s*/, '')}</span>
+                                    </>
+                                  ) : (
+                                    <span className="flex-1">{step}</span>
+                                  )}
+                                </div>
+                              )
+                            }
+                            return null
+                          })
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tags */}
+                {selectedRecipe.tags && selectedRecipe.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRecipe.tags.map((tag, index) => (
+                      <span
+                        key={index}
+                        className="px-3 py-1 text-xs font-mono uppercase bg-acid/10 text-acid border border-acid/30 rounded-sm"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <DialogFooter className="flex gap-2 sm:gap-3">
+                  <button
+                    onClick={() => {
+                      setEditingRecipeId(selectedRecipe.id)
+                      setSelectedRecipe(null)
+                      setShowAddForm(true)
+                    }}
+                    className="btn-secondary flex-1 text-xs md:text-sm py-2.5 flex items-center justify-center gap-2"
+                  >
+                    <Edit className="w-4 h-4" />
+                    <span>Edit</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRecipeToSaveAsTemplate(selectedRecipe)
+                      setTemplateMealType('lunch')
+                      setSelectedRecipe(null)
+                      setShowSaveTemplateDialog(true)
+                    }}
+                    className="btn-secondary flex-1 text-xs md:text-sm py-2.5 flex items-center justify-center gap-2 hover:bg-acid/10 hover:text-acid"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Save Template</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      deleteMutation.mutate(selectedRecipe.id)
+                      setSelectedRecipe(null)
+                    }}
+                    className="btn-secondary text-xs md:text-sm py-2.5 px-4 text-error hover:bg-error/10 hover:text-error"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </DialogFooter>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
       </div>
     </PullToRefresh>
   )

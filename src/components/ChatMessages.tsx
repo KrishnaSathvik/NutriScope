@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Bot, User, Check, X } from 'lucide-react'
 import { ChatMessage } from '@/types'
+import { stripMarkdown } from '@/utils/format'
 
 interface ChatMessagesProps {
   messages: ChatMessage[]
@@ -11,7 +12,7 @@ interface ChatMessagesProps {
   onCancelAction?: (messageId: string) => void
 }
 
-export function ChatMessages({ messages, loading, isStreaming, streamingMessage }: ChatMessagesProps) {
+export function ChatMessages({ messages, loading, isStreaming, streamingMessage, onConfirmAction, onCancelAction }: ChatMessagesProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -48,7 +49,9 @@ export function ChatMessages({ messages, loading, isStreaming, streamingMessage 
                 : 'bg-panel border-border text-text hover:border-acid/30'
             }`}
           >
-            <p className="whitespace-pre-wrap text-xs md:text-sm font-mono leading-relaxed animate-fade-in break-words">{message.content}</p>
+            <p className="whitespace-pre-wrap text-xs md:text-sm font-mono leading-relaxed animate-fade-in break-words">
+              {message.role === 'assistant' ? stripMarkdown(message.content) : message.content}
+            </p>
             {message.image_url && (
               <img
                 src={message.image_url}
@@ -117,7 +120,7 @@ export function ChatMessages({ messages, loading, isStreaming, streamingMessage 
           </div>
           <div className="flex-1 min-w-0 rounded-sm p-3 md:p-4 bg-panel border border-border">
             <p className="whitespace-pre-wrap text-xs md:text-sm font-mono leading-relaxed text-text break-words">
-              {streamingMessage}
+              {stripMarkdown(streamingMessage)}
               <span className="inline-block w-0.5 h-3 md:h-4 bg-acid ml-1 animate-blink align-middle" />
             </p>
           </div>

@@ -17,9 +17,9 @@ export default function AchievementsPage() {
   const today = format(new Date(), 'yyyy-MM-dd')
   const cacheKey = `achievements_${user?.id}_${today}`
 
-  // Only subscribe to achievements table changes (not meals/exercises to avoid constant refetching)
-  // Achievements will be checked periodically via the widget or when user explicitly refreshes
-  useUserRealtimeSubscription('achievements', ['achievementsWithProgress'], user?.id)
+  // Subscribe to achievements table changes to catch newly unlocked achievements
+  // Also invalidate 'achievements' query key since getAchievementsWithProgress calls getUserAchievements internally
+  useUserRealtimeSubscription('achievements', ['achievementsWithProgress', 'achievements'], user?.id)
 
   // Load cached data from localStorage if available
   const getCachedAchievements = () => {
@@ -58,15 +58,13 @@ export default function AchievementsPage() {
       return result
     },
     enabled: !!user && !!profile,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false, // Don't refetch on mount if data exists for today
-    refetchOnReconnect: false, // Don't refetch on reconnect
-    staleTime: Infinity, // Data is fresh until date changes (handled by query key)
+    refetchOnWindowFocus: true, // Refetch on window focus to catch newly unlocked achievements
+    refetchOnMount: true, // Always refetch on mount to ensure fresh data
+    refetchOnReconnect: true, // Refetch on reconnect
+    staleTime: 1000 * 60 * 5, // Consider data stale after 5 minutes
     retry: 1,
     gcTime: 24 * 60 * 60 * 1000, // Keep in cache for 24 hours
-    // Use cached data from localStorage immediately
-    initialData: getCachedAchievements,
-    // Use cached data immediately if available to avoid loading state
+    // Use cached data from localStorage immediately as placeholder
     placeholderData: (previousData) => previousData || getCachedAchievements(),
   })
   
@@ -159,8 +157,33 @@ export default function AchievementsPage() {
   }
 
   const handleRefresh = async () => {
+    // Clear localStorage cache for today
+    if (user?.id) {
+      try {
+        localStorage.removeItem(cacheKey)
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+    // Invalidate and refetch achievements (both query keys)
     await queryClient.invalidateQueries({ queryKey: ['achievementsWithProgress'] })
+    await queryClient.invalidateQueries({ queryKey: ['achievements'] }) // Also invalidate getUserAchievements cache
   }
+  
+  // Effect to update localStorage when achievements change
+  useEffect(() => {
+    if (achievements.length > 0 && user) {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          data: achievements,
+          date: today,
+          timestamp: Date.now(),
+        }))
+      } catch (e) {
+        // localStorage might be full, ignore
+      }
+    }
+  }, [achievements, user, today, cacheKey])
 
   return (
     <PullToRefresh onRefresh={handleRefresh} disabled={!user}>
@@ -198,7 +221,7 @@ export default function AchievementsPage() {
           </div>
           <div className="relative w-full bg-border h-2 rounded-full overflow-hidden">
             <div
-              className="absolute top-0 left-0 h-full bg-success dark:bg-cyan-500 transition-all duration-1000"
+              className="absolute top-0 left-0 h-full bg-orange-500 dark:bg-cyan-500 transition-all duration-1000"
               style={{ width: `${(unlockedCount / totalCount) * 100}%` }}
             />
           </div>

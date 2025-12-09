@@ -4,8 +4,8 @@ import { format, subDays, subMonths, differenceInDays } from 'date-fns'
 import { getDailyLog } from '@/services/dailyLogs'
 import { useAuth } from '@/contexts/AuthContext'
 import PullToRefresh from '@/components/PullToRefresh'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, AreaChart, Area, ComposedChart, Legend, ScatterChart, Scatter, Cell } from 'recharts'
-import { Flame, Target, Activity, Droplet, TrendingUp, TrendingDown, Minus, Cookie, Circle, Calendar, BarChart3, Scale, TrendingUp as TrendingUpIcon, Lightbulb, Beef } from 'lucide-react'
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, LineChart, AreaChart, Area, ComposedChart, Legend, ScatterChart, Scatter, Cell } from 'recharts'
+import { Flame, Target, Activity, Droplet, TrendingUp, TrendingDown, Minus, Cookie, Calendar, BarChart3, Scale, TrendingUp as TrendingUpIcon, Lightbulb, Beef } from 'lucide-react'
 import { StatCardSkeleton, ChartSkeleton } from '@/components/LoadingSkeleton'
 import { WeightChart } from '@/components/WeightChart'
 import { getWeightCaloriesCorrelation, getProteinWorkoutsCorrelation, predictWeight } from '@/services/analytics'
@@ -32,6 +32,7 @@ export default function AnalyticsPage() {
   const handleRefresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['dailyLog'] }),
+      queryClient.invalidateQueries({ queryKey: ['analytics'] }),
       queryClient.invalidateQueries({ queryKey: ['weightLogs'] }),
       queryClient.invalidateQueries({ queryKey: ['correlations'] }),
       queryClient.invalidateQueries({ queryKey: ['predictions'] }),
@@ -171,18 +172,20 @@ export default function AnalyticsPage() {
 
   // Calculate statistics
   const logsArray: AnalyticsDataPoint[] = dailyLogs || []
-  const stats = logsArray.length > 0 ? {
-    avgCalories: Math.round(logsArray.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.calories, 0) / logsArray.length),
-    avgProtein: Math.round(logsArray.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.protein, 0) / logsArray.length),
-    avgWater: Math.round(logsArray.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.water, 0) / logsArray.length),
-    totalWorkouts: logsArray.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.workouts, 0),
-    totalCaloriesBurned: logsArray.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.caloriesBurned, 0),
-    avgNetCalories: Math.round(logsArray.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.netCalories, 0) / logsArray.length),
-    caloriesTrend: logsArray.length >= 2 
-      ? logsArray[logsArray.length - 1].calories - logsArray[logsArray.length - 2].calories
+  // Filter out days with no actual logged data (meals or exercises)
+  const daysWithData = logsArray.filter(log => log.meals > 0 || log.workouts > 0 || log.water > 0 || log.calories > 0)
+  const stats = daysWithData.length > 0 ? {
+    avgCalories: Math.round(daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.calories, 0) / daysWithData.length),
+    avgProtein: Math.round(daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.protein, 0) / daysWithData.length),
+    avgWater: Math.round(daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.water, 0) / daysWithData.length),
+    totalWorkouts: daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.workouts, 0),
+    totalCaloriesBurned: daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.caloriesBurned, 0),
+    avgNetCalories: Math.round(daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.netCalories, 0) / daysWithData.length),
+    caloriesTrend: daysWithData.length >= 2 
+      ? daysWithData[daysWithData.length - 1].calories - daysWithData[daysWithData.length - 2].calories
       : 0,
-    proteinTrend: logsArray.length >= 2
-      ? logsArray[logsArray.length - 1].protein - logsArray[logsArray.length - 2].protein
+    proteinTrend: daysWithData.length >= 2
+      ? daysWithData[daysWithData.length - 1].protein - daysWithData[daysWithData.length - 2].protein
       : 0,
   } : null
 
@@ -194,13 +197,13 @@ export default function AnalyticsPage() {
   const { data: weightCaloriesCorrelation } = useQuery({
     queryKey: ['correlations', 'weight-calories', timeRange],
     queryFn: () => getWeightCaloriesCorrelation(timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90),
-    enabled: !!user && logsArray.length >= 2,
+    enabled: !!user && daysWithData.length >= 2,
   })
 
   const { data: proteinWorkoutsCorrelation } = useQuery({
     queryKey: ['correlations', 'protein-workouts', timeRange],
     queryFn: () => getProteinWorkoutsCorrelation(timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90),
-    enabled: !!user && logsArray.length >= 2,
+    enabled: !!user && daysWithData.length >= 2,
   })
 
   const { data: weightPrediction } = useQuery({
@@ -334,7 +337,7 @@ export default function AnalyticsPage() {
           <ChartSkeleton />
           <ChartSkeleton />
         </div>
-      ) : logsArray.length > 0 && stats ? (
+      ) : daysWithData.length >= 2 && stats ? (
         <div className="space-y-4 md:space-y-6">
           {/* Summary Statistics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
@@ -571,7 +574,21 @@ export default function AnalyticsPage() {
               <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Macronutrients Breakdown</h2>
             </div>
             <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
-              <BarChart data={logsArray}>
+              <AreaChart data={logsArray}>
+                <defs>
+                  <linearGradient id="proteinGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-success)" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="var(--color-success)" stopOpacity={0.2} />
+                  </linearGradient>
+                  <linearGradient id="carbsGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-acid)" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="var(--color-acid)" stopOpacity={0.2} />
+                  </linearGradient>
+                  <linearGradient id="fatsGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ffaa00" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="#ffaa00" stopOpacity={0.2} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#222" />
                 <XAxis 
                   dataKey="date" 
@@ -594,13 +611,38 @@ export default function AnalyticsPage() {
                     fontSize: '11px',
                   }}
                 />
-                <Bar dataKey="protein" stackId="macros" fill="var(--color-success)" radius={[0, 0, 0, 0]} name="Protein" />
-                <Bar dataKey="carbs" stackId="macros" fill="var(--color-acid)" radius={[0, 0, 0, 0]} name="Carbs" />
-                <Bar dataKey="fats" stackId="macros" fill="#ffaa00" radius={[2, 2, 0, 0]} name="Fats" />
+                <Area 
+                  type="monotone" 
+                  dataKey="protein" 
+                  stackId="macros"
+                  fill="url(#proteinGradient)" 
+                  stroke="var(--color-success)" 
+                  strokeWidth={2}
+                  name="Protein" 
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="carbs" 
+                  stackId="macros"
+                  fill="url(#carbsGradient)" 
+                  stroke="var(--color-acid)" 
+                  strokeWidth={2}
+                  name="Carbs" 
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="fats" 
+                  stackId="macros"
+                  fill="url(#fatsGradient)" 
+                  stroke="#ffaa00" 
+                  strokeWidth={2}
+                  name="Fats" 
+                />
                 <Legend 
                   wrapperStyle={{ fontFamily: 'JetBrains Mono', fontSize: '11px', color: '#525252' }}
+                  iconType="square"
                 />
-              </BarChart>
+              </AreaChart>
             </ResponsiveContainer>
           </div>
 
@@ -615,13 +657,7 @@ export default function AnalyticsPage() {
                 <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Water Intake</h2>
               </div>
               <ResponsiveContainer width="100%" height={200} className="md:h-[250px]">
-                <BarChart data={logsArray}>
-                  <defs>
-                    <linearGradient id="waterGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-acid)" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="var(--color-acid)" stopOpacity={0.2} />
-                    </linearGradient>
-                  </defs>
+                <LineChart data={logsArray}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#222" />
                   <XAxis 
                     dataKey="date" 
@@ -644,8 +680,15 @@ export default function AnalyticsPage() {
                       fontSize: '11px',
                     }}
                   />
-                  <Bar dataKey="water" fill="url(#waterGradient)" radius={[2, 2, 0, 0]} />
-                </BarChart>
+                  <Line 
+                    type="monotone" 
+                    dataKey="water" 
+                    stroke="var(--color-acid)" 
+                    strokeWidth={2}
+                    dot={{ fill: 'var(--color-acid)', r: 3 }}
+                    name="Water (ml)"
+                  />
+                </LineChart>
               </ResponsiveContainer>
             </div>
 
@@ -658,13 +701,7 @@ export default function AnalyticsPage() {
                 <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Workouts</h2>
               </div>
               <ResponsiveContainer width="100%" height={200} className="md:h-[250px]">
-                <BarChart data={logsArray}>
-                  <defs>
-                    <linearGradient id="workoutGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#ffaa00" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#ffaa00" stopOpacity={0.2} />
-                    </linearGradient>
-                  </defs>
+                <LineChart data={logsArray}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#222" />
                   <XAxis 
                     dataKey="date" 
@@ -687,8 +724,15 @@ export default function AnalyticsPage() {
                       fontSize: '11px',
                     }}
                   />
-                  <Bar dataKey="workouts" fill="url(#workoutGradient)" radius={[2, 2, 0, 0]} />
-                </BarChart>
+                  <Line 
+                    type="monotone" 
+                    dataKey="workouts" 
+                    stroke="#ffaa00" 
+                    strokeWidth={2}
+                    dot={{ fill: '#ffaa00', r: 3 }}
+                    name="Workouts"
+                  />
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </div>

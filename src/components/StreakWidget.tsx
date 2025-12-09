@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState, useEffect, useMemo } from 'react'
 import { format } from 'date-fns'
 import { calculateLoggingStreak } from '@/services/streak'
-import { Flame, CheckCircle2 } from 'lucide-react'
+import { Zap, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import type { StreakData } from '@/services/streak'
 
@@ -59,10 +59,25 @@ export function StreakWidget() {
     retry: 1,
     gcTime: 24 * 60 * 60 * 1000, // Keep in cache for 24 hours
     // Use cached data from localStorage immediately - this prevents loading state
-    initialData: cachedStreakData,
+    ...(cachedStreakData ? { initialData: cachedStreakData } : {}),
     // Use cached data immediately if available to avoid loading state
     placeholderData: (previousData) => previousData || cachedStreakData,
   })
+  
+  // Update localStorage when streakData changes (after refetch)
+  useEffect(() => {
+    if (streakData && user?.id) {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          data: streakData,
+          date: today,
+          timestamp: Date.now(),
+        }))
+      } catch (e) {
+        // localStorage might be full, ignore
+      }
+    }
+  }, [streakData, user?.id, cacheKey, today])
   
   // Show fallback after 3 seconds if still loading
   useEffect(() => {
@@ -78,10 +93,10 @@ export function StreakWidget() {
   
   // Default state component
   const DefaultState = () => (
-    <div className="card-modern border-acid/30 p-3 md:p-4">
+    <div className="card-modern border-amber-500/30 dark:border-acid/30 p-3 md:p-4">
       <div className="flex items-center gap-2 mb-2">
-        <div className="w-8 h-8 rounded-sm bg-acid/20 border border-acid/30 flex items-center justify-center">
-          <Flame className="w-4 h-4 text-acid" />
+        <div className="w-8 h-8 rounded-sm bg-amber-500/20 dark:bg-amber-500/20 border border-amber-500/30 dark:border-amber-500/30 flex items-center justify-center">
+          <Zap className="w-4 h-4 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider mb-1">Logging Streak</div>
@@ -114,8 +129,9 @@ export function StreakWidget() {
     return <DefaultState />
   }
 
-  // Use cached data if available, otherwise use fetched data
-  const displayData = streakData || cachedStreakData
+  // Prioritize fetched data (most up-to-date), fall back to cached only if no data yet
+  // This ensures we show fresh data immediately after invalidation
+  const displayData = streakData ?? cachedStreakData
   
   // Show loading state only if we have no cached data
   // If we have cached data, show it immediately even if fetching in background
@@ -123,10 +139,10 @@ export function StreakWidget() {
   
   if (isLoading && hasNoData) {
     return (
-      <div className="card-modern border-acid/30 p-3 md:p-4">
+      <div className="card-modern border-amber-500/30 dark:border-acid/30 p-3 md:p-4">
         <div className="flex items-center gap-2 mb-2">
           <div className="w-8 h-8 rounded-sm bg-acid/20 border border-acid/30 flex items-center justify-center animate-pulse">
-            <Flame className="w-4 h-4 text-acid" />
+            <Zap className="w-4 h-4 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500" />
           </div>
           <div className="flex-1">
             <div className="h-3 bg-border rounded w-20 mb-1 animate-pulse" />
@@ -139,10 +155,10 @@ export function StreakWidget() {
 
   if (!displayData || displayData.currentStreak === 0) {
     return (
-      <div className="card-modern border-acid/30 p-3 md:p-4">
+      <div className="card-modern border-amber-500/30 dark:border-acid/30 p-3 md:p-4">
         <div className="flex items-center gap-2 mb-2">
           <div className="w-8 h-8 rounded-sm bg-acid/20 border border-acid/30 flex items-center justify-center">
-            <Flame className="w-4 h-4 text-acid" />
+            <Zap className="w-4 h-4 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider mb-1">Logging Streak</div>
@@ -160,14 +176,14 @@ export function StreakWidget() {
   const finalData = displayData!
   
   return (
-    <div className="card-modern border-acid/30 p-3 md:p-4">
+    <div className="card-modern border-amber-500/30 dark:border-acid/30 p-3 md:p-4">
       <div className="flex items-center gap-2 mb-2">
         <div className={`w-8 h-8 rounded-sm border flex items-center justify-center ${
           finalData.isActive 
-            ? 'bg-acid/20 border-acid/30 animate-pulse' 
-            : 'bg-acid/10 border-acid/20'
+            ? 'bg-amber-500/20 dark:bg-amber-500/20 border-amber-500/30 dark:border-amber-500/30 animate-pulse' 
+            : 'bg-amber-500/10 dark:bg-amber-500/10 border-amber-500/20 dark:border-amber-500/20'
         }`}>
-          <Flame className={`w-4 h-4 ${finalData.isActive ? 'text-acid' : 'text-acid/50'}`} />
+          <Zap className={`w-4 h-4 ${finalData.isActive ? 'text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500' : 'text-amber-500/50 fill-amber-500/50 dark:text-amber-500/50 dark:fill-amber-500/50'}`} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider mb-1">Logging Streak</div>

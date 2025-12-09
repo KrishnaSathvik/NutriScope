@@ -21,6 +21,20 @@ export default function Auth() {
   const { toast } = useToast();
 
   useEffect(() => {
+    // Check for email verification redirect
+    const urlParams = new URLSearchParams(window.location.search);
+    const verified = urlParams.get('verified');
+    const accessToken = urlParams.get('access_token');
+    const refreshToken = urlParams.get('refresh_token');
+    
+    if (verified === 'true' || accessToken) {
+      // Handle email verification - Supabase will automatically set the session
+      // Just wait a moment for session to be established, then redirect
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 1000);
+    }
+
     // Check if current user is a guest
     const checkGuestStatus = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -49,13 +63,17 @@ export default function Auth() {
         if (guest) {
           setIsSignUp(true);
         }
+        // If user just verified email, redirect to dashboard
+        if (verified === 'true' && !guest) {
+          navigate('/dashboard');
+        }
       } else {
         setIsGuest(false);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,9 +98,15 @@ export default function Auth() {
         const storedGuestUserId = localStorage.getItem('nutriscope_guest_user_id');
         const guestUserId = isCurrentGuest ? currentUser?.id : (storedGuestUserId || null);
 
+        // Get the current origin for redirect URL
+        const redirectTo = `${window.location.origin}/auth?verified=true`
+
         const { data: signUpData, error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: redirectTo,
+          },
         });
 
         if (error) throw error;

@@ -40,7 +40,11 @@ export default function ProductPage() {
           <section className="max-w-7xl mx-auto pt-16 sm:pt-24 lg:pt-32 xl:pt-40 px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24 lg:pb-32 xl:pb-40">
             <div className="text-center max-w-4xl mx-auto">
               <div className="inline-flex items-center gap-2 text-xs text-dim font-mono bg-surface/50 border border-border rounded-full px-3 py-1.5 backdrop-blur-md mb-6">
-                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-acid"></span>
+                <div className="flex items-center gap-1">
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-orange-500"></span>
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-purple-500"></span>
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                </div>
                 Product
               </div>
 
@@ -106,7 +110,7 @@ export default function ProductPage() {
                   {
                     icon: BookOpen,
                     title: 'Recipe Management',
-                    description: 'Create and manage recipes with ingredients and instructions. Automatic nutrition calculation and recipe scaling for different serving sizes.',
+                    description: 'Create and manage recipes with simplified structure: name, servings, instructions, and nutrition. Save recipes as meal templates. Favorite recipes for quick access.',
                     color: 'warning',
                   },
                   {
@@ -166,19 +170,19 @@ export default function ProductPage() {
                 ].map((feature, i) => (
                   <div key={i} className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300">
                     <div className={`flex w-12 h-12 rounded-sm items-center justify-center mb-4 ${
-                      feature.color === 'acid' ? 'bg-acid/20 border border-acid/30' :
-                      feature.color === 'success' ? 'bg-success/20 border border-success/30' :
-                      feature.color === 'accent' ? 'bg-accent/20 border border-accent/30' :
-                      feature.color === 'warning' ? 'bg-warning/20 border border-warning/30' :
-                      'bg-error/20 border border-error/30'
+                      feature.color === 'acid' ? 'bg-indigo-500/20 border border-indigo-500/30' :
+                      feature.color === 'success' ? 'bg-emerald-500/20 border border-emerald-500/30' :
+                      feature.color === 'accent' ? 'bg-orange-500/20 border border-orange-500/30' :
+                      feature.color === 'warning' ? 'bg-amber-500/20 border border-amber-500/30' :
+                      'bg-red-500/20 border border-red-500/30'
                     }`}>
                       <feature.icon className={`h-6 w-6 ${
-                        feature.color === 'acid' ? 'text-acid' :
-                        feature.color === 'success' ? 'text-success' :
-                        feature.color === 'accent' ? 'text-accent' :
-                        feature.color === 'warning' ? 'text-warning' :
-                        'text-error'
-                      }`} />
+                        feature.color === 'acid' ? 'text-indigo-500 stroke-indigo-500 dark:text-indigo-400 dark:stroke-indigo-400' :
+                        feature.color === 'success' ? 'text-emerald-500 stroke-emerald-500 dark:text-emerald-400 dark:stroke-emerald-400' :
+                        feature.color === 'accent' ? 'text-orange-500 stroke-orange-500 dark:text-orange-400 dark:stroke-orange-400' :
+                        feature.color === 'warning' ? 'text-amber-500 stroke-amber-500 dark:text-amber-400 dark:stroke-amber-400' :
+                        'text-red-500 stroke-red-500 dark:text-red-400 dark:stroke-red-400'
+                      } stroke-2 fill-none`} />
                     </div>
                     <h3 className="text-xl font-bold tracking-tight text-text mb-2 font-mono uppercase">{feature.title}</h3>
                     <p className="text-sm text-dim font-mono leading-relaxed">{feature.description}</p>
@@ -232,17 +236,17 @@ export default function ProductPage() {
                 ].map((method, i) => (
                   <div key={i} className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300 text-center">
                     <div className={`flex w-16 h-16 rounded-sm items-center justify-center mx-auto mb-4 ${
-                      method.color === 'acid' ? 'bg-acid/20 border border-acid/30' :
-                      method.color === 'accent' ? 'bg-accent/20 border border-accent/30' :
-                      method.color === 'success' ? 'bg-success/20 border border-success/30' :
-                      'bg-warning/20 border border-warning/30'
+                      method.color === 'acid' ? 'bg-indigo-500/20 border border-indigo-500/30' :
+                      method.color === 'accent' ? 'bg-orange-500/20 border border-orange-500/30' :
+                      method.color === 'success' ? 'bg-emerald-500/20 border border-emerald-500/30' :
+                      'bg-amber-500/20 border border-amber-500/30'
                     }`}>
                       <method.icon className={`h-8 w-8 ${
-                        method.color === 'acid' ? 'text-acid' :
-                        method.color === 'accent' ? 'text-accent' :
-                        method.color === 'success' ? 'text-success' :
-                        'text-warning'
-                      }`} />
+                        method.color === 'acid' ? 'text-indigo-500 stroke-indigo-500 dark:text-indigo-400 dark:stroke-indigo-400' :
+                        method.color === 'accent' ? 'text-orange-500 stroke-orange-500 dark:text-orange-400 dark:stroke-orange-400' :
+                        method.color === 'success' ? 'text-emerald-500 stroke-emerald-500 dark:text-emerald-400 dark:stroke-emerald-400' :
+                        'text-amber-500 stroke-amber-500 dark:text-amber-400 dark:stroke-amber-400'
+                      } stroke-2 fill-none`} />
                     </div>
                     <h3 className="text-xl font-bold tracking-tight text-text mb-2 font-mono uppercase">{method.title}</h3>
                     <p className="text-sm text-dim font-mono mb-4 leading-relaxed">{method.description}</p>
@@ -320,17 +324,17 @@ export default function ProductPage() {
                   <div key={i} className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300">
                     <div className="flex items-center gap-4 mb-4">
                       <div className={`flex w-12 h-12 rounded-sm items-center justify-center ${
-                        feature.color === 'success' ? 'bg-success/20 border border-success/30' :
-                        feature.color === 'accent' ? 'bg-accent/20 border border-accent/30' :
-                        feature.color === 'warning' ? 'bg-warning/20 border border-warning/30' :
-                        'bg-acid/20 border border-acid/30'
+                        feature.color === 'success' ? 'bg-emerald-500/20 border border-emerald-500/30' :
+                        feature.color === 'accent' ? 'bg-orange-500/20 border border-orange-500/30' :
+                        feature.color === 'warning' ? 'bg-amber-500/20 border border-amber-500/30' :
+                        'bg-indigo-500/20 border border-indigo-500/30'
                       }`}>
                         <feature.icon className={`h-6 w-6 ${
-                          feature.color === 'success' ? 'text-success' :
-                          feature.color === 'accent' ? 'text-accent' :
-                          feature.color === 'warning' ? 'text-warning' :
-                          'text-acid'
-                        }`} />
+                          feature.color === 'success' ? 'text-emerald-500 stroke-emerald-500 dark:text-emerald-400 dark:stroke-emerald-400' :
+                          feature.color === 'accent' ? 'text-orange-500 stroke-orange-500 dark:text-orange-400 dark:stroke-orange-400' :
+                          feature.color === 'warning' ? 'text-amber-500 stroke-amber-500 dark:text-amber-400 dark:stroke-amber-400' :
+                          'text-indigo-500 stroke-indigo-500 dark:text-indigo-400 dark:stroke-indigo-400'
+                        } stroke-2 fill-none`} />
                       </div>
                       <h3 className="text-xl font-bold tracking-tight text-text font-mono uppercase">{feature.title}</h3>
                     </div>
@@ -378,7 +382,7 @@ export default function ProductPage() {
                     <ul className="space-y-3">
                       {useCase.items.map((item, j) => (
                         <li key={j} className="flex items-start gap-3">
-                          <CheckCircle2 className="h-5 w-5 text-success mt-0.5 flex-shrink-0" />
+                          <CheckCircle2 className="h-5 w-5 text-emerald-500 fill-emerald-500 dark:text-emerald-400 dark:fill-emerald-400 stroke-emerald-500 dark:stroke-emerald-400 stroke-2 mt-0.5 flex-shrink-0" />
                           <span className="text-sm text-dim font-mono leading-relaxed">{item}</span>
                         </li>
                       ))}

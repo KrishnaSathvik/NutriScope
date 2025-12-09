@@ -19,12 +19,12 @@ export async function generateGroceryListFromMealPlan(
   const ingredientMap = new Map<string, { quantity: number; unit: string; category?: string }>()
 
   // Collect ingredients from all planned meals
-  for (const [day, meals] of Object.entries(mealPlan.planned_meals)) {
+  for (const [, meals] of Object.entries(mealPlan.planned_meals)) {
     for (const meal of meals) {
       if (meal.recipe_id) {
         const recipe = await getRecipe(meal.recipe_id)
         if (recipe) {
-          for (const ingredient of recipe.ingredients) {
+          for (const ingredient of (recipe.ingredients || [])) {
             const key = ingredient.name.toLowerCase()
             const existing = ingredientMap.get(key)
             
@@ -34,13 +34,13 @@ export async function generateGroceryListFromMealPlan(
               ingredientMap.set(key, {
                 quantity: existing.quantity + quantity,
                 unit: existing.unit,
-                category: categorizeIngredient(ingredient.name),
+                category: categorizeGroceryItem(ingredient.name),
               })
             } else {
               ingredientMap.set(key, {
                 quantity: ingredient.quantity,
                 unit: ingredient.unit,
-                category: categorizeIngredient(ingredient.name),
+                category: categorizeGroceryItem(ingredient.name),
               })
             }
           }
@@ -76,28 +76,59 @@ export async function generateGroceryListFromMealPlan(
 }
 
 /**
- * Categorize ingredient
+ * Categorize grocery item automatically
  */
-function categorizeIngredient(name: string): string {
+export function categorizeGroceryItem(name: string): string {
   const lower = name.toLowerCase()
   
+  // Meat & Seafood
   if (lower.includes('chicken') || lower.includes('beef') || lower.includes('pork') || 
-      lower.includes('fish') || lower.includes('turkey') || lower.includes('meat')) {
+      lower.includes('fish') || lower.includes('turkey') || lower.includes('meat') ||
+      lower.includes('salmon') || lower.includes('tuna') || lower.includes('shrimp') ||
+      lower.includes('bacon') || lower.includes('sausage') || lower.includes('ham')) {
     return 'meat'
   }
+  
+  // Dairy
   if (lower.includes('milk') || lower.includes('cheese') || lower.includes('yogurt') || 
-      lower.includes('butter') || lower.includes('cream')) {
+      lower.includes('butter') || lower.includes('cream') || lower.includes('eggs') ||
+      lower.includes('egg') || lower.includes('sour cream') || lower.includes('cottage cheese')) {
     return 'dairy'
   }
+  
+  // Produce (Fruits & Vegetables)
   if (lower.includes('vegetable') || lower.includes('broccoli') || lower.includes('spinach') ||
       lower.includes('carrot') || lower.includes('tomato') || lower.includes('onion') ||
-      lower.includes('pepper') || lower.includes('lettuce') || lower.includes('cucumber')) {
+      lower.includes('pepper') || lower.includes('lettuce') || lower.includes('cucumber') ||
+      lower.includes('apple') || lower.includes('banana') || lower.includes('orange') ||
+      lower.includes('berry') || lower.includes('grape') || lower.includes('avocado') ||
+      lower.includes('potato') || lower.includes('garlic') || lower.includes('ginger') ||
+      lower.includes('mushroom') || lower.includes('celery') || lower.includes('corn')) {
     return 'produce'
   }
+  
+  // Pantry (Grains, Canned, Spices, etc.)
   if (lower.includes('rice') || lower.includes('pasta') || lower.includes('flour') ||
-      lower.includes('sugar') || lower.includes('oil') || lower.includes('spice')) {
+      lower.includes('sugar') || lower.includes('oil') || lower.includes('spice') ||
+      lower.includes('bread') || lower.includes('cereal') || lower.includes('oatmeal') ||
+      lower.includes('canned') || lower.includes('soup') || lower.includes('sauce') ||
+      lower.includes('vinegar') || lower.includes('salt') || lower.includes('pepper') ||
+      lower.includes('herb') || lower.includes('nut') || lower.includes('seed')) {
     return 'pantry'
   }
+  
+  // Beverages
+  if (lower.includes('juice') || lower.includes('soda') || lower.includes('water') ||
+      lower.includes('coffee') || lower.includes('tea') || lower.includes('beer') ||
+      lower.includes('wine') || lower.includes('drink')) {
+    return 'beverages'
+  }
+  
+  // Frozen
+  if (lower.includes('frozen') || lower.includes('ice cream')) {
+    return 'frozen'
+  }
+
   return 'other'
 }
 
@@ -128,9 +159,9 @@ function convertToUnit(quantity: number, fromUnit: string, toUnit: string): numb
 }
 
 /**
- * Get all grocery lists for the current user
+ * Get or create default shopping list
  */
-export async function getGroceryLists(): Promise<GroceryList[]> {
+export async function getOrCreateDefaultList(): Promise<GroceryList> {
   if (!supabase) {
     throw new Error('Supabase not configured')
   }
@@ -140,18 +171,51 @@ export async function getGroceryLists(): Promise<GroceryList[]> {
     throw new Error('Not authenticated')
   }
 
-  const { data, error } = await supabase
+  // Try to find existing default list
+  const { data: existingLists, error: fetchError } = await supabase
     .from('grocery_lists')
     .select('*')
     .eq('user_id', user.id)
+    .eq('name', 'Shopping List')
     .order('created_at', { ascending: false })
+    .limit(1)
 
-  if (error) {
-    console.error('Error fetching grocery lists:', error)
-    throw new Error('Failed to fetch grocery lists')
+  if (fetchError) {
+    console.error('Error fetching grocery list:', fetchError)
+    throw new Error('Failed to fetch grocery list')
   }
 
-  return data || []
+  // Return existing default list if found
+  if (existingLists && existingLists.length > 0) {
+    return existingLists[0]
+  }
+
+  // Create default list if it doesn't exist
+  const { data: newList, error: createError } = await supabase
+    .from('grocery_lists')
+    .insert({
+      user_id: user.id,
+      name: 'Shopping List',
+      items: [],
+    })
+    .select()
+    .single()
+
+  if (createError) {
+    console.error('Error creating grocery list:', createError)
+    throw new Error('Failed to create grocery list')
+  }
+
+  return newList
+}
+
+/**
+ * Get all grocery lists for the current user
+ */
+export async function getGroceryLists(): Promise<GroceryList[]> {
+  // For now, just return the default list
+  const defaultList = await getOrCreateDefaultList()
+  return [defaultList]
 }
 
 /**

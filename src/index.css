@@ -31,6 +31,59 @@
 }
 
 @layer base {
+  html {
+    overflow-x: hidden;
+    scroll-behavior: smooth;
+    /* On mobile, only show scrollbar when needed */
+    overflow-y: auto;
+    /* Hide scrollbar on mobile but keep scroll functionality */
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  body {
+    overflow-x: hidden;
+    position: relative;
+    /* On mobile, only show scrollbar when content overflows */
+    overflow-y: auto;
+    /* Hide scrollbar visually but keep scroll functionality */
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Hide scrollbars on mobile devices */
+  @media (max-width: 768px) {
+    html {
+      /* Hide scrollbar but keep scrolling */
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+    }
+    
+    html::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
+    }
+    
+    body {
+      /* Hide scrollbar but keep scrolling */
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+    }
+    
+    body::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
+    }
+    
+    /* Only show scrollbar when content actually overflows */
+    main {
+      overflow-y: auto;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE and Edge */
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    main::-webkit-scrollbar {
+      display: none; /* Chrome, Safari, Opera */
+    }
+  }
+  
   * {
     border-color: var(--color-border);
   }
@@ -311,12 +364,29 @@
     color: var(--color-link-hover);
   }
   
-  a:not(.btn-primary) {
+  a:not(.btn-primary):not(footer a) {
     color: var(--color-link);
   }
   
-  a:not(.btn-primary):hover {
+  a:not(.btn-primary):not(footer a):hover {
     color: var(--color-link-hover);
+  }
+  
+  /* Footer links should be blue in both themes */
+  footer a:not(.btn-primary) {
+    color: rgb(59 130 246) !important; /* blue-500 */
+  }
+  
+  footer a:not(.btn-primary):hover {
+    color: rgb(37 99 235) !important; /* blue-600 */
+  }
+  
+  html.dark footer a:not(.btn-primary) {
+    color: rgb(96 165 250) !important; /* blue-400 */
+  }
+  
+  html.dark footer a:not(.btn-primary):hover {
+    color: rgb(147 197 253) !important; /* blue-300 */
   }
   
   /* Light mode: make sure text isn't washed out */

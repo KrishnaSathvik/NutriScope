@@ -1,6 +1,6 @@
 // Service Worker for NutriScope PWA
-const CACHE_NAME = 'nutriscope-v2'
-const RUNTIME_CACHE = 'nutriscope-runtime-v2'
+const CACHE_NAME = 'nutriscope-v3'
+const RUNTIME_CACHE = 'nutriscope-runtime-v3'
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [

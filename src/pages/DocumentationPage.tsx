@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
 import {
@@ -13,14 +12,10 @@ import {
   Droplet,
   BookMarked,
   Clock,
-  ArrowRight,
   CheckCircle2,
   TrendingUp,
   Target,
   Calendar,
-  Brain,
-  Zap,
-  ShieldCheck,
 } from 'lucide-react'
 
 export default function DocumentationPage() {
@@ -39,7 +34,11 @@ export default function DocumentationPage() {
           <section className="max-w-7xl mx-auto pt-16 sm:pt-24 lg:pt-32 xl:pt-40 px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24 lg:pb-32 xl:pb-40">
             <div className="text-center max-w-4xl mx-auto">
               <div className="inline-flex items-center gap-2 text-xs text-dim font-mono bg-surface/50 border border-border rounded-full px-3 py-1.5 backdrop-blur-md mb-6">
-                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-acid"></span>
+                <div className="flex items-center gap-1">
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-orange-500"></span>
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-purple-500"></span>
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                </div>
                 Documentation
               </div>
 
@@ -58,7 +57,7 @@ export default function DocumentationPage() {
             <div className="max-w-7xl mx-auto pt-16 sm:pt-24 px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24">
               <div className="text-center mb-12">
                 <div className="flex items-center justify-center gap-3 mb-4">
-                  <Utensils className="h-8 w-8 text-acid" />
+                  <Utensils className="h-8 w-8 text-indigo-500 stroke-indigo-500 dark:text-indigo-400 dark:stroke-indigo-400 stroke-2 fill-none" />
                   <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-text font-sans">
                     Meal Logging
                   </h2>
@@ -133,29 +132,24 @@ export default function DocumentationPage() {
                 ].map((method, i) => (
                   <div key={i} className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300">
                     <div className={`flex w-12 h-12 rounded-sm items-center justify-center mb-4 ${
-                      method.color === 'acid' ? 'bg-acid/20 border border-acid/30' :
-                      method.color === 'success' ? 'bg-success/20 border border-success/30' :
-                      method.color === 'accent' ? 'bg-accent/20 border border-accent/30' :
-                      'bg-warning/20 border border-warning/30'
+                      method.color === 'acid' ? 'bg-indigo-500/20 border border-indigo-500/30' :
+                      method.color === 'success' ? 'bg-emerald-500/20 border border-emerald-500/30' :
+                      method.color === 'accent' ? 'bg-orange-500/20 border border-orange-500/30' :
+                      'bg-amber-500/20 border border-amber-500/30'
                     }`}>
                       <method.icon className={`h-6 w-6 ${
-                        method.color === 'acid' ? 'text-acid' :
-                        method.color === 'success' ? 'text-success' :
-                        method.color === 'accent' ? 'text-accent' :
-                        'text-warning'
-                      }`} />
+                        method.color === 'acid' ? 'text-indigo-500 stroke-indigo-500 dark:text-indigo-400 dark:stroke-indigo-400' :
+                        method.color === 'success' ? 'text-emerald-500 stroke-emerald-500 dark:text-emerald-400 dark:stroke-emerald-400' :
+                        method.color === 'accent' ? 'text-orange-500 stroke-orange-500 dark:text-orange-400 dark:stroke-orange-400' :
+                        'text-amber-500 stroke-amber-500 dark:text-amber-400 dark:stroke-amber-400'
+                      } stroke-2 fill-none`} />
                     </div>
                     <h3 className="text-xl font-bold tracking-tight text-text mb-2 font-mono uppercase">{method.title}</h3>
                     <p className="text-sm text-dim font-mono mb-4 leading-relaxed">{method.description}</p>
                     <ul className="space-y-2">
                       {method.steps.map((step, j) => (
                         <li key={j} className="flex items-start gap-2">
-                          <CheckCircle2 className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
-                            method.color === 'acid' ? 'text-acid' :
-                            method.color === 'success' ? 'text-success' :
-                            method.color === 'accent' ? 'text-accent' :
-                            'text-warning'
-                          }`} />
+                          <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0 text-emerald-500 fill-emerald-500 dark:text-emerald-400 dark:fill-emerald-400 stroke-emerald-500 dark:stroke-emerald-400 stroke-2" />
                           <span className="text-xs text-dim font-mono">{step}</span>
                         </li>
                       ))}
@@ -171,7 +165,7 @@ export default function DocumentationPage() {
             <div className="max-w-7xl mx-auto pt-16 sm:pt-24 px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24">
               <div className="text-center mb-12">
                 <div className="flex items-center justify-center gap-3 mb-4">
-                  <Dumbbell className="h-8 w-8 text-accent" />
+                  <Dumbbell className="h-8 w-8 text-orange-500 stroke-orange-500 dark:text-orange-400 dark:stroke-orange-400 stroke-2 fill-none" />
                   <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-text font-sans">
                     Workout Logging
                   </h2>
@@ -211,7 +205,7 @@ export default function DocumentationPage() {
                     <ul className="space-y-3">
                       {section.items.map((item, j) => (
                         <li key={j} className="flex items-start gap-3">
-                          <CheckCircle2 className="h-5 w-5 text-accent mt-0.5 flex-shrink-0" />
+                          <CheckCircle2 className="h-5 w-5 text-emerald-500 fill-emerald-500 dark:text-emerald-400 dark:fill-emerald-400 stroke-emerald-500 dark:stroke-emerald-400 stroke-2 mt-0.5 flex-shrink-0" />
                           <span className="text-sm text-dim font-mono leading-relaxed">{item}</span>
                         </li>
                       ))}
@@ -227,7 +221,7 @@ export default function DocumentationPage() {
             <div className="max-w-7xl mx-auto pt-16 sm:pt-24 px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24">
               <div className="text-center mb-12">
                 <div className="flex items-center justify-center gap-3 mb-4">
-                  <BarChart3 className="h-8 w-8 text-success" />
+                  <BarChart3 className="h-8 w-8 text-emerald-500 stroke-emerald-500 dark:text-emerald-400 dark:stroke-emerald-400 stroke-2 fill-none" />
                   <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-text font-sans">
                     Analytics & Insights
                   </h2>
@@ -259,15 +253,15 @@ export default function DocumentationPage() {
                 ].map((feature, i) => (
                   <div key={i} className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300">
                     <div className={`flex w-12 h-12 rounded-sm items-center justify-center mb-4 ${
-                      feature.color === 'success' ? 'bg-success/20 border border-success/30' :
-                      feature.color === 'acid' ? 'bg-acid/20 border border-acid/30' :
-                      'bg-warning/20 border border-warning/30'
+                      feature.color === 'success' ? 'bg-emerald-500/20 border border-emerald-500/30' :
+                      feature.color === 'acid' ? 'bg-indigo-500/20 border border-indigo-500/30' :
+                      'bg-amber-500/20 border border-amber-500/30'
                     }`}>
                       <feature.icon className={`h-6 w-6 ${
-                        feature.color === 'success' ? 'text-success' :
-                        feature.color === 'acid' ? 'text-acid' :
-                        'text-warning'
-                      }`} />
+                        feature.color === 'success' ? 'text-emerald-500 stroke-emerald-500 dark:text-emerald-400 dark:stroke-emerald-400' :
+                        feature.color === 'acid' ? 'text-indigo-500 stroke-indigo-500 dark:text-indigo-400 dark:stroke-indigo-400' :
+                        'text-amber-500 stroke-amber-500 dark:text-amber-400 dark:stroke-amber-400'
+                      } stroke-2 fill-none`} />
                     </div>
                     <h3 className="text-xl font-bold tracking-tight text-text mb-2 font-mono uppercase">{feature.title}</h3>
                     <p className="text-sm text-dim font-mono leading-relaxed">{feature.description}</p>
@@ -282,13 +276,13 @@ export default function DocumentationPage() {
             <div className="max-w-7xl mx-auto pt-16 sm:pt-24 px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24">
               <div className="text-center mb-12">
                 <div className="flex items-center justify-center gap-3 mb-4">
-                  <BookOpen className="h-8 w-8 text-warning" />
+                  <BookOpen className="h-8 w-8 text-amber-500 stroke-amber-500 dark:text-amber-400 dark:stroke-amber-400 stroke-2 fill-none" />
                   <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-text font-sans">
                     Recipe Management
                   </h2>
                 </div>
                 <p className="text-base sm:text-lg text-dim font-mono max-w-2xl mx-auto">
-                  Create, manage, and scale recipes. Automatic nutrition calculation from ingredients. Add recipes to meal plans and generate grocery lists.
+                  Create and manage recipes with simplified structure. Enter recipe name, servings, instructions, and nutrition. Save recipes as meal templates. Favorite recipes for quick access.
                 </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -298,24 +292,25 @@ export default function DocumentationPage() {
                     items: [
                       'Navigate to Recipes page',
                       "Click 'Create Recipe'",
-                      'Enter recipe name, description, servings',
-                      'Add ingredients with quantities and units',
-                      'Add step-by-step instructions',
-                      'Nutrition calculated automatically from ingredients',
-                      'Or enter nutrition manually',
-                      'Add recipe image (optional)',
+                      'Enter recipe name, description, and servings',
+                      'Add instructions in a single text field (step-by-step or paragraphs)',
+                      'Enter nutrition per serving (calories, protein, carbs, fats)',
+                      'Add prep time and cook time (optional)',
+                      'Add tags (optional)',
                       'Save recipe',
+                      'View recipe details in full-screen dialog',
+                      'Save recipe as meal template for quick logging',
                     ],
                   },
                   {
-                    title: 'Recipe Scaling',
+                    title: 'Using Recipes',
                     items: [
-                      'Open any recipe',
-                      'Click "Scale Recipe" button',
-                      'Enter new serving size',
-                      'Ingredients and nutrition scale automatically',
-                      'Use scaled recipe in meal plans',
-                      'Perfect for meal prep and batch cooking',
+                      'Open any recipe to view full details',
+                      'View nutrition per serving',
+                      'Save recipe as meal template for quick logging',
+                      'Add recipe to meal plans',
+                      'Favorite recipes for quick access',
+                      'Edit or delete recipes anytime',
                     ],
                   },
                 ].map((section, i) => (
@@ -324,7 +319,7 @@ export default function DocumentationPage() {
                     <ul className="space-y-3">
                       {section.items.map((item, j) => (
                         <li key={j} className="flex items-start gap-3">
-                          <CheckCircle2 className="h-5 w-5 text-warning mt-0.5 flex-shrink-0" />
+                          <CheckCircle2 className="h-5 w-5 text-emerald-500 fill-emerald-500 dark:text-emerald-400 dark:fill-emerald-400 stroke-emerald-500 dark:stroke-emerald-400 stroke-2 mt-0.5 flex-shrink-0" />
                           <span className="text-sm text-dim font-mono leading-relaxed">{item}</span>
                         </li>
                       ))}
@@ -340,7 +335,7 @@ export default function DocumentationPage() {
             <div className="max-w-7xl mx-auto pt-16 sm:pt-24 px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24">
               <div className="text-center mb-12">
                 <div className="flex items-center justify-center gap-3 mb-4">
-                  <Calendar className="h-8 w-8 text-success" />
+                  <Calendar className="h-8 w-8 text-emerald-500 stroke-emerald-500 dark:text-emerald-400 dark:stroke-emerald-400 stroke-2 fill-none" />
                   <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-text font-sans">
                     Meal Planning
                   </h2>
@@ -367,14 +362,15 @@ export default function DocumentationPage() {
                   {
                     title: 'Grocery Lists',
                     items: [
-                      'Plan meals for the week',
                       'Go to Grocery Lists page',
-                      'Click "Generate from Meal Plan"',
-                      'Ingredients aggregated automatically',
-                      'Sorted by category (produce, meat, dairy, pantry)',
-                      'Quantities converted and combined',
+                      'Use search box to find and add items',
+                      'Type item name and see autocomplete suggestions',
+                      'Press Enter/Return to add item to list',
+                      'Items auto-categorized (produce, meat, dairy, pantry, beverages, frozen, other)',
+                      'Simple format: quantity and name (e.g., "2x Eggs")',
                       'Check off items as you shop',
-                      'Create custom lists manually',
+                      'Delete items with trash icon',
+                      'Optionally generate from meal plans',
                     ],
                   },
                 ].map((section, i) => (
@@ -383,7 +379,7 @@ export default function DocumentationPage() {
                     <ul className="space-y-3">
                       {section.items.map((item, j) => (
                         <li key={j} className="flex items-start gap-3">
-                          <CheckCircle2 className="h-5 w-5 text-success mt-0.5 flex-shrink-0" />
+                          <CheckCircle2 className="h-5 w-5 text-emerald-500 fill-emerald-500 dark:text-emerald-400 dark:fill-emerald-400 stroke-emerald-500 dark:stroke-emerald-400 stroke-2 mt-0.5 flex-shrink-0" />
                           <span className="text-sm text-dim font-mono leading-relaxed">{item}</span>
                         </li>
                       ))}
@@ -399,7 +395,7 @@ export default function DocumentationPage() {
             <div className="max-w-7xl mx-auto pt-16 sm:pt-24 px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24">
               <div className="text-center mb-12">
                 <div className="flex items-center justify-center gap-3 mb-4">
-                  <Target className="h-8 w-8 text-accent" />
+                  <Target className="h-8 w-8 text-orange-500 stroke-orange-500 dark:text-orange-400 dark:stroke-orange-400 stroke-2 fill-none" />
                   <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-text font-sans">
                     Achievements
                   </h2>
@@ -436,12 +432,7 @@ export default function DocumentationPage() {
                     <ul className="space-y-2">
                       {category.items.map((item, j) => (
                         <li key={j} className="flex items-start gap-2">
-                          <CheckCircle2 className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
-                            category.color === 'acid' ? 'text-acid' :
-                            category.color === 'success' ? 'text-success' :
-                            category.color === 'warning' ? 'text-warning' :
-                            'text-accent'
-                          }`} />
+                          <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0 text-emerald-500 fill-emerald-500 dark:text-emerald-400 dark:fill-emerald-400 stroke-emerald-500 dark:stroke-emerald-400 stroke-2" />
                           <span className="text-xs text-dim font-mono leading-relaxed">{item}</span>
                         </li>
                       ))}
@@ -501,17 +492,17 @@ export default function DocumentationPage() {
                 ].map((feature, i) => (
                   <div key={i} className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300">
                     <div className={`flex w-12 h-12 rounded-sm items-center justify-center mb-4 ${
-                      feature.color === 'acid' ? 'bg-acid/20 border border-acid/30' :
-                      feature.color === 'success' ? 'bg-success/20 border border-success/30' :
-                      feature.color === 'accent' ? 'bg-accent/20 border border-accent/30' :
-                      'bg-warning/20 border border-warning/30'
+                      feature.color === 'acid' ? 'bg-indigo-500/20 border border-indigo-500/30' :
+                      feature.color === 'success' ? 'bg-emerald-500/20 border border-emerald-500/30' :
+                      feature.color === 'accent' ? 'bg-orange-500/20 border border-orange-500/30' :
+                      'bg-amber-500/20 border border-amber-500/30'
                     }`}>
                       <feature.icon className={`h-6 w-6 ${
-                        feature.color === 'acid' ? 'text-acid' :
-                        feature.color === 'success' ? 'text-success' :
-                        feature.color === 'accent' ? 'text-accent' :
-                        'text-warning'
-                      }`} />
+                        feature.color === 'acid' ? 'text-indigo-500 stroke-indigo-500 dark:text-indigo-400 dark:stroke-indigo-400' :
+                        feature.color === 'success' ? 'text-emerald-500 stroke-emerald-500 dark:text-emerald-400 dark:stroke-emerald-400' :
+                        feature.color === 'accent' ? 'text-orange-500 stroke-orange-500 dark:text-orange-400 dark:stroke-orange-400' :
+                        'text-amber-500 stroke-amber-500 dark:text-amber-400 dark:stroke-amber-400'
+                      } stroke-2 fill-none`} />
                     </div>
                     <h3 className="text-xl font-bold tracking-tight text-text mb-2 font-mono uppercase">{feature.title}</h3>
                     <p className="text-sm text-dim font-mono leading-relaxed">{feature.description}</p>

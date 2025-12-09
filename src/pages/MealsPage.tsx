@@ -12,6 +12,7 @@ import { MealCardSkeleton } from '@/components/LoadingSkeleton'
 import { MealForm } from '@/components/MealForm'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { validateNumber } from '@/utils/validation'
+import { formatOptionalNutrition } from '@/utils/format'
 
 export default function MealsPage() {
   const [showAddForm, setShowAddForm] = useState(false)
@@ -31,6 +32,7 @@ export default function MealsPage() {
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'))
   const [showCopyDialog, setShowCopyDialog] = useState(false)
   const [copySourceDate, setCopySourceDate] = useState<string>('')
+  const [selectedMealIds, setSelectedMealIds] = useState<Set<string>>(new Set())
   const { user } = useAuth()
   const today = format(new Date(), 'yyyy-MM-dd')
   const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
@@ -51,22 +53,6 @@ export default function MealsPage() {
     enabled: !!user,
   })
 
-  // Fetch meals for recent days (last 7 days) to show in copy dialog
-  const recentDates = Array.from({ length: 7 }, (_, i) => format(subDays(new Date(), i + 1), 'yyyy-MM-dd'))
-  const { data: recentMealsData } = useQuery({
-    queryKey: ['recentMeals', recentDates],
-    queryFn: async () => {
-      const mealsByDate: Record<string, Meal[]> = {}
-      for (const date of recentDates) {
-        const meals = await getMeals(date)
-        if (meals.length > 0) {
-          mealsByDate[date] = meals
-        }
-      }
-      return mealsByDate
-    },
-    enabled: !!user && showCopyDialog,
-  })
 
   const createMutation = useMutation({
     mutationFn: (mealData: { date: string; name?: string; meal_type: MealType; calories: number; protein: number; carbs?: number; fats?: number; food_items?: any[] }) => createMeal(mealData),
@@ -196,7 +182,6 @@ export default function MealsPage() {
     },
   })
   
-  const totalMeals = meals?.length || 0
   
   const mealTypeIcons = {
     pre_breakfast: Coffee,
@@ -244,14 +229,20 @@ export default function MealsPage() {
   }
 
   const copyMealsMutation = useMutation({
-    mutationFn: async (sourceDate: string) => {
+    mutationFn: async ({ sourceDate, mealIds }: { sourceDate: string; mealIds: string[] }) => {
       const sourceMeals = await getMeals(sourceDate)
       if (!sourceMeals || sourceMeals.length === 0) {
         throw new Error(`No meals found for ${format(parseISO(sourceDate), 'MMMM d, yyyy')}`)
       }
       
-      // Create all meals from source date for selected date
-      const promises = sourceMeals.map((meal) =>
+      // Filter meals to only copy selected ones
+      const mealsToCopy = sourceMeals.filter(meal => mealIds.includes(meal.id))
+      if (mealsToCopy.length === 0) {
+        throw new Error('No meals selected to copy')
+      }
+      
+      // Create selected meals from source date for selected date
+      const promises = mealsToCopy.map((meal) =>
         createMeal({
           date: selectedDate,
           meal_type: meal.meal_type,
@@ -283,26 +274,55 @@ export default function MealsPage() {
       queryClient.invalidateQueries({ queryKey: ['streak'] })
       setShowCopyDialog(false)
       setCopySourceDate('')
+      setSelectedMealIds(new Set())
     },
   })
 
+  // Fetch meals from the selected source date
+  const { data: sourceMeals } = useQuery({
+    queryKey: ['meals', copySourceDate],
+    queryFn: () => getMeals(copySourceDate),
+    enabled: !!copySourceDate && !!user && showCopyDialog,
+  })
+
   const handleCopyMeals = () => {
-    if (copySourceDate) {
-      copyMealsMutation.mutate(copySourceDate)
+    if (copySourceDate && selectedMealIds.size > 0) {
+      copyMealsMutation.mutate({ 
+        sourceDate: copySourceDate, 
+        mealIds: Array.from(selectedMealIds) 
+      })
     }
   }
 
   const handleCopyPreviousDay = () => {
-    // Quick copy from yesterday if available
+    // Always open dialog, defaulting to yesterday if available
     if (yesterdayMeals && yesterdayMeals.length > 0) {
-      const dateLabel = selectedDate === today ? 'today' : format(parseISO(selectedDate), 'MMMM d')
-      if (confirm(`Copy ${yesterdayMeals.length} meal${yesterdayMeals.length > 1 ? 's' : ''} from yesterday to ${dateLabel}?`)) {
-        copyMealsMutation.mutate(yesterday)
-      }
-    } else {
-      // If no yesterday meals, open dialog to select from other days
-      setShowCopyDialog(true)
+      setCopySourceDate(yesterday)
+      setSelectedMealIds(new Set(yesterdayMeals.map(m => m.id))) // Select all by default
     }
+    setShowCopyDialog(true)
+  }
+
+  const handleToggleMealSelection = (mealId: string) => {
+    setSelectedMealIds(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(mealId)) {
+        newSet.delete(mealId)
+      } else {
+        newSet.add(mealId)
+      }
+      return newSet
+    })
+  }
+
+  const handleSelectAllMeals = () => {
+    if (sourceMeals && sourceMeals.length > 0) {
+      setSelectedMealIds(new Set(sourceMeals.map(m => m.id)))
+    }
+  }
+
+  const handleDeselectAllMeals = () => {
+    setSelectedMealIds(new Set())
   }
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -515,139 +535,174 @@ export default function MealsPage() {
         </div>
       </div>
 
-      {/* Meal Templates */}
-      {showTemplates && (
-        <div className="card-modern border-acid/30 p-4 md:p-6">
-          <div className="flex items-center justify-between mb-4 md:mb-6">
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30 flex-shrink-0">
-                <BookOpen className="w-4 h-4 md:w-5 md:h-5 text-acid" />
+      {/* Meal Templates Dialog */}
+      <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <BookOpen className="w-5 h-5 text-acid" />
+                  <DialogTitle className="text-2xl md:text-3xl font-bold text-text font-mono uppercase">
+                    Meal Templates
+                  </DialogTitle>
+                </div>
+                <DialogDescription className="text-sm text-dim font-mono mt-2">
+                  Select a template to quickly add a meal to your log.
+                </DialogDescription>
               </div>
-              <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Meal Templates</h2>
             </div>
-            <button
-              onClick={() => setShowTemplates(false)}
-              className="text-dim hover:text-text transition-colors p-1 -mr-1"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          </DialogHeader>
 
-          {/* Filter by Meal Type */}
-          <div className="mb-4">
-            <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">Filter by Meal Type</label>
-            <select
-              value={selectedMealType}
-              onChange={(e) => setSelectedMealType(e.target.value)}
-              className="input-modern text-sm md:text-base"
-            >
-              <option value="">All Types</option>
-              {Object.entries(mealTypeLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <div className="space-y-6">
+            {/* Filter by Meal Type */}
+            <div className="p-4 bg-panel rounded-sm border border-border">
+              <label className="block text-xs font-mono uppercase tracking-wider text-dim mb-2">Filter by Meal Type</label>
+              <select
+                value={selectedMealType}
+                onChange={(e) => setSelectedMealType(e.target.value)}
+                className="input-modern text-sm md:text-base"
+              >
+                <option value="">All Types</option>
+                {Object.entries(mealTypeLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Templates List */}
-          {templates && templates.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
-              {templates.map((template) => {
-                const mealColor = mealTypeColors[template.meal_type] || 'bg-acid/20 text-acid border-acid/30'
-                const IconComponent = mealTypeIcons[template.meal_type] || UtensilsCrossed
-                return (
-                  <div key={template.id} className="border border-border rounded-sm p-4 md:p-4 hover:border-acid/50 transition-all bg-panel/50 relative">
-                    {/* Delete button - positioned absolutely */}
-                    <button
-                      onClick={() => deleteTemplateMutation.mutate(template.id)}
-                      className="absolute top-3 right-3 text-error hover:text-error/80 transition-colors p-1 z-10"
-                      title="Delete template"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                    
-                    {/* Template name and icon */}
-                    <div className="flex items-start gap-2 mb-3 pr-10">
-                      <div className={`w-8 h-8 rounded-sm ${mealColor} flex items-center justify-center border flex-shrink-0`}>
-                        <IconComponent className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 w-full overflow-visible">
-                        <h3 className="font-bold text-text text-sm md:text-sm font-mono md:uppercase break-words whitespace-normal leading-relaxed w-full">{template.name}</h3>
-                        <div className="text-[10px] md:text-xs text-dim font-mono capitalize mt-1">
-                          {mealTypeLabels[template.meal_type]}
+            {/* Templates List */}
+            {templates && templates.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {templates.map((template) => {
+                  const mealColor = mealTypeColors[template.meal_type] || 'bg-acid/20 text-acid border-acid/30'
+                  const IconComponent = mealTypeIcons[template.meal_type] || UtensilsCrossed
+                  return (
+                    <div key={template.id} className="p-4 bg-panel rounded-sm border border-border hover:border-acid/50 transition-all relative">
+                      {/* Delete button - positioned absolutely */}
+                      <button
+                        onClick={() => deleteTemplateMutation.mutate(template.id)}
+                        className="absolute top-3 right-3 text-error hover:text-error/80 transition-colors p-1 z-10"
+                        title="Delete template"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      
+                      {/* Template name and icon */}
+                      <div className="flex items-start gap-3 mb-4 pr-10">
+                        <div className={`w-10 h-10 rounded-sm ${mealColor} flex items-center justify-center border flex-shrink-0`}>
+                          <IconComponent className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-text text-base font-mono uppercase break-words">{template.name}</h3>
+                          <div className="text-xs text-dim font-mono capitalize mt-1">
+                            {mealTypeLabels[template.meal_type]}
+                          </div>
                         </div>
                       </div>
+                      
+                      {/* Nutrition Info */}
+                      <div className="grid grid-cols-2 gap-3 mb-4 text-sm font-mono">
+                        {template.calories && (
+                          <div className="flex items-center gap-2">
+                            <Flame className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                            <span className="text-dim">Calories:</span>
+                            <span className="text-text font-bold">{template.calories}</span>
+                          </div>
+                        )}
+                        {template.protein && (
+                          <div className="flex items-center gap-2">
+                            <Beef className="w-4 h-4 text-emerald-500 fill-emerald-500 flex-shrink-0" />
+                            <span className="text-dim">Protein:</span>
+                            <span className="text-emerald-500 font-bold">{template.protein}g</span>
+                          </div>
+                        )}
+                        {template.carbs !== undefined && (
+                          <div className="flex items-center gap-2">
+                            <Cookie className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                            <span className="text-dim">Carbs:</span>
+                            <span className="text-text font-bold">{template.carbs}g</span>
+                          </div>
+                        )}
+                        {template.fats !== undefined && (
+                          <div className="flex items-center gap-2">
+                            <Circle className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                            <span className="text-dim">Fats:</span>
+                            <span className="text-text font-bold">{template.fats}g</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <button
+                        onClick={() => {
+                          useTemplateMutation.mutate(template.id)
+                        }}
+                        disabled={useTemplateMutation.isPending}
+                        className="btn-primary w-full flex items-center justify-center gap-2 text-sm py-2.5"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>{useTemplateMutation.isPending ? 'Adding...' : 'Use Template'}</span>
+                      </button>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 mb-3 text-xs font-mono">
-                      {template.calories && (
-                        <div>
-                          <span className="text-dim">Calories:</span>
-                          <span className="text-text font-bold ml-1">{template.calories}</span>
-                        </div>
-                      )}
-                      {template.protein && (
-                        <div>
-                          <span className="text-dim">Protein:</span>
-                          <span className="text-success font-bold ml-1">{template.protein}g</span>
-                        </div>
-                      )}
-                      {template.carbs !== undefined && (
-                        <div>
-                          <span className="text-dim">Carbs:</span>
-                          <span className="text-text font-bold ml-1">{template.carbs}g</span>
-                        </div>
-                      )}
-                      {template.fats !== undefined && (
-                        <div>
-                          <span className="text-dim">Fats:</span>
-                          <span className="text-text font-bold ml-1">{template.fats}g</span>
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => useTemplateMutation.mutate(template.id)}
-                      disabled={useTemplateMutation.isPending}
-                      className="btn-primary w-full flex items-center justify-center gap-1.5 md:gap-2 text-xs md:text-sm py-2 md:py-2.5"
-                    >
-                      <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                      <span>{useTemplateMutation.isPending ? 'Adding...' : 'Use Template'}</span>
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-dim font-mono text-sm">
-              No templates found. Create templates from your meals to quickly log them later.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Daily Summary */}
-      {meals && meals.length > 0 && (
-        <div className="card-modern p-3 md:p-4 mb-4 md:mb-6 max-w-xs">
-          <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2">
-            <UtensilsCrossed className="w-3.5 h-3.5 md:w-4 md:h-4 text-acid flex-shrink-0" />
-            <span className="text-[10px] md:text-xs text-dim font-mono uppercase truncate">Meals</span>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-dim font-mono text-sm p-4 bg-panel rounded-sm border border-border">
+                No templates found. Create templates from your meals to quickly log them later.
+              </div>
+            )}
           </div>
-          <div className="text-xl md:text-2xl font-bold text-text font-mono">{totalMeals}</div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
-      {(showAddForm || editingMealId) && (
-        <MealForm
-          editingMeal={editingMeal}
-          onSubmit={handleSubmit}
-          onCancel={handleCancel}
-          onSaveTemplate={!editingMealId ? (mealData) => {
-            handleSaveTemplateClick(mealData)
-          } : undefined}
-          isSubmitting={createMutation.isPending || updateMutation.isPending}
-          mealTypeLabels={mealTypeLabels}
-        />
-      )}
+      {/* Add/Edit Meal Dialog */}
+      <Dialog open={showAddForm || !!editingMealId} onOpenChange={(open) => {
+        if (!open) {
+          handleCancel()
+        }
+      }}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto" hideClose={true}>
+          <DialogHeader>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <UtensilsCrossed className="w-5 h-5 text-acid" />
+                  <DialogTitle className="text-2xl md:text-3xl font-bold text-text font-mono uppercase">
+                    {editingMealId ? 'Edit Meal' : 'Add Meal'}
+                  </DialogTitle>
+                </div>
+                <DialogDescription className="text-sm text-dim font-mono mt-2">
+                  {editingMealId 
+                    ? 'Update your meal information below.'
+                    : 'Enter nutrition data manually or search our food database.'
+                  }
+                </DialogDescription>
+              </div>
+              <button
+                onClick={handleCancel}
+                className="text-dim hover:text-text transition-colors p-1 -mt-1 -mr-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            <MealForm
+              editingMeal={editingMeal}
+              onSubmit={handleSubmit}
+              onCancel={handleCancel}
+              onSaveTemplate={!editingMealId ? (mealData) => {
+                handleSaveTemplateClick(mealData)
+              } : undefined}
+              isSubmitting={createMutation.isPending || updateMutation.isPending}
+              mealTypeLabels={mealTypeLabels}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Meals List */}
       {isLoading ? (
@@ -704,10 +759,10 @@ export default function MealsPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 md:gap-2">
-                        <Beef className="w-3.5 h-3.5 md:w-4 md:h-4 text-success fill-success/80 dark:text-success dark:fill-success/80 stroke-success stroke-1 flex-shrink-0" />
+                        <Beef className="w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-500 fill-emerald-500 dark:text-emerald-500 dark:fill-emerald-500 flex-shrink-0" />
                         <div className="min-w-0">
                           <div className="text-[10px] md:text-xs text-dim font-mono uppercase">Protein</div>
-                          <div className="text-xs md:text-sm font-bold text-success font-mono">{meal.protein}g</div>
+                          <div className="text-xs md:text-sm font-bold text-emerald-500 dark:text-text font-mono">{meal.protein}g</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 md:gap-2">
@@ -715,7 +770,7 @@ export default function MealsPage() {
                         <div className="min-w-0">
                           <div className="text-[10px] md:text-xs text-dim font-mono uppercase">Carbs</div>
                           <div className="text-xs md:text-sm font-bold text-yellow-500 dark:text-text font-mono">
-                            {meal.carbs !== undefined ? `${meal.carbs}g` : '-'}
+                            {formatOptionalNutrition(meal.carbs)}
                           </div>
                         </div>
                       </div>
@@ -724,7 +779,7 @@ export default function MealsPage() {
                         <div className="min-w-0">
                           <div className="text-[10px] md:text-xs text-dim font-mono uppercase">Fats</div>
                           <div className="text-xs md:text-sm font-bold text-amber-500 dark:text-text font-mono">
-                            {meal.fats !== undefined ? `${meal.fats}g` : '-'}
+                            {formatOptionalNutrition(meal.fats)}
                           </div>
                         </div>
                       </div>
@@ -857,7 +912,7 @@ export default function MealsPage() {
                     </div>
                     <div>
                       <span className="text-dim">Protein:</span>
-                      <span className="text-success font-bold ml-2">{pendingTemplateData.protein}g</span>
+                      <span className="text-emerald-500 dark:text-text font-bold ml-2">{pendingTemplateData.protein}g</span>
                     </div>
                     {pendingTemplateData.carbs !== undefined && (
                       <div>
@@ -911,8 +966,14 @@ export default function MealsPage() {
       </Dialog>
 
       {/* Copy Meals Dialog */}
-      <Dialog open={showCopyDialog} onOpenChange={setShowCopyDialog}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={showCopyDialog} onOpenChange={(open) => {
+        setShowCopyDialog(open)
+        if (!open) {
+          setCopySourceDate('')
+          setSelectedMealIds(new Set())
+        }
+      }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30">
@@ -923,86 +984,172 @@ export default function MealsPage() {
               </DialogTitle>
             </div>
             <DialogDescription className="text-sm text-dim font-mono">
-              Select a previous day to copy meals from to {selectedDate === today ? 'today' : format(parseISO(selectedDate), 'MMMM d, yyyy')}.
+              {copySourceDate 
+                ? `Select meals to copy from ${format(parseISO(copySourceDate), 'MMMM d, yyyy')} to ${selectedDate === today ? 'today' : format(parseISO(selectedDate), 'MMMM d, yyyy')}.`
+                : `Select a previous day to copy meals from to ${selectedDate === today ? 'today' : format(parseISO(selectedDate), 'MMMM d, yyyy')}.`
+              }
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            {recentMealsData && Object.keys(recentMealsData).length > 0 ? (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {Object.entries(recentMealsData)
-                  .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
-                  .map(([date, meals]) => {
-                    const dateObj = parseISO(date)
-                    const isSelected = copySourceDate === date
-                    return (
-                      <button
-                        key={date}
-                        onClick={() => setCopySourceDate(date)}
-                        className={`w-full text-left p-3 rounded-sm border transition-all ${
-                          isSelected
-                            ? 'border-acid bg-acid/10'
-                            : 'border-border hover:border-acid/50 bg-panel'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Calendar className={`w-4 h-4 ${isSelected ? 'text-acid' : 'text-dim'}`} />
-                            <div>
-                              <div className="font-mono text-sm font-bold text-text">
-                                {format(dateObj, 'EEEE, MMMM d')}
-                              </div>
-                              <div className="text-xs text-dim font-mono">
-                                {meals.length} meal{meals.length !== 1 ? 's' : ''}
-                              </div>
+            {!copySourceDate ? (
+              // Date selection view - show only yesterday first
+              <>
+                {yesterdayMeals && yesterdayMeals.length > 0 ? (
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => {
+                        setCopySourceDate(yesterday)
+                        setSelectedMealIds(new Set(yesterdayMeals.map(m => m.id))) // Select all by default
+                      }}
+                      className="w-full text-left p-3 rounded-sm border border-border hover:border-acid/50 bg-panel transition-all"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-dim" />
+                          <div>
+                            <div className="font-mono text-sm font-bold text-text">
+                              {format(parseISO(yesterday), 'EEEE, MMMM d')}
+                            </div>
+                            <div className="text-xs text-dim font-mono">
+                              {yesterdayMeals.length} meal{yesterdayMeals.length !== 1 ? 's' : ''}
                             </div>
                           </div>
-                          {isSelected && (
-                            <div className="w-5 h-5 rounded-full bg-acid flex items-center justify-center">
-                              <span className="text-void text-xs font-bold">✓</span>
-                            </div>
-                          )}
                         </div>
-                      </button>
-                    )
-                  })}
-              </div>
+                        <ChevronRight className="w-4 h-4 text-dim" />
+                      </div>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-dim font-mono text-sm">
+                    No meals found for yesterday
+                  </div>
+                )}
+              </>
             ) : (
-              <div className="text-center py-8 text-dim font-mono text-sm">
-                {copyMealsMutation.isPending ? 'Loading...' : 'No meals found in the last 7 days'}
-              </div>
+              // Meals selection view
+              <>
+                {sourceMeals && sourceMeals.length > 0 ? (
+                  <>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-dim" />
+                        <span className="text-sm font-mono text-text font-bold">
+                          {format(parseISO(copySourceDate), 'EEEE, MMMM d, yyyy')}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleSelectAllMeals}
+                          className="text-xs font-mono text-acid hover:text-acid/80 transition-colors"
+                        >
+                          Select All
+                        </button>
+                        <span className="text-dim">|</span>
+                        <button
+                          onClick={handleDeselectAllMeals}
+                          className="text-xs font-mono text-dim hover:text-text transition-colors"
+                        >
+                          Deselect All
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {sourceMeals.map((meal) => {
+                        const mealType = meal.meal_type || 'meal'
+                        const mealColor = mealTypeColors[mealType as keyof typeof mealTypeColors] || 'bg-acid/20 text-acid border-acid/30'
+                        const IconComponent = mealTypeIcons[mealType as keyof typeof mealTypeIcons] || UtensilsCrossed
+                        const isSelected = selectedMealIds.has(meal.id)
+                        
+                        return (
+                          <label
+                            key={meal.id}
+                            className={`flex items-start gap-3 p-3 rounded-sm border cursor-pointer transition-all ${
+                              isSelected
+                                ? 'border-acid bg-acid/10'
+                                : 'border-border hover:border-acid/50 bg-panel'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleToggleMealSelection(meal.id)}
+                              className="mt-1 w-4 h-4 text-acid border-border rounded focus:ring-acid focus:ring-2"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] font-mono uppercase tracking-wider mb-1 ${mealColor}`}>
+                                    <IconComponent className="w-3 h-3 flex-shrink-0" />
+                                    {mealTypeLabels[mealType as keyof typeof mealTypeLabels] || mealType.replace('_', ' ')}
+                                  </div>
+                                  <h3 className="text-sm md:text-base font-bold text-text font-mono mb-1">
+                                    {meal.name || mealTypeLabels[mealType as keyof typeof mealTypeLabels] || 'Meal'}
+                                  </h3>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs font-mono">
+                                <div className="flex items-center gap-1">
+                                  <Flame className="w-3 h-3 text-orange-500 flex-shrink-0" />
+                                  <span className="text-dim">Cal:</span>
+                                  <span className="text-text font-bold">{meal.calories}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Beef className="w-3 h-3 text-emerald-500 fill-emerald-500 flex-shrink-0" />
+                                  <span className="text-dim">Pro:</span>
+                                  <span className="text-emerald-500 font-bold">{meal.protein}g</span>
+                                </div>
+                                {meal.carbs !== undefined && meal.carbs !== null && (
+                                  <div className="flex items-center gap-1">
+                                    <Cookie className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                                    <span className="text-dim">Carbs:</span>
+                                    <span className="text-text font-bold">{formatOptionalNutrition(meal.carbs)}</span>
+                                  </div>
+                                )}
+                                {meal.fats !== undefined && meal.fats !== null && (
+                                  <div className="flex items-center gap-1">
+                                    <Circle className="w-3 h-3 text-purple-500 flex-shrink-0" />
+                                    <span className="text-dim">Fats:</span>
+                                    <span className="text-text font-bold">{formatOptionalNutrition(meal.fats)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-dim font-mono text-sm">
+                    No meals found for this date
+                  </div>
+                )}
+              </>
             )}
           </div>
 
-          <DialogFooter className="flex gap-2">
-            <button
-              onClick={() => {
-                setShowCopyDialog(false)
-                setCopySourceDate('')
-              }}
-              className="btn-secondary"
-              disabled={copyMealsMutation.isPending}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleCopyMeals}
-              disabled={!copySourceDate || copyMealsMutation.isPending}
-              className="btn-primary flex items-center justify-center gap-2"
-            >
-              {copyMealsMutation.isPending ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-void border-t-transparent rounded-full animate-spin"></div>
-                  <span>Copying...</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  <span>Copy Meals</span>
-                </>
-              )}
-            </button>
-          </DialogFooter>
+          {copySourceDate && (
+            <DialogFooter className="flex gap-2">
+              <button
+                onClick={handleCopyMeals}
+                disabled={selectedMealIds.size === 0 || copyMealsMutation.isPending}
+                className="btn-primary flex items-center justify-center gap-2 w-full"
+              >
+                {copyMealsMutation.isPending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-void border-t-transparent rounded-full animate-spin"></div>
+                    <span>Copying...</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4" />
+                    <span>Copy Selected ({selectedMealIds.size})</span>
+                  </>
+                )}
+              </button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
       </div>

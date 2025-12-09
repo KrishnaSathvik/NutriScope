@@ -82,7 +82,8 @@ export function getBMICategoryInfo(bmi: number | null): { label: string; color: 
 }
 
 /**
- * Create a weight log entry
+ * Create or update a weight log entry
+ * Uses UPSERT to update if a weight log already exists for the same date
  */
 export async function createWeightLog(entry: WeightEntry): Promise<WeightLog> {
   if (isUsingDummyClient) {
@@ -94,9 +95,12 @@ export async function createWeightLog(entry: WeightEntry): Promise<WeightLog> {
 
   const { data, error } = await supabase
     .from('weight_logs')
-    .insert({
+    .upsert({
       user_id: user.id,
       ...entry,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'user_id,date',
     })
     .select()
     .single()
