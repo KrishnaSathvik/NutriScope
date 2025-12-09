@@ -33,7 +33,7 @@ export function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   return (
-    <div className="fixed md:relative bottom-[4rem] md:bottom-auto left-0 right-0 md:left-auto md:right-auto border-t border-border p-3 md:p-4 bg-panel z-40 md:z-auto flex-shrink-0">
+    <div className="border-t border-border p-3 md:p-4 bg-panel flex-shrink-0">
       {selectedImage && (
         <div className="relative mb-3 w-24 h-24 md:w-32 md:h-32 rounded-sm overflow-hidden border border-border">
           <img src={selectedImage} alt="Selected" className="w-full h-full object-cover" />

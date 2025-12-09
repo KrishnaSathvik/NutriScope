@@ -107,7 +107,7 @@ export default function Layout() {
       </nav>
 
       {/* Bottom Navigation (Mobile) */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-xl border-t border-border md:hidden z-40 safe-area-bottom" aria-label="Mobile navigation" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}>
+      <nav className="fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-xl border-t border-border md:hidden z-50 safe-area-bottom" aria-label="Mobile navigation" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}>
         <div className="flex justify-around items-stretch relative w-full max-w-full overflow-x-hidden" style={{ minHeight: '4rem' }}>
           {/* Show Dashboard, Meals, Workouts, Chat, Analytics, and More */}
           {[

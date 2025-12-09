@@ -639,9 +639,9 @@ export default function ChatPage() {
         </>
       )}
 
-      <div className="chat-container flex flex-col fixed md:relative inset-x-0 top-[10rem] md:top-auto bottom-[4rem] md:bottom-auto bg-surface border-x-0 md:border-x border-t-0 md:border-t border-b border-border md:rounded-sm overflow-hidden z-30" style={{ 
-        height: 'calc(100vh - 14rem)', 
-        maxHeight: 'calc(100vh - 14rem)',
+      <div className="chat-container flex flex-col fixed md:relative inset-x-0 top-[10rem] md:top-auto bottom-[calc(4rem+env(safe-area-inset-bottom,0))] md:bottom-auto bg-surface border-x-0 md:border-x border-t-0 md:border-t border-b border-border md:rounded-sm overflow-hidden z-30" style={{ 
+        height: 'calc(100vh - 14rem - env(safe-area-inset-bottom, 0))', 
+        maxHeight: 'calc(100vh - 14rem - env(safe-area-inset-bottom, 0))',
         minHeight: 0
       }}>
         <ChatMessages
