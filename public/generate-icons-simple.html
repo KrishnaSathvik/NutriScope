@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Generate PWA Icons</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background: #0A0A0A;
+      color: #fff;
+    }
+    canvas {
+      border: 1px solid #333;
+      margin: 10px;
+    }
+    button {
+      background: #f97316;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background: #ea580c;
+    }
+  </style>
+</head>
+<body>
+  <h1>PWA Icon Generator</h1>
+  <p>This tool generates PNG icons from the SVG favicon for PWA.</p>
+  <p><strong>Note:</strong> For production, use the Node.js script: <code>node scripts/generate-icons.js</code></p>
+  
+  <div id="icons"></div>
+  
+  <script>
+    const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+    const container = document.getElementById('icons');
+    
+    sizes.forEach(size => {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      
+      // Create gradient background matching favicon
+      const gradient = ctx.createLinearGradient(0, 0, size, size);
+      gradient.addColorStop(0, '#fbbf24');
+      gradient.addColorStop(0.5, '#f97316');
+      gradient.addColorStop(1, '#14b8a6');
+      
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, size, size);
+      
+      // Add border
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.lineWidth = size * 0.015;
+      ctx.strokeRect(size * 0.05, size * 0.05, size * 0.9, size * 0.9);
+      
+      const div = document.createElement('div');
+      div.style.marginBottom = '20px';
+      div.innerHTML = `
+        <p>${size}x${size}</p>
+        ${canvas.outerHTML}
+        <br>
+        <button onclick="downloadIcon(${size})">Download ${size}x${size}.png</button>
+      `;
+      container.appendChild(div);
+      
+      window['canvas_' + size] = canvas;
+    });
+    
+    function downloadIcon(size) {
+      const canvas = window['canvas_' + size];
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `icon-${size}x${size}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+  </script>
+</body>
+</html>
+

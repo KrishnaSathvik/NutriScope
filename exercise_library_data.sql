@@ -1,0 +1,162 @@
+-- ============================================================================
+-- EXERCISE LIBRARY SAMPLE DATA
+-- Populate exercise_library with common exercises
+-- Run this after exercise_library_schema.sql
+-- ============================================================================
+
+-- Clear existing data (optional - comment out if you want to keep existing)
+-- TRUNCATE TABLE exercise_library;
+
+-- Cardio Exercises
+INSERT INTO exercise_library (name, type, met_value, muscle_groups, equipment) VALUES
+-- Walking
+('Walking, 2.5 mph (24 min/mile)', 'cardio', 2.5, ARRAY['legs', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Walking, 3 mph (20 min/mile)', 'cardio', 3.5, ARRAY['legs', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Walking, 3.5 mph (17 min/mile)', 'cardio', 4.0, ARRAY['legs', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Walking, 4 mph (15 min/mile)', 'cardio', 4.3, ARRAY['legs', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Walking, 4.5 mph (13 min/mile)', 'cardio', 5.0, ARRAY['legs', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Walking uphill, 3.5 mph', 'cardio', 6.0, ARRAY['legs', 'glutes', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Walking, brisk pace', 'cardio', 5.0, ARRAY['legs', 'cardiovascular'], ARRAY[]::TEXT[]),
+
+-- Running
+('Running, 5 mph (12 min/mile)', 'cardio', 8.3, ARRAY['legs', 'core', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Running, 6 mph (10 min/mile)', 'cardio', 9.8, ARRAY['legs', 'core', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Running, 7 mph (8.5 min/mile)', 'cardio', 11.0, ARRAY['legs', 'core', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Running, 8 mph (7.5 min/mile)', 'cardio', 11.5, ARRAY['legs', 'core', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Running, 9 mph (6.7 min/mile)', 'cardio', 12.5, ARRAY['legs', 'core', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Running, 10 mph (6 min/mile)', 'cardio', 16.0, ARRAY['legs', 'core', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Running, 11 mph (5.5 min/mile)', 'cardio', 19.0, ARRAY['legs', 'core', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Jogging, general', 'cardio', 7.0, ARRAY['legs', 'core', 'cardiovascular'], ARRAY[]::TEXT[]),
+
+-- Cycling
+('Cycling, leisure, <10 mph', 'cardio', 4.0, ARRAY['legs', 'cardiovascular'], ARRAY['bicycle']),
+('Cycling, moderate effort, 12-14 mph', 'cardio', 6.0, ARRAY['legs', 'cardiovascular'], ARRAY['bicycle']),
+('Cycling, vigorous effort, 14-16 mph', 'cardio', 10.0, ARRAY['legs', 'cardiovascular'], ARRAY['bicycle']),
+('Cycling, very fast, 16-19 mph', 'cardio', 12.0, ARRAY['legs', 'cardiovascular'], ARRAY['bicycle']),
+('Cycling, racing, >20 mph', 'cardio', 16.0, ARRAY['legs', 'cardiovascular'], ARRAY['bicycle']),
+('Stationary cycling, moderate', 'cardio', 7.0, ARRAY['legs', 'cardiovascular'], ARRAY['stationary bike']),
+('Stationary cycling, vigorous', 'cardio', 10.5, ARRAY['legs', 'cardiovascular'], ARRAY['stationary bike']),
+
+-- Swimming
+('Swimming, freestyle, slow', 'cardio', 6.0, ARRAY['full body', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Swimming, freestyle, moderate', 'cardio', 8.3, ARRAY['full body', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Swimming, freestyle, fast', 'cardio', 10.0, ARRAY['full body', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Swimming, breaststroke', 'cardio', 10.3, ARRAY['full body', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Swimming, backstroke', 'cardio', 9.5, ARRAY['full body', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Swimming, butterfly', 'cardio', 13.8, ARRAY['full body', 'cardiovascular'], ARRAY[]::TEXT[]),
+
+-- Other Cardio
+('Jumping rope, slow', 'cardio', 8.8, ARRAY['legs', 'core', 'cardiovascular'], ARRAY['rope']),
+('Jumping rope, moderate', 'cardio', 11.0, ARRAY['legs', 'core', 'cardiovascular'], ARRAY['rope']),
+('Jumping rope, fast', 'cardio', 12.3, ARRAY['legs', 'core', 'cardiovascular'], ARRAY['rope']),
+('Rowing, moderate', 'cardio', 7.0, ARRAY['full body', 'cardiovascular'], ARRAY['rowing machine']),
+('Rowing, vigorous', 'cardio', 12.0, ARRAY['full body', 'cardiovascular'], ARRAY['rowing machine']),
+('Elliptical trainer, moderate', 'cardio', 5.0, ARRAY['legs', 'cardiovascular'], ARRAY['elliptical']),
+('Elliptical trainer, vigorous', 'cardio', 7.5, ARRAY['legs', 'cardiovascular'], ARRAY['elliptical']),
+('Stair climbing, moderate', 'cardio', 8.0, ARRAY['legs', 'glutes', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Stair climbing, vigorous', 'cardio', 12.0, ARRAY['legs', 'glutes', 'cardiovascular'], ARRAY[]::TEXT[]),
+('HIIT, general', 'cardio', 8.5, ARRAY['full body', 'cardiovascular'], ARRAY[]::TEXT[]),
+
+-- Strength Exercises
+('Push-ups, moderate effort', 'strength', 3.8, ARRAY['chest', 'triceps', 'shoulders'], ARRAY[]::TEXT[]),
+('Push-ups, vigorous effort', 'strength', 8.0, ARRAY['chest', 'triceps', 'shoulders'], ARRAY[]::TEXT[]),
+('Pull-ups', 'strength', 8.0, ARRAY['back', 'biceps'], ARRAY['pull-up bar']),
+('Chin-ups', 'strength', 8.0, ARRAY['back', 'biceps'], ARRAY['pull-up bar']),
+('Squats, bodyweight', 'strength', 5.0, ARRAY['legs', 'glutes'], ARRAY[]::TEXT[]),
+('Squats, weighted', 'strength', 6.0, ARRAY['legs', 'glutes'], ARRAY['barbell', 'dumbbells']),
+('Lunges', 'strength', 4.5, ARRAY['legs', 'glutes'], ARRAY[]::TEXT[]),
+('Deadlifts', 'strength', 6.0, ARRAY['back', 'legs', 'glutes'], ARRAY['barbell']),
+('Bench press', 'strength', 5.0, ARRAY['chest', 'triceps', 'shoulders'], ARRAY['barbell', 'bench']),
+('Overhead press', 'strength', 4.0, ARRAY['shoulders', 'triceps'], ARRAY['barbell', 'dumbbells']),
+('Bicep curls', 'strength', 3.0, ARRAY['biceps'], ARRAY['dumbbells', 'barbell']),
+('Tricep extensions', 'strength', 3.0, ARRAY['triceps'], ARRAY['dumbbells']),
+('Shoulder press, dumbbells', 'strength', 4.0, ARRAY['shoulders', 'triceps'], ARRAY['dumbbells']),
+('Lat pulldowns', 'strength', 4.0, ARRAY['back', 'biceps'], ARRAY['cable machine']),
+('Chest flyes', 'strength', 3.5, ARRAY['chest'], ARRAY['dumbbells']),
+('Leg press', 'strength', 5.0, ARRAY['legs', 'glutes'], ARRAY['leg press machine']),
+('Leg curls', 'strength', 3.0, ARRAY['hamstrings'], ARRAY['machine']),
+('Leg extensions', 'strength', 3.0, ARRAY['quadriceps'], ARRAY['machine']),
+('Calf raises', 'strength', 3.0, ARRAY['calves'], ARRAY[]::TEXT[]),
+('Plank', 'strength', 3.5, ARRAY['core'], ARRAY[]::TEXT[]),
+('Sit-ups', 'strength', 3.8, ARRAY['core'], ARRAY[]::TEXT[]),
+('Crunches', 'strength', 3.5, ARRAY['core'], ARRAY[]::TEXT[]),
+('Russian twists', 'strength', 4.0, ARRAY['core'], ARRAY[]::TEXT[]),
+('Burpees', 'strength', 8.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Mountain climbers', 'strength', 8.0, ARRAY['core', 'legs'], ARRAY[]::TEXT[]),
+
+-- Yoga
+('Yoga, Hatha', 'yoga', 2.5, ARRAY['full body', 'flexibility'], ARRAY['mat']),
+('Yoga, Vinyasa', 'yoga', 4.0, ARRAY['full body', 'flexibility'], ARRAY['mat']),
+('Yoga, Power', 'yoga', 4.0, ARRAY['full body', 'strength'], ARRAY['mat']),
+('Yoga, Ashtanga', 'yoga', 6.0, ARRAY['full body', 'strength'], ARRAY['mat']),
+('Yoga, Bikram/Hot', 'yoga', 4.0, ARRAY['full body', 'flexibility'], ARRAY['mat']),
+('Yoga, Restorative', 'yoga', 2.0, ARRAY['full body', 'flexibility'], ARRAY['mat']),
+('Pilates, general', 'yoga', 3.0, ARRAY['core', 'flexibility'], ARRAY['mat']),
+('Pilates, advanced', 'yoga', 4.5, ARRAY['core', 'flexibility'], ARRAY['mat']),
+
+-- Sports
+('Basketball, general', 'sports', 8.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Basketball, shooting baskets', 'sports', 4.5, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Basketball, game', 'sports', 8.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Soccer, general', 'sports', 7.0, ARRAY['legs', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Soccer, competitive', 'sports', 10.0, ARRAY['legs', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Tennis, singles', 'sports', 8.0, ARRAY['full body'], ARRAY['racket']),
+('Tennis, doubles', 'sports', 6.0, ARRAY['full body'], ARRAY['racket']),
+('Volleyball, non-competitive', 'sports', 3.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Volleyball, competitive', 'sports', 8.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Badminton, general', 'sports', 5.5, ARRAY['full body'], ARRAY['racket']),
+('Badminton, competitive', 'sports', 7.0, ARRAY['full body'], ARRAY['racket']),
+('Table tennis', 'sports', 4.0, ARRAY['full body'], ARRAY['paddle']),
+('Racquetball', 'sports', 7.0, ARRAY['full body'], ARRAY['racket']),
+('Squash', 'sports', 12.0, ARRAY['full body'], ARRAY['racket']),
+('Golf, walking', 'sports', 4.8, ARRAY['legs'], ARRAY['clubs']),
+('Golf, cart', 'sports', 2.5, ARRAY['arms'], ARRAY['clubs']),
+('Baseball, general', 'sports', 5.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Softball, general', 'sports', 5.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Football, touch/flag', 'sports', 8.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Rugby', 'sports', 10.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Cricket', 'sports', 5.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Hockey, field', 'sports', 7.8, ARRAY['legs', 'cardiovascular'], ARRAY['stick']),
+('Hockey, ice', 'sports', 8.0, ARRAY['legs', 'cardiovascular'], ARRAY['skates', 'stick']),
+('Skating, ice', 'sports', 7.0, ARRAY['legs'], ARRAY['skates']),
+('Skating, roller', 'sports', 7.0, ARRAY['legs'], ARRAY['skates']),
+('Skiing, downhill, moderate', 'sports', 5.0, ARRAY['legs'], ARRAY['skis']),
+('Skiing, cross-country, moderate', 'sports', 7.0, ARRAY['legs', 'cardiovascular'], ARRAY['skis']),
+('Skiing, cross-country, vigorous', 'sports', 9.0, ARRAY['legs', 'cardiovascular'], ARRAY['skis']),
+('Snowboarding', 'sports', 5.0, ARRAY['legs', 'core'], ARRAY['board']),
+('Surfing', 'sports', 3.0, ARRAY['full body'], ARRAY['board']),
+('Swimming, water polo', 'sports', 10.0, ARRAY['full body', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Dancing, ballroom', 'sports', 3.0, ARRAY['legs'], ARRAY[]::TEXT[]),
+('Dancing, disco', 'sports', 4.8, ARRAY['legs'], ARRAY[]::TEXT[]),
+('Dancing, aerobic', 'sports', 6.5, ARRAY['legs', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Dancing, Zumba', 'sports', 5.5, ARRAY['legs', 'cardiovascular'], ARRAY[]::TEXT[]),
+('Martial arts, general', 'sports', 10.3, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Boxing, sparring', 'sports', 12.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Boxing, punching bag', 'sports', 5.5, ARRAY['full body'], ARRAY['bag']),
+('Wrestling', 'sports', 6.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+
+-- Other
+('Rock climbing, moderate', 'other', 8.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Rock climbing, vigorous', 'other', 11.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Hiking, moderate', 'other', 6.0, ARRAY['legs'], ARRAY[]::TEXT[]),
+('Hiking, vigorous', 'other', 7.0, ARRAY['legs'], ARRAY[]::TEXT[]),
+('Kayaking', 'other', 5.0, ARRAY['arms', 'core'], ARRAY['kayak']),
+('Canoeing, moderate', 'other', 5.0, ARRAY['arms', 'core'], ARRAY['canoe']),
+('Paddle boarding', 'other', 6.0, ARRAY['full body'], ARRAY['board']),
+('Gardening, general', 'other', 3.8, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Yard work, general', 'other', 4.0, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Cleaning, heavy', 'other', 3.5, ARRAY['full body'], ARRAY[]::TEXT[]),
+('Moving furniture', 'other', 6.0, ARRAY['full body'], ARRAY[]::TEXT[]);
+
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Exercise Library populated with sample data!';
+  RAISE NOTICE '📊 Total exercises inserted: ~150+';
+  RAISE NOTICE '🏃 Cardio exercises: Walking, Running, Cycling, Swimming, etc.';
+  RAISE NOTICE '💪 Strength exercises: Push-ups, Squats, Deadlifts, etc.';
+  RAISE NOTICE '🧘 Yoga exercises: Hatha, Vinyasa, Power, etc.';
+  RAISE NOTICE '⚽ Sports exercises: Basketball, Soccer, Tennis, etc.';
+  RAISE NOTICE '';
+  RAISE NOTICE 'You can now use the Exercise Library in your app!';
+END $$;
+

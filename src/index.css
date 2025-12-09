@@ -1,0 +1,412 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@300;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  
+  :root {
+    /* Light theme (Minimal Black/White) */
+    --color-void: #f5f5f5;           /* Page background */
+    --color-surface: #ffffff;        /* Cards / containers */
+    --color-panel: #fafafa;          /* Very subtle panels */
+    --color-border: #e5e5e5;         /* Soft borders */
+
+    /* Text - deep and clear */
+    --color-text: #111111;           /* Main text - deep black */
+    --color-dim: #222222;            /* Semi-bold dim text */
+    --color-muted: #555555;          /* Muted labels */
+
+    /* Accent - PURE BLACK */
+    --color-acid: #000000;           /* Black buttons/icons */
+    --color-on-acid: #ffffff;        /* White text on black */
+
+    /* Soft "ghost" versions for icon backgrounds */
+    --color-acid-soft: rgba(0, 0, 0, 0.08);
+    --color-acid-softer: rgba(0, 0, 0, 0.04);
+
+    /* Success / error kept stylistic */
+    --color-success: #16a34a;
+    --color-error: #dc2626;
+
+    /* Icon + links */
+    --color-icon: #111111;
+    --color-link: #000000;
+    --color-link-hover: #333333;
+  }
+  
+  html {
+    /* ensure variables exist on html for Tailwind */
+    color-scheme: light;
+  }
+  
+  html.dark,
+  .dark {
+    /* Dark theme tokens */
+    --color-void: #020617;
+    --color-surface: #0a0a0a;
+    --color-panel: #111111;
+    --color-border: #1f2937;
+    --color-text: #e5e5e5;
+    --color-dim: #9ca3af;
+    --color-muted: #6b7280;
+
+    --color-acid: #ccff00;
+    --color-acid-soft: rgba(204, 255, 0, 0.12);
+    --color-acid-softer: rgba(204, 255, 0, 0.06);
+    --color-success: #22c55e;
+    --color-error: #f97373;
+
+    --color-on-acid: #020617;
+    --color-icon: #e5e5e5;
+    --color-link: #93c5fd;
+    --color-link-hover: #bfdbfe;
+
+    color-scheme: dark;
+  }
+  
+  html {
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  
+  body,
+  .card-modern,
+  .btn-primary,
+  .btn-secondary,
+  .input-modern {
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  }
+  
+  body {
+    background-color: var(--color-void);
+    color: var(--color-text);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    background-image: linear-gradient(to right, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
+    background-size: 40px 40px;
+    position: relative;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  .dark body {
+    background-image: linear-gradient(to right, rgba(148, 163, 184, 0.15) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(148, 163, 184, 0.15) 1px, transparent 1px);
+  }
+  
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    opacity: 0.03;
+    pointer-events: none;
+    z-index: 9999;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    transition: opacity 0.3s ease;
+  }
+  
+  .dark body::before {
+    opacity: 0.03;
+  }
+}
+
+@layer components {
+  .card-modern {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+    color: var(--color-text);
+    @apply border rounded-sm p-6 transition-all duration-300;
+  }
+  
+  .card-modern:hover {
+    border-color: var(--color-dim);
+  }
+  
+  .btn-primary {
+    background-color: var(--color-acid);
+    color: var(--color-on-acid);
+    border: 1px solid var(--color-acid);
+    @apply px-6 py-3 font-bold text-xs uppercase tracking-wider rounded-sm transition-all duration-300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .btn-primary:hover {
+    filter: brightness(1.05);
+    box-shadow: 0 0 20px var(--color-acid-soft);
+  }
+  
+  .btn-secondary {
+    border-color: var(--color-border);
+    background-color: transparent;
+    color: var(--color-text);
+    @apply px-6 py-3 border font-bold text-xs uppercase tracking-wider rounded-sm transition-all duration-300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .btn-secondary:hover {
+    border-color: var(--color-dim);
+    background-color: var(--color-panel);
+  }
+  
+  .input-modern {
+    background-color: var(--color-surface);
+    border-color: var(--color-border);
+    color: var(--color-text);
+    @apply w-full border-b px-4 py-3 transition-colors;
+  }
+  
+  .input-modern::placeholder {
+    color: var(--color-dim);
+  }
+  
+  .input-modern:focus {
+    outline: none;
+    border-color: var(--color-acid);
+  }
+  
+  .section-header {
+    border-color: var(--color-border);
+    background-color: var(--color-panel);
+    color: var(--color-acid);
+    @apply font-mono text-xs uppercase tracking-widest mb-6 px-4 py-2 border;
+  }
+  
+  .icon-base {
+    @apply fill-none stroke-current stroke-2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  svg {
+    color: var(--color-icon);
+    stroke: currentColor;
+  }
+  
+  nav svg {
+    color: var(--color-dim);
+  }
+  
+  nav a:hover svg,
+  nav button:hover svg {
+    color: var(--color-text);
+  }
+  
+  .text-success svg,
+  svg.text-success {
+    color: var(--color-success);
+    stroke: currentColor;
+  }
+  
+  .text-error svg,
+  svg.text-error {
+    color: var(--color-error);
+    stroke: currentColor;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-b from-white to-muted bg-clip-text text-transparent;
+  }
+  
+  .glow-acid {
+    box-shadow: 0 0 20px var(--color-acid-soft);
+  }
+  
+  .glow-white {
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.08);
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Utility classes for theme-aware colors */
+  /* These are now available via Tailwind classes (bg-acid, text-acid, etc.) */
+  /* but keeping here for backwards compatibility and explicit control */
+  
+  .bg-acid {
+    background-color: var(--color-acid);
+  }
+  
+  .bg-acid-soft {
+    background-color: var(--color-acid-soft);
+  }
+  
+  .bg-acid-softer {
+    background-color: var(--color-acid-softer);
+  }
+  
+  .border-acid {
+    border-color: var(--color-acid);
+  }
+  
+  .text-acid {
+    color: var(--color-acid);
+  }
+  
+  .text-dim {
+    color: var(--color-dim);
+  }
+  
+  .text-muted {
+    color: var(--color-muted);
+  }
+  
+  .text-text {
+    color: var(--color-text);
+  }
+  
+  .text-icon {
+    color: var(--color-icon);
+  }
+  
+  .text-link {
+    color: var(--color-link);
+  }
+  
+  .text-link-hover:hover {
+    color: var(--color-link-hover);
+  }
+  
+  a:not(.btn-primary) {
+    color: var(--color-link);
+  }
+  
+  a:not(.btn-primary):hover {
+    color: var(--color-link-hover);
+  }
+  
+  /* Light mode: make sure text isn't washed out */
+  html:not(.dark) .text-text {
+    color: var(--color-text) !important;
+  }
+
+  html:not(.dark) .text-dim {
+    color: var(--color-dim) !important;
+  }
+  
+  html:not(.dark) .text-muted {
+    color: var(--color-muted) !important;
+  }
+
+  /* Light mode: icons should be solid and visible */
+  html:not(.dark) svg {
+    color: var(--color-icon) !important;
+    stroke: currentColor !important;
+    opacity: 1 !important;
+  }
+
+  /* If you have nav icons that looked faint */
+  html:not(.dark) nav svg {
+    color: var(--color-dim) !important;
+  }
+
+  html:not(.dark) nav a:hover svg,
+  html:not(.dark) nav button:hover svg {
+    color: var(--color-text) !important;
+  }
+  
+  /* Light theme: Use soft black tint for backgrounds instead of solid black */
+  /* This provides better contrast and a cleaner minimal look */
+  html:not(.dark) .bg-acid {
+    background-color: var(--color-acid-soft) !important;
+  }
+  
+  /* Icon containers with acid background should use soft tint in light theme */
+  html:not(.dark) [class*="bg-acid/20"],
+  html:not(.dark) .bg-acid\/20 {
+    background-color: var(--color-acid-soft) !important;
+  }
+  
+  /* Ensure acid text/icons remain visible on soft backgrounds */
+  html:not(.dark) .bg-acid-soft .text-acid,
+  html:not(.dark) .bg-acid-soft svg.text-acid,
+  html:not(.dark) [class*="bg-acid-soft"] .text-acid {
+    color: var(--color-acid) !important;
+    stroke: currentColor !important;
+  }
+  
+  /* Hover states for soft acid backgrounds */
+  html:not(.dark) .bg-acid-soft:hover {
+    background-color: var(--color-acid-softer) !important;
+  }
+  
+  /* Light theme: Primary buttons should be solid black with white text */
+  html:not(.dark) .btn-primary {
+    background-color: var(--color-acid) !important;
+    color: var(--color-on-acid) !important;
+    border-color: var(--color-acid) !important;
+  }
+  
+  html:not(.dark) .btn-primary:hover {
+    background-color: #1a1a1a !important;
+    border-color: #1a1a1a !important;
+    filter: none !important;
+    box-shadow: 0 0 0 0 !important;
+  }
+  
+  /* Light theme: Section headers should use black text */
+  html:not(.dark) .section-header {
+    color: var(--color-acid) !important;
+  }
+  
+  /* Light theme: Active navigation links should use black */
+  html:not(.dark) nav a.text-acid,
+  html:not(.dark) nav .text-acid {
+    color: var(--color-acid) !important;
+  }
+  
+  /* Light theme: Force all text-acid to be black */
+  html:not(.dark) .text-acid,
+  html:not(.dark) [class*="text-acid"] {
+    color: var(--color-acid) !important;
+  }
+  
+  /* Light theme: Force all acid-colored icons to be black */
+  html:not(.dark) svg.text-acid,
+  html:not(.dark) .text-acid svg {
+    color: var(--color-acid) !important;
+    stroke: var(--color-acid) !important;
+  }
+  
+  /* Light theme: Remove any lime/green colors */
+  html:not(.dark) .text-lime,
+  html:not(.dark) .bg-lime,
+  html:not(.dark) [class*="text-lime"],
+  html:not(.dark) [class*="bg-lime"] {
+    color: var(--color-acid) !important;
+    background-color: var(--color-acid-soft) !important;
+  }
+  
+  /* Light theme: Progress bars and sliders should use black */
+  html:not(.dark) [style*="background-color: #ccff00"],
+  html:not(.dark) [style*="background-color:#ccff00"],
+  html:not(.dark) [style*="background-color: #7aa300"],
+  html:not(.dark) [style*="background-color:#7aa300"] {
+    background-color: var(--color-acid) !important;
+  }
+  
+  /* Light theme: Gradient backgrounds should use black */
+  html:not(.dark) [class*="from-acid"],
+  html:not(.dark) [class*="to-lime"] {
+    --tw-gradient-from: var(--color-acid) !important;
+    --tw-gradient-to: var(--color-acid) !important;
+  }
+}

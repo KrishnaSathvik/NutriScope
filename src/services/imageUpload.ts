@@ -1,0 +1,158 @@
+import { supabase, isUsingDummyClient } from '@/lib/supabase'
+import { guestStorage } from '@/utils/storage'
+import { compressImage, getCompressionOptions } from '@/utils/imageCompression'
+import { retry } from '@/utils/retry'
+
+/**
+ * Upload image to Supabase Storage with compression
+ */
+export async function uploadImage(
+  userId: string,
+  file: File,
+  folder: 'meals' | 'workouts' | 'chat' = 'chat'
+): Promise<string | null> {
+  const isGuest = guestStorage.get<boolean>('is_guest')
+  
+  // Compress image before upload
+  const compressionOptions = getCompressionOptions(folder === 'chat' ? 'chat' : 'recipe')
+  const compressedFile = await compressImage(file, compressionOptions)
+  
+  if (isGuest) {
+    // For guest mode, convert to data URL
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        resolve(reader.result as string)
+      }
+      reader.readAsDataURL(compressedFile)
+    })
+  }
+
+  if (isUsingDummyClient) {
+    // Convert to data URL for dummy client
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        resolve(reader.result as string)
+      }
+      reader.readAsDataURL(compressedFile)
+    })
+  }
+
+  try {
+    const fileExt = compressedFile.name.split('.').pop()
+    const fileName = `${userId}/${folder}/${Date.now()}.${fileExt}`
+    // Path should be relative to bucket root, not include bucket name
+    const filePath = fileName
+
+    // Retry upload on network errors
+    const { error: uploadError } = await retry(
+      async () => {
+        const result = await supabase.storage
+          .from('chat-images')
+          .upload(filePath, compressedFile, {
+            cacheControl: '3600',
+            upsert: false,
+          })
+        if (result.error) throw result.error
+        return result
+      },
+      {
+        maxRetries: 3,
+        retryDelay: 1000,
+        onRetry: (attempt) => {
+          console.log(`Retrying image upload (attempt ${attempt})...`)
+        },
+      }
+    )
+
+    if (uploadError) {
+      console.error('Error uploading image:', uploadError)
+      // Fallback to data URL
+      return new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          resolve(reader.result as string)
+        }
+        reader.readAsDataURL(compressedFile)
+      })
+    }
+
+    const { data } = supabase.storage
+      .from('chat-images')
+      .getPublicUrl(fileName)
+
+    return data.publicUrl
+  } catch (error) {
+    console.error('Error uploading image:', error)
+    // Fallback to data URL
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        resolve(reader.result as string)
+      }
+      reader.readAsDataURL(compressedFile)
+    })
+  }
+}
+
+/**
+ * Analyze image for meal recognition using OpenAI Vision
+ */
+export async function analyzeMealImage(imageUrl: string): Promise<{
+  description: string
+  estimatedNutrition?: {
+    calories?: number
+    protein?: number
+    carbs?: number
+    fats?: number
+  }
+}> {
+  const { openai } = await import('@/lib/openai')
+  
+  if (!openai) {
+    throw new Error('OpenAI API key not configured')
+  }
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'Analyze this meal image and provide: 1) A detailed description of the food items, 2) Estimated nutrition (calories, protein in grams, carbs in grams, fats in grams). Respond in JSON format: {"description": "...", "estimatedNutrition": {"calories": ..., "protein": ..., "carbs": ..., "fats": ...}}',
+            },
+            {
+              type: 'image_url',
+              image_url: { url: imageUrl },
+            },
+          ],
+        },
+      ],
+      max_tokens: 300,
+    })
+
+    const response = completion.choices[0]?.message?.content || '{}'
+    
+    try {
+      const parsed = JSON.parse(response)
+      return {
+        description: parsed.description || 'Meal image',
+        estimatedNutrition: parsed.estimatedNutrition,
+      }
+    } catch (e) {
+      return {
+        description: response,
+      }
+    }
+  } catch (error) {
+    console.error('Error analyzing image:', error)
+    return {
+      description: 'Unable to analyze image',
+    }
+  }
+}
+
