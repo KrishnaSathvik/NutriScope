@@ -116,9 +116,8 @@ export function initGoogleAnalytics() {
   const measurementId = import.meta.env.VITE_GA_MEASUREMENT_ID
 
   if (!measurementId) {
-    if (import.meta.env.DEV) {
-      console.warn('Google Analytics measurement ID not configured. Add VITE_GA_MEASUREMENT_ID to enable analytics.')
-    }
+    // Silently skip if not configured (Google Analytics is optional)
+    // No warning needed - it's configured in production via Vercel env vars
     return
   }
 

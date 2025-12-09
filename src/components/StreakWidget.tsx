@@ -1,39 +1,102 @@
 import { useQuery } from '@tanstack/react-query'
+import { useState, useEffect, useMemo } from 'react'
+import { format } from 'date-fns'
 import { calculateLoggingStreak } from '@/services/streak'
 import { Flame, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import type { StreakData } from '@/services/streak'
 
 export function StreakWidget() {
   const { user } = useAuth()
+  const [showFallback, setShowFallback] = useState(false)
+  
+  // Get today's date string for cache invalidation
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const cacheKey = `streak_${user?.id}_${today}`
+
+  // Load cached streak data from localStorage if available (useMemo to compute once)
+  const cachedStreakData = useMemo<StreakData | undefined>(() => {
+    if (!user?.id) return undefined
+    try {
+      const cached = localStorage.getItem(cacheKey)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        // Check if cache is from today
+        if (parsed.date === today && parsed.data) {
+          return parsed.data
+        }
+      }
+    } catch (e) {
+      // Invalid cache, ignore
+    }
+    return undefined
+  }, [user?.id, cacheKey, today])
   
   const { data: streakData, isLoading, error } = useQuery({
-    queryKey: ['streak', user?.id],
-    queryFn: calculateLoggingStreak,
+    queryKey: ['streak', user?.id, today], // Include date in query key so it refetches on new day
+    queryFn: async () => {
+      const result = await calculateLoggingStreak()
+      // Cache in localStorage
+      if (user?.id && result) {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({
+            data: result,
+            date: today,
+            timestamp: Date.now(),
+          }))
+        } catch (e) {
+          // localStorage might be full, ignore
+        }
+      }
+      return result
+    },
     enabled: !!user, // Only run if user exists (including guest users)
     refetchOnWindowFocus: false,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnMount: false, // Don't refetch on mount if data exists for today
+    refetchOnReconnect: false, // Don't refetch on reconnect
+    staleTime: Infinity, // Data is fresh until date changes (handled by query key)
+    // Note: invalidateQueries will still trigger refetch even with staleTime: Infinity
     retry: 1,
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
+    gcTime: 24 * 60 * 60 * 1000, // Keep in cache for 24 hours
+    // Use cached data from localStorage immediately - this prevents loading state
+    initialData: cachedStreakData,
+    // Use cached data immediately if available to avoid loading state
+    placeholderData: (previousData) => previousData || cachedStreakData,
   })
+  
+  // Show fallback after 3 seconds if still loading
+  useEffect(() => {
+    if (isLoading) {
+      const timer = setTimeout(() => {
+        setShowFallback(true)
+      }, 3000)
+      return () => clearTimeout(timer)
+    } else {
+      setShowFallback(false)
+    }
+  }, [isLoading])
+  
+  // Default state component
+  const DefaultState = () => (
+    <div className="card-modern border-acid/30 p-3 md:p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-8 h-8 rounded-sm bg-acid/20 border border-acid/30 flex items-center justify-center">
+          <Flame className="w-4 h-4 text-acid" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider mb-1">Logging Streak</div>
+          <div className="text-lg md:text-xl font-bold text-text font-mono">Start logging!</div>
+        </div>
+      </div>
+      <div className="text-[10px] md:text-xs text-dim font-mono mt-2">
+        Log meals, workouts, or water to start your streak
+      </div>
+    </div>
+  )
   
   // If user doesn't exist, show default state
   if (!user) {
-    return (
-      <div className="card-modern border-acid/30 p-3 md:p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-sm bg-acid/20 border border-acid/30 flex items-center justify-center">
-            <Flame className="w-4 h-4 text-acid" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider mb-1">Logging Streak</div>
-            <div className="text-lg md:text-xl font-bold text-text font-mono">Start logging!</div>
-          </div>
-        </div>
-        <div className="text-[10px] md:text-xs text-dim font-mono mt-2">
-          Log meals, workouts, or water to start your streak
-        </div>
-      </div>
-    )
+    return <DefaultState />
   }
 
   // Log errors for debugging
@@ -43,26 +106,22 @@ export function StreakWidget() {
 
   // Show widget even if there's an error (with default values)
   if (error && !streakData) {
-    return (
-      <div className="card-modern border-acid/30 p-3 md:p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-sm bg-acid/20 border border-acid/30 flex items-center justify-center">
-            <Flame className="w-4 h-4 text-acid" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider mb-1">Logging Streak</div>
-            <div className="text-lg md:text-xl font-bold text-text font-mono">Start logging!</div>
-          </div>
-        </div>
-        <div className="text-[10px] md:text-xs text-dim font-mono mt-2">
-          Log meals, workouts, or water to start your streak
-        </div>
-      </div>
-    )
+    return <DefaultState />
   }
 
-  // Show loading state briefly, then show default if taking too long
-  if (isLoading) {
+  // Show fallback state if loading takes too long
+  if (isLoading && showFallback) {
+    return <DefaultState />
+  }
+
+  // Use cached data if available, otherwise use fetched data
+  const displayData = streakData || cachedStreakData
+  
+  // Show loading state only if we have no cached data
+  // If we have cached data, show it immediately even if fetching in background
+  const hasNoData = !displayData
+  
+  if (isLoading && hasNoData) {
     return (
       <div className="card-modern border-acid/30 p-3 md:p-4">
         <div className="flex items-center gap-2 mb-2">
@@ -78,7 +137,7 @@ export function StreakWidget() {
     )
   }
 
-  if (!streakData || streakData.currentStreak === 0) {
+  if (!displayData || displayData.currentStreak === 0) {
     return (
       <div className="card-modern border-acid/30 p-3 md:p-4">
         <div className="flex items-center gap-2 mb-2">
@@ -97,26 +156,29 @@ export function StreakWidget() {
     )
   }
 
+  // Use displayData (either cached or fetched)
+  const finalData = displayData!
+  
   return (
     <div className="card-modern border-acid/30 p-3 md:p-4">
       <div className="flex items-center gap-2 mb-2">
         <div className={`w-8 h-8 rounded-sm border flex items-center justify-center ${
-          streakData.isActive 
+          finalData.isActive 
             ? 'bg-acid/20 border-acid/30 animate-pulse' 
             : 'bg-acid/10 border-acid/20'
         }`}>
-          <Flame className={`w-4 h-4 ${streakData.isActive ? 'text-acid' : 'text-acid/50'}`} />
+          <Flame className={`w-4 h-4 ${finalData.isActive ? 'text-acid' : 'text-acid/50'}`} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider mb-1">Logging Streak</div>
           <div className="text-lg md:text-xl font-bold text-acid font-mono">
-            {streakData.currentStreak} {streakData.currentStreak === 1 ? 'day' : 'days'}
+            {finalData.currentStreak} {finalData.currentStreak === 1 ? 'day' : 'days'}
           </div>
         </div>
       </div>
         <div className="flex items-center justify-between mt-2">
           <div className="text-[10px] md:text-xs text-dim font-mono flex items-center gap-1">
-            {streakData.isActive ? (
+            {finalData.isActive ? (
               <>
                 <CheckCircle2 className="w-3 h-3 text-success" />
                 <span className="text-success font-bold dark:font-normal">On fire!</span>
@@ -125,9 +187,9 @@ export function StreakWidget() {
               <span className="text-dim">Keep it going!</span>
             )}
           </div>
-        {streakData.longestStreak > streakData.currentStreak && (
+        {finalData.longestStreak > finalData.currentStreak && (
           <div className="text-[10px] md:text-xs text-dim font-mono">
-            Best: {streakData.longestStreak}
+            Best: {finalData.longestStreak}
           </div>
         )}
       </div>

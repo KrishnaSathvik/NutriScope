@@ -278,6 +278,7 @@ export default function ChatPage() {
         queryClient.invalidateQueries({ queryKey: ['recipes'] })
         queryClient.invalidateQueries({ queryKey: ['mealPlans'] })
         queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
+        queryClient.invalidateQueries({ queryKey: ['streak'] }) // Update streak when actions are executed
 
         // Add confirmation message
         const confirmationMessage: ChatMessage = {
@@ -411,6 +412,7 @@ export default function ChatPage() {
                   queryClient.invalidateQueries({ queryKey: ['recipes'] })
                   queryClient.invalidateQueries({ queryKey: ['mealPlans'] })
                   queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
+                  queryClient.invalidateQueries({ queryKey: ['streak'] }) // Update streak when actions are executed
                   
                   // Add confirmation message
                   const confirmationMessage: ChatMessage = {

@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { format } from 'date-fns'
+import { format, parseISO, subDays, addDays } from 'date-fns'
 import { getExercises, createExercise, updateExercise, deleteExercise } from '@/services/workouts'
 import { useAuth } from '@/contexts/AuthContext'
 import { ExerciseSelector } from '@/components/ExerciseSelector'
 import { ExerciseLibraryItem } from '@/services/exerciseLibrary'
 import PullToRefresh from '@/components/PullToRefresh'
-import { Plus, Trash2, X, Activity, Flame, Clock, Dumbbell, Heart, Zap, Target, TrendingUp, Search, Edit } from 'lucide-react'
+import { Plus, Trash2, X, Activity, Flame, Clock, Dumbbell, Heart, Zap, Target, TrendingUp, Search, Edit, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Exercise } from '@/types'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
@@ -16,6 +16,7 @@ export default function WorkoutsPage() {
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null)
   const [showExerciseSelector, setShowExerciseSelector] = useState(false)
   const [formDuration, setFormDuration] = useState<number | string>(30)
+  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'))
   const formRef = useRef<HTMLFormElement>(null)
   const today = format(new Date(), 'yyyy-MM-dd')
   const queryClient = useQueryClient()
@@ -24,16 +25,29 @@ export default function WorkoutsPage() {
   useUserRealtimeSubscription('exercises', ['exercises', 'dailyLog', 'aiInsights'], user?.id)
 
   const { data: exercises, isLoading } = useQuery({
-    queryKey: ['exercises', today],
-    queryFn: () => getExercises(today),
+    queryKey: ['exercises', selectedDate],
+    queryFn: () => getExercises(selectedDate),
+    enabled: !!user,
   })
 
   const createMutation = useMutation({
     mutationFn: createExercise,
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      const workoutDate = variables.date
+      // Invalidate all exercises queries (for any date)
       queryClient.invalidateQueries({ queryKey: ['exercises'] })
+      // Invalidate specific date's dailyLog and aiInsights
+      queryClient.invalidateQueries({ queryKey: ['dailyLog', workoutDate] })
+      queryClient.invalidateQueries({ queryKey: ['aiInsights', workoutDate] })
+      // Also invalidate all dailyLog and aiInsights queries (for other pages that might be viewing different dates)
       queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
       queryClient.invalidateQueries({ queryKey: ['aiInsights'] })
+      // Invalidate analytics (which aggregates multiple dates)
+      queryClient.invalidateQueries({ queryKey: ['analytics'] })
+      // Invalidate weekLogs (which includes this date)
+      queryClient.invalidateQueries({ queryKey: ['weekLogs'] })
+      // Update streak when workout is logged
+      queryClient.invalidateQueries({ queryKey: ['streak'] })
       setShowAddForm(false)
       setEditingExerciseId(null)
     },
@@ -41,10 +55,24 @@ export default function WorkoutsPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<Exercise> }) => updateExercise(id, updates),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      // Get the workout's date from the workout being edited
+      const workout = exercises?.find(ex => ex.id === variables.id)
+      const workoutDate = workout?.date || selectedDate
+      // Invalidate all exercises queries (for any date)
       queryClient.invalidateQueries({ queryKey: ['exercises'] })
+      // Invalidate specific date's dailyLog and aiInsights
+      queryClient.invalidateQueries({ queryKey: ['dailyLog', workoutDate] })
+      queryClient.invalidateQueries({ queryKey: ['aiInsights', workoutDate] })
+      // Also invalidate all dailyLog and aiInsights queries (for other pages that might be viewing different dates)
       queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
       queryClient.invalidateQueries({ queryKey: ['aiInsights'] })
+      // Invalidate analytics (which aggregates multiple dates)
+      queryClient.invalidateQueries({ queryKey: ['analytics'] })
+      // Invalidate weekLogs (which includes this date)
+      queryClient.invalidateQueries({ queryKey: ['weekLogs'] })
+      // Update streak when workout is updated
+      queryClient.invalidateQueries({ queryKey: ['streak'] })
       setShowAddForm(false)
       setEditingExerciseId(null)
     },
@@ -53,9 +81,22 @@ export default function WorkoutsPage() {
   const deleteMutation = useMutation({
     mutationFn: deleteExercise,
     onSuccess: () => {
+      // Get the workout's date from the workout being deleted
+      const workoutDate = selectedDate
+      // Invalidate all exercises queries (for any date)
       queryClient.invalidateQueries({ queryKey: ['exercises'] })
+      // Invalidate specific date's dailyLog and aiInsights
+      queryClient.invalidateQueries({ queryKey: ['dailyLog', workoutDate] })
+      queryClient.invalidateQueries({ queryKey: ['aiInsights', workoutDate] })
+      // Also invalidate all dailyLog and aiInsights queries (for other pages that might be viewing different dates)
       queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
       queryClient.invalidateQueries({ queryKey: ['aiInsights'] })
+      // Invalidate analytics (which aggregates multiple dates)
+      queryClient.invalidateQueries({ queryKey: ['analytics'] })
+      // Invalidate weekLogs (which includes this date)
+      queryClient.invalidateQueries({ queryKey: ['weekLogs'] })
+      // Update streak when workout is deleted
+      queryClient.invalidateQueries({ queryKey: ['streak'] })
     },
   })
 
@@ -73,6 +114,7 @@ export default function WorkoutsPage() {
 
   const handleEdit = (exercise: Exercise) => {
     setEditingExerciseId(exercise.id)
+    setSelectedDate(exercise.date) // Switch to the workout's date
     setShowAddForm(true)
     // Initialize form duration with exercise duration or default to 30
     setFormDuration(exercise.duration || 30)
@@ -119,9 +161,9 @@ export default function WorkoutsPage() {
         updates: exerciseData,
       })
     } else {
-      // Create new exercise
+      // Create new exercise for selected date
       createMutation.mutate({
-        date: today,
+        date: selectedDate,
         ...exerciseData,
       })
     }
@@ -205,15 +247,65 @@ export default function WorkoutsPage() {
               <div className="flex items-center gap-2 md:gap-3 mb-2">
                 <div className="h-px w-6 md:w-8 bg-acid"></div>
                 <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-widest">
-                  {format(new Date(), 'EEEE, MMMM d, yyyy').toUpperCase()}
+                  {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy').toUpperCase()}
                 </span>
               </div>
               <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-text tracking-tighter mt-2 md:mt-4">Workouts</h1>
-              <div className="flex items-center gap-2 mt-3 md:mt-4">
-                <Zap className="w-4 h-4 text-acid flex-shrink-0" />
-                <p className="text-[11px] md:text-xs text-dim/70 font-mono">
-                  Tip: Browse the exercise library for accurate calorie calculations!
-                </p>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-3 md:mt-4">
+                {/* Date Navigation */}
+                <div className="flex items-center gap-1.5 bg-surface border border-border rounded-sm p-1">
+                  <button
+                    onClick={() => {
+                      const prevDate = format(subDays(parseISO(selectedDate), 1), 'yyyy-MM-dd')
+                      setSelectedDate(prevDate)
+                    }}
+                    className="p-1.5 hover:bg-panel rounded-sm transition-colors"
+                    title="Previous day"
+                    aria-label="Previous day"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5 text-dim hover:text-text" />
+                  </button>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    max={today}
+                    className="bg-transparent border-none text-[10px] md:text-xs font-mono text-text focus:outline-none focus:ring-0 px-1.5 py-1 cursor-pointer w-28 md:w-32"
+                    title="Select date"
+                  />
+                  <button
+                    onClick={() => {
+                      const nextDate = format(addDays(parseISO(selectedDate), 1), 'yyyy-MM-dd')
+                      if (nextDate <= today) {
+                        setSelectedDate(nextDate)
+                      }
+                    }}
+                    disabled={selectedDate >= today}
+                    className="p-1.5 hover:bg-panel rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Next day"
+                    aria-label="Next day"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5 text-dim hover:text-text" />
+                  </button>
+                  {selectedDate !== today && (
+                    <button
+                      onClick={() => setSelectedDate(today)}
+                      className="px-2 py-1 text-[9px] md:text-[10px] font-mono uppercase text-acid hover:text-acid/80 transition-colors"
+                      title="Go to today"
+                    >
+                      Today
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-acid flex-shrink-0" />
+                  <p className="text-[11px] md:text-xs text-dim/70 font-mono">
+                    {selectedDate === today 
+                      ? "Tip: Browse the exercise library for accurate calorie calculations!"
+                      : "Viewing past workouts. You can edit or add workouts for this date."
+                    }
+                  </p>
+                </div>
               </div>
             </div>
             <button
@@ -239,7 +331,9 @@ export default function WorkoutsPage() {
               <span className="text-[10px] md:text-xs text-dim font-mono uppercase truncate">Calories</span>
             </div>
             <div className="text-xl md:text-2xl font-bold text-orange-500 dark:text-orange-500 font-mono">{totalCalories}</div>
-            <div className="text-[10px] md:text-xs text-dim font-mono mt-1">burned today</div>
+            <div className="text-[10px] md:text-xs text-dim font-mono mt-1">
+              {selectedDate === today ? 'burned today' : 'burned'}
+            </div>
           </div>
           <div className="card-modern border-success/30 p-3 md:p-4">
             <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2">
@@ -255,7 +349,9 @@ export default function WorkoutsPage() {
               <span className="text-[10px] md:text-xs text-dim font-mono uppercase truncate">Workouts</span>
             </div>
             <div className="text-xl md:text-2xl font-bold text-purple-500 dark:text-text font-mono">{workoutCount}</div>
-            <div className="text-[10px] md:text-xs text-dim font-mono mt-1">logged today</div>
+            <div className="text-[10px] md:text-xs text-dim font-mono mt-1">
+              {selectedDate === today ? 'logged today' : 'logged'}
+            </div>
           </div>
         </div>
       )}
@@ -511,7 +607,17 @@ export default function WorkoutsPage() {
                       <Edit className="w-4 h-4 md:w-5 md:h-5" />
                     </button>
                     <button
-                      onClick={() => deleteMutation.mutate(exercise.id)}
+                      onClick={() => {
+                        // Store the workout date before deletion for proper cache invalidation
+                        const workoutDate = exercise.date
+                        deleteMutation.mutate(exercise.id, {
+                          onSuccess: () => {
+                            // Invalidate specific date's queries
+                            queryClient.invalidateQueries({ queryKey: ['dailyLog', workoutDate] })
+                            queryClient.invalidateQueries({ queryKey: ['aiInsights', workoutDate] })
+                          }
+                        })
+                      }}
                       className="p-2 text-error hover:text-error/80 hover:bg-error/10 rounded-sm transition-all active:scale-95"
                       title="Delete workout"
                     >
@@ -528,9 +634,14 @@ export default function WorkoutsPage() {
           <div className="w-16 h-16 md:w-20 md:h-20 rounded-sm bg-acid/10 border border-acid/20 flex items-center justify-center mx-auto mb-6 md:mb-8">
             <Activity className="w-8 h-8 md:w-10 md:h-10 text-acid/60" />
           </div>
-          <h3 className="text-text font-mono font-bold text-lg md:text-xl mb-3 md:mb-4">No workouts logged today</h3>
+          <h3 className="text-text font-mono font-bold text-lg md:text-xl mb-3 md:mb-4">
+            {selectedDate === today ? 'No workouts logged today' : `No workouts logged on ${format(parseISO(selectedDate), 'MMMM d, yyyy')}`}
+          </h3>
           <p className="text-dim font-mono text-sm md:text-base mb-6 md:mb-8 max-w-md mx-auto leading-relaxed">
-            Start tracking your fitness journey
+            {selectedDate === today 
+              ? 'Start tracking your fitness journey'
+              : 'Add workouts for this date to track your fitness history'
+            }
           </p>
         </div>
       )}

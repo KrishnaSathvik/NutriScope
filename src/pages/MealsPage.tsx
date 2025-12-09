@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { format, subDays } from 'date-fns'
+import { format, subDays, parseISO, addDays } from 'date-fns'
 import { getMeals, createMeal, updateMeal, deleteMeal } from '@/services/meals'
 import { getMealTemplates, useMealTemplate, createMealTemplate, deleteMealTemplate } from '@/services/mealTemplates'
 import { useAuth } from '@/contexts/AuthContext'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import PullToRefresh from '@/components/PullToRefresh'
-import { Plus, Trash2, X, Clock, UtensilsCrossed, Flame, Target, Cookie, Circle, Sunrise, Moon, Coffee, Sun, BookOpen, Save, Edit, Copy, Lightbulb, Beef } from 'lucide-react'
-import { Meal } from '@/types'
+import { Plus, Trash2, X, Clock, UtensilsCrossed, Flame, Cookie, Circle, Sunrise, Moon, Coffee, Sun, BookOpen, Save, Edit, Copy, Lightbulb, Beef, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+import { Meal, MealType } from '@/types'
 import { MealCardSkeleton } from '@/components/LoadingSkeleton'
 import { MealForm } from '@/components/MealForm'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
@@ -28,6 +28,9 @@ export default function MealsPage() {
     carbs?: number
     fats?: number
   } | null>(null)
+  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'))
+  const [showCopyDialog, setShowCopyDialog] = useState(false)
+  const [copySourceDate, setCopySourceDate] = useState<string>('')
   const { user } = useAuth()
   const today = format(new Date(), 'yyyy-MM-dd')
   const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
@@ -37,8 +40,9 @@ export default function MealsPage() {
   useUserRealtimeSubscription('meals', ['meals', 'dailyLog', 'aiInsights'], user?.id)
 
   const { data: meals, isLoading } = useQuery({
-    queryKey: ['meals', today],
-    queryFn: () => getMeals(today),
+    queryKey: ['meals', selectedDate],
+    queryFn: () => getMeals(selectedDate),
+    enabled: !!user,
   })
 
   const { data: yesterdayMeals } = useQuery({
@@ -47,12 +51,41 @@ export default function MealsPage() {
     enabled: !!user,
   })
 
+  // Fetch meals for recent days (last 7 days) to show in copy dialog
+  const recentDates = Array.from({ length: 7 }, (_, i) => format(subDays(new Date(), i + 1), 'yyyy-MM-dd'))
+  const { data: recentMealsData } = useQuery({
+    queryKey: ['recentMeals', recentDates],
+    queryFn: async () => {
+      const mealsByDate: Record<string, Meal[]> = {}
+      for (const date of recentDates) {
+        const meals = await getMeals(date)
+        if (meals.length > 0) {
+          mealsByDate[date] = meals
+        }
+      }
+      return mealsByDate
+    },
+    enabled: !!user && showCopyDialog,
+  })
+
   const createMutation = useMutation({
-    mutationFn: (mealData: { date: string; name?: string; meal_type: string; calories: number; protein: number; carbs?: number; fats?: number; food_items?: any[] }) => createMeal(mealData),
-    onSuccess: () => {
+    mutationFn: (mealData: { date: string; name?: string; meal_type: MealType; calories: number; protein: number; carbs?: number; fats?: number; food_items?: any[] }) => createMeal(mealData),
+    onSuccess: (_, variables) => {
+      const mealDate = variables.date
+      // Invalidate all meals queries (for any date)
       queryClient.invalidateQueries({ queryKey: ['meals'] })
+      // Invalidate specific date's dailyLog and aiInsights
+      queryClient.invalidateQueries({ queryKey: ['dailyLog', mealDate] })
+      queryClient.invalidateQueries({ queryKey: ['aiInsights', mealDate] })
+      // Also invalidate all dailyLog and aiInsights queries (for other pages that might be viewing different dates)
       queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
       queryClient.invalidateQueries({ queryKey: ['aiInsights'] })
+      // Invalidate analytics (which aggregates multiple dates)
+      queryClient.invalidateQueries({ queryKey: ['analytics'] })
+      // Invalidate weekLogs (which includes this date)
+      queryClient.invalidateQueries({ queryKey: ['weekLogs'] })
+      // Update streak when meal is logged
+      queryClient.invalidateQueries({ queryKey: ['streak'] })
       setShowAddForm(false)
       setEditingMealId(null)
     },
@@ -60,10 +93,24 @@ export default function MealsPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<Meal> }) => updateMeal(id, updates),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      // Get the meal's date from the meal being edited
+      const meal = meals?.find(m => m.id === variables.id)
+      const mealDate = meal?.date || selectedDate
+      // Invalidate all meals queries (for any date)
       queryClient.invalidateQueries({ queryKey: ['meals'] })
+      // Invalidate specific date's dailyLog and aiInsights
+      queryClient.invalidateQueries({ queryKey: ['dailyLog', mealDate] })
+      queryClient.invalidateQueries({ queryKey: ['aiInsights', mealDate] })
+      // Also invalidate all dailyLog and aiInsights queries (for other pages that might be viewing different dates)
       queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
       queryClient.invalidateQueries({ queryKey: ['aiInsights'] })
+      // Invalidate analytics (which aggregates multiple dates)
+      queryClient.invalidateQueries({ queryKey: ['analytics'] })
+      // Invalidate weekLogs (which includes this date)
+      queryClient.invalidateQueries({ queryKey: ['weekLogs'] })
+      // Update streak when meal is updated
+      queryClient.invalidateQueries({ queryKey: ['streak'] })
       setShowAddForm(false)
       setEditingMealId(null)
     },
@@ -71,10 +118,24 @@ export default function MealsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteMeal,
-    onSuccess: () => {
+    onSuccess: (_, mealId) => {
+      // Get the meal's date from the meal being deleted
+      const meal = meals?.find(m => m.id === mealId)
+      const mealDate = meal?.date || selectedDate
+      // Invalidate all meals queries (for any date)
       queryClient.invalidateQueries({ queryKey: ['meals'] })
+      // Invalidate specific date's dailyLog and aiInsights
+      queryClient.invalidateQueries({ queryKey: ['dailyLog', mealDate] })
+      queryClient.invalidateQueries({ queryKey: ['aiInsights', mealDate] })
+      // Also invalidate all dailyLog and aiInsights queries (for other pages that might be viewing different dates)
       queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
       queryClient.invalidateQueries({ queryKey: ['aiInsights'] })
+      // Invalidate analytics (which aggregates multiple dates)
+      queryClient.invalidateQueries({ queryKey: ['analytics'] })
+      // Invalidate weekLogs (which includes this date)
+      queryClient.invalidateQueries({ queryKey: ['weekLogs'] })
+      // Update streak when meal is deleted
+      queryClient.invalidateQueries({ queryKey: ['streak'] })
     },
   })
 
@@ -85,7 +146,7 @@ export default function MealsPage() {
   })
 
   const useTemplateMutation = useMutation({
-    mutationFn: (templateId: string) => useMealTemplate(user?.id || '', templateId, today),
+    mutationFn: (templateId: string) => useMealTemplate(user?.id || '', templateId, selectedDate),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['meals'] })
       queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
@@ -167,10 +228,12 @@ export default function MealsPage() {
     post_dinner: 'Post Dinner',
   }
 
-  const editingMeal = editingMealId ? meals?.find(m => m.id === editingMealId) : null
+  // Find editing meal - fetch it separately if needed
+  const editingMeal = editingMealId ? (meals?.find(m => m.id === editingMealId) || null) : null
 
   const handleEdit = (meal: Meal) => {
     setEditingMealId(meal.id)
+    setSelectedDate(meal.date) // Switch to the meal's date
     setShowAddForm(true)
   }
 
@@ -180,16 +243,17 @@ export default function MealsPage() {
     setValidationErrors({}) // Clear validation errors
   }
 
-  const copyPreviousDayMutation = useMutation({
-    mutationFn: async () => {
-      if (!yesterdayMeals || yesterdayMeals.length === 0) {
-        throw new Error('No meals found from yesterday')
+  const copyMealsMutation = useMutation({
+    mutationFn: async (sourceDate: string) => {
+      const sourceMeals = await getMeals(sourceDate)
+      if (!sourceMeals || sourceMeals.length === 0) {
+        throw new Error(`No meals found for ${format(parseISO(sourceDate), 'MMMM d, yyyy')}`)
       }
       
-      // Create all meals from yesterday for today
-      const promises = yesterdayMeals.map((meal) =>
+      // Create all meals from source date for selected date
+      const promises = sourceMeals.map((meal) =>
         createMeal({
-          date: today,
+          date: selectedDate,
           meal_type: meal.meal_type,
           name: meal.name,
           calories: meal.calories,
@@ -203,17 +267,41 @@ export default function MealsPage() {
       await Promise.all(promises)
     },
     onSuccess: () => {
+      // Invalidate all meals queries (for any date)
       queryClient.invalidateQueries({ queryKey: ['meals'] })
+      // Invalidate specific date's dailyLog and aiInsights
+      queryClient.invalidateQueries({ queryKey: ['dailyLog', selectedDate] })
+      queryClient.invalidateQueries({ queryKey: ['aiInsights', selectedDate] })
+      // Also invalidate all dailyLog and aiInsights queries (for other pages that might be viewing different dates)
       queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
       queryClient.invalidateQueries({ queryKey: ['aiInsights'] })
+      // Invalidate analytics (which aggregates multiple dates)
+      queryClient.invalidateQueries({ queryKey: ['analytics'] })
+      // Invalidate weekLogs (which includes this date)
+      queryClient.invalidateQueries({ queryKey: ['weekLogs'] })
+      // Update streak when meals are copied
+      queryClient.invalidateQueries({ queryKey: ['streak'] })
+      setShowCopyDialog(false)
+      setCopySourceDate('')
     },
   })
 
+  const handleCopyMeals = () => {
+    if (copySourceDate) {
+      copyMealsMutation.mutate(copySourceDate)
+    }
+  }
+
   const handleCopyPreviousDay = () => {
+    // Quick copy from yesterday if available
     if (yesterdayMeals && yesterdayMeals.length > 0) {
-      if (confirm(`Copy ${yesterdayMeals.length} meal${yesterdayMeals.length > 1 ? 's' : ''} from yesterday?`)) {
-        copyPreviousDayMutation.mutate()
+      const dateLabel = selectedDate === today ? 'today' : format(parseISO(selectedDate), 'MMMM d')
+      if (confirm(`Copy ${yesterdayMeals.length} meal${yesterdayMeals.length > 1 ? 's' : ''} from yesterday to ${dateLabel}?`)) {
+        copyMealsMutation.mutate(yesterday)
       }
+    } else {
+      // If no yesterday meals, open dialog to select from other days
+      setShowCopyDialog(true)
     }
   }
 
@@ -245,22 +333,30 @@ export default function MealsPage() {
     const fats = fatsValue && fatsValue !== '' ? Number(fatsValue) : undefined
     
     // Validate with inline feedback
-    const errors: typeof validationErrors = {}
+    const errors: Record<string, string> = {}
     
     const caloriesValidation = validateNumber(calories, { min: 0, max: 10000, label: 'Calories', required: true })
-    if (!caloriesValidation.isValid) errors.calories = caloriesValidation.error
+    if (!caloriesValidation.isValid && caloriesValidation.error) {
+      errors.calories = caloriesValidation.error
+    }
     
     const proteinValidation = validateNumber(protein, { min: 0, max: 1000, label: 'Protein', required: true })
-    if (!proteinValidation.isValid) errors.protein = proteinValidation.error
+    if (!proteinValidation.isValid && proteinValidation.error) {
+      errors.protein = proteinValidation.error
+    }
     
     if (carbs !== undefined) {
       const carbsValidation = validateNumber(carbs, { min: 0, max: 1000, label: 'Carbs' })
-      if (!carbsValidation.isValid) errors.carbs = carbsValidation.error
+      if (!carbsValidation.isValid && carbsValidation.error) {
+        errors.carbs = carbsValidation.error
+      }
     }
     
     if (fats !== undefined) {
       const fatsValidation = validateNumber(fats, { min: 0, max: 1000, label: 'Fats' })
-      if (!fatsValidation.isValid) errors.fats = fatsValidation.error
+      if (!fatsValidation.isValid && fatsValidation.error) {
+        errors.fats = fatsValidation.error
+      }
     }
     
     if (Object.keys(errors).length > 0) {
@@ -287,9 +383,9 @@ export default function MealsPage() {
         updates: mealData,
       })
     } else {
-      // Create new meal
+      // Create new meal for selected date
       createMutation.mutate({
-        date: today,
+        date: selectedDate,
         name: mealData.name,
         meal_type: mealData.meal_type,
         calories: mealData.calories,
@@ -319,30 +415,84 @@ export default function MealsPage() {
               <div className="flex items-center gap-2 md:gap-3 mb-2">
                 <div className="h-px w-6 md:w-8 bg-acid"></div>
                 <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-widest">
-                  {format(new Date(), 'EEEE, MMMM d, yyyy').toUpperCase()}
+                  {format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy').toUpperCase()}
                 </span>
               </div>
               <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-text tracking-tighter mt-2 md:mt-4">Meals</h1>
-              <div className="flex items-center gap-2 mt-3 md:mt-4">
-                <Lightbulb className="w-4 h-4 text-acid flex-shrink-0" />
-                <p className="text-[11px] md:text-xs text-dim/70 font-mono">
-                  Tip: Use templates or copy yesterday's meals to get started quickly!
-                </p>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mt-3 md:mt-4">
+                {/* Date Navigation */}
+                <div className="flex items-center gap-1.5 bg-surface border border-border rounded-sm p-1">
+                  <button
+                    onClick={() => {
+                      const prevDate = format(subDays(parseISO(selectedDate), 1), 'yyyy-MM-dd')
+                      setSelectedDate(prevDate)
+                    }}
+                    className="p-1.5 hover:bg-panel rounded-sm transition-colors"
+                    title="Previous day"
+                    aria-label="Previous day"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5 text-dim hover:text-text" />
+                  </button>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    max={today}
+                    className="bg-transparent border-none text-[10px] md:text-xs font-mono text-text focus:outline-none focus:ring-0 px-1.5 py-1 cursor-pointer w-28 md:w-32"
+                    title="Select date"
+                  />
+                  <button
+                    onClick={() => {
+                      const nextDate = format(addDays(parseISO(selectedDate), 1), 'yyyy-MM-dd')
+                      if (nextDate <= today) {
+                        setSelectedDate(nextDate)
+                      }
+                    }}
+                    disabled={selectedDate >= today}
+                    className="p-1.5 hover:bg-panel rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Next day"
+                    aria-label="Next day"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5 text-dim hover:text-text" />
+                  </button>
+                  {selectedDate !== today && (
+                    <button
+                      onClick={() => setSelectedDate(today)}
+                      className="px-2 py-1 text-[9px] md:text-[10px] font-mono uppercase text-acid hover:text-acid/80 transition-colors"
+                      title="Go to today"
+                    >
+                      Today
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-acid flex-shrink-0" />
+                  <p className="text-[11px] md:text-xs text-dim/70 font-mono">
+                    {selectedDate === today 
+                      ? "Tip: Use templates or copy yesterday's meals to get started quickly!"
+                      : "Viewing past meals. You can edit or add meals for this date."
+                    }
+                  </p>
+                </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              {yesterdayMeals && yesterdayMeals.length > 0 && (
-                <button
-                  onClick={handleCopyPreviousDay}
-                  disabled={copyPreviousDayMutation.isPending}
-                  className="btn-secondary gap-1.5 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-2"
-                  title="Copy yesterday's meals"
-                >
-                  <Copy className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">Copy Yesterday</span>
-                  <span className="sm:hidden">Copy</span>
-                </button>
-              )}
+              <button
+                onClick={() => {
+                  if (yesterdayMeals && yesterdayMeals.length > 0) {
+                    handleCopyPreviousDay()
+                  } else {
+                    setShowCopyDialog(true)
+                  }
+                }}
+                disabled={copyMealsMutation.isPending}
+                className="btn-secondary gap-1.5 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-2"
+                title="Copy meals from a previous day"
+              >
+                <Copy className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <span className="hidden sm:inline">Copy Meals</span>
+                <span className="sm:hidden">Copy</span>
+              </button>
               <button
                 onClick={() => setShowTemplates(!showTemplates)}
                 className="btn-secondary gap-1.5 md:gap-2 text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap"
@@ -604,7 +754,17 @@ export default function MealsPage() {
                       <Save className="w-4 h-4 md:w-5 md:h-5" />
                     </button>
                     <button
-                      onClick={() => deleteMutation.mutate(meal.id)}
+                      onClick={() => {
+                        // Store the meal date before deletion for proper cache invalidation
+                        const mealDate = meal.date
+                        deleteMutation.mutate(meal.id, {
+                          onSuccess: () => {
+                            // Invalidate specific date's queries
+                            queryClient.invalidateQueries({ queryKey: ['dailyLog', mealDate] })
+                            queryClient.invalidateQueries({ queryKey: ['aiInsights', mealDate] })
+                          }
+                        })
+                      }}
                       className="p-2 text-error hover:text-error/80 hover:bg-error/10 rounded-sm transition-all active:scale-95"
                       title="Delete meal"
                     >
@@ -621,19 +781,24 @@ export default function MealsPage() {
           <div className="w-16 h-16 md:w-20 md:h-20 rounded-sm bg-acid/10 border border-acid/20 flex items-center justify-center mx-auto mb-6 md:mb-8">
             <UtensilsCrossed className="w-8 h-8 md:w-10 md:h-10 text-acid/60" />
           </div>
-          <h3 className="text-text font-mono font-bold text-lg md:text-xl mb-3 md:mb-4">No meals logged today</h3>
+          <h3 className="text-text font-mono font-bold text-lg md:text-xl mb-3 md:mb-4">
+            {selectedDate === today ? 'No meals logged today' : `No meals logged on ${format(parseISO(selectedDate), 'MMMM d, yyyy')}`}
+          </h3>
           <p className="text-dim font-mono text-sm md:text-base mb-6 md:mb-8 max-w-md mx-auto leading-relaxed">
-            Start tracking your nutrition by adding your first meal
+            {selectedDate === today 
+              ? 'Start tracking your nutrition by adding your first meal'
+              : 'Add meals for this date to track your nutrition history'
+            }
           </p>
           {yesterdayMeals && yesterdayMeals.length > 0 && (
             <div className="flex justify-center">
               <button
-                onClick={handleCopyPreviousDay}
-                disabled={copyPreviousDayMutation.isPending}
+                onClick={() => setShowCopyDialog(true)}
+                disabled={copyMealsMutation.isPending}
                 className="btn-secondary inline-flex items-center justify-center gap-2 text-sm md:text-base py-2.5 md:py-3 px-4 md:px-6 font-mono uppercase tracking-wider"
               >
                 <Copy className="w-4 h-4 md:w-5 md:h-5" />
-                <span>Copy Yesterday ({yesterdayMeals.length})</span>
+                <span>Copy from Previous Day</span>
               </button>
             </div>
           )}
@@ -738,6 +903,102 @@ export default function MealsPage() {
                 <>
                   <Save className="w-4 h-4" />
                   <span>Save Template</span>
+                </>
+              )}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Copy Meals Dialog */}
+      <Dialog open={showCopyDialog} onOpenChange={setShowCopyDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30">
+                <Copy className="w-5 h-5 text-acid" />
+              </div>
+              <DialogTitle className="text-lg font-bold text-text uppercase tracking-widest font-mono">
+                Copy Meals
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-sm text-dim font-mono">
+              Select a previous day to copy meals from to {selectedDate === today ? 'today' : format(parseISO(selectedDate), 'MMMM d, yyyy')}.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {recentMealsData && Object.keys(recentMealsData).length > 0 ? (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {Object.entries(recentMealsData)
+                  .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+                  .map(([date, meals]) => {
+                    const dateObj = parseISO(date)
+                    const isSelected = copySourceDate === date
+                    return (
+                      <button
+                        key={date}
+                        onClick={() => setCopySourceDate(date)}
+                        className={`w-full text-left p-3 rounded-sm border transition-all ${
+                          isSelected
+                            ? 'border-acid bg-acid/10'
+                            : 'border-border hover:border-acid/50 bg-panel'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Calendar className={`w-4 h-4 ${isSelected ? 'text-acid' : 'text-dim'}`} />
+                            <div>
+                              <div className="font-mono text-sm font-bold text-text">
+                                {format(dateObj, 'EEEE, MMMM d')}
+                              </div>
+                              <div className="text-xs text-dim font-mono">
+                                {meals.length} meal{meals.length !== 1 ? 's' : ''}
+                              </div>
+                            </div>
+                          </div>
+                          {isSelected && (
+                            <div className="w-5 h-5 rounded-full bg-acid flex items-center justify-center">
+                              <span className="text-void text-xs font-bold">✓</span>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-dim font-mono text-sm">
+                {copyMealsMutation.isPending ? 'Loading...' : 'No meals found in the last 7 days'}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <button
+              onClick={() => {
+                setShowCopyDialog(false)
+                setCopySourceDate('')
+              }}
+              className="btn-secondary"
+              disabled={copyMealsMutation.isPending}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCopyMeals}
+              disabled={!copySourceDate || copyMealsMutation.isPending}
+              className="btn-primary flex items-center justify-center gap-2"
+            >
+              {copyMealsMutation.isPending ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-void border-t-transparent rounded-full animate-spin"></div>
+                  <span>Copying...</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  <span>Copy Meals</span>
                 </>
               )}
             </button>

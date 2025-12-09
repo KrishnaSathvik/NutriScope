@@ -47,6 +47,7 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ['waterIntake'] })
       queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
       queryClient.invalidateQueries({ queryKey: ['aiInsights'] })
+      queryClient.invalidateQueries({ queryKey: ['streak'] }) // Update streak when water is logged
       setShowWaterForm(false)
     },
   })

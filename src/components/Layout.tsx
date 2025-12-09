@@ -46,13 +46,13 @@ export default function Layout() {
       {/* Top Navigation */}
       <nav className="sticky top-0 z-50 bg-surface/80 backdrop-blur-xl border-b border-border" aria-label="Main navigation">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <Link to="/" className="group transition-transform hover:scale-105 active:scale-95">
+          <div className="flex justify-between h-16 items-center gap-2 md:gap-4">
+            <Link to="/" className="group transition-transform hover:scale-105 active:scale-95 flex-shrink-0">
               <Logo />
             </Link>
             
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1 lg:gap-2 text-xs font-mono uppercase tracking-wider overflow-x-auto" aria-label="Desktop navigation">
+            <nav className="hidden md:flex items-center gap-0.5 lg:gap-1 xl:gap-1.5 text-xs font-mono uppercase tracking-wider flex-1 justify-center overflow-hidden" aria-label="Desktop navigation">
               {navItems.map((item) => {
                 const Icon = item.icon
                 const isActive = location.pathname === item.path
@@ -63,7 +63,7 @@ export default function Layout() {
                     onClick={() => {
                       window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
                     }}
-                    className={`flex items-center gap-1.5 px-2 lg:px-3 py-2 rounded-sm transition-all relative whitespace-nowrap ${
+                    className={`flex items-center gap-1 px-1.5 lg:px-2 xl:px-2.5 py-2 rounded-sm transition-all relative whitespace-nowrap ${
                       isActive
                         ? 'text-acid'
                         : 'text-dim hover:text-text'
@@ -72,8 +72,8 @@ export default function Layout() {
                     aria-label={item.label}
                     aria-current={isActive ? 'page' : undefined}
                   >
-                    <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-acid' : 'text-dim'}`} aria-hidden="true" />
-                    <span className="hidden xl:inline">{item.label}</span>
+                    <Icon className={`w-3.5 h-3.5 lg:w-4 lg:h-4 flex-shrink-0 ${isActive ? 'text-acid' : 'text-dim'}`} aria-hidden="true" />
+                    <span className="hidden 2xl:inline text-[10px] lg:text-xs">{item.label}</span>
                     {isActive && (
                       <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-acid" aria-hidden="true" />
                     )}
@@ -82,19 +82,19 @@ export default function Layout() {
               })}
             </nav>
             
-            <div className="flex items-center gap-2 md:gap-3">
+            <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
               {/* Theme Switcher */}
               <ThemeSwitcher />
               
               {isGuest && (
-                <span className="flex items-center justify-center h-8 px-2 sm:px-3 text-xs text-dim font-mono uppercase tracking-wider border border-border bg-panel whitespace-nowrap">
+                <span className="hidden lg:flex items-center justify-center h-8 px-2 sm:px-3 text-xs text-dim font-mono uppercase tracking-wider border border-border bg-panel whitespace-nowrap">
                   Guest Mode
                 </span>
               )}
               {user && (
                 <button
                   onClick={() => signOut()}
-                  className="flex items-center justify-center h-8 px-3 rounded-sm bg-acid text-[#020617] dark:text-[#020617] font-mono text-xs uppercase tracking-wider transition-all duration-200 hover:brightness-105 active:scale-95"
+                  className="flex items-center justify-center h-8 px-2 sm:px-3 rounded-sm bg-acid text-[#020617] dark:text-[#020617] font-mono text-[10px] sm:text-xs uppercase tracking-wider transition-all duration-200 hover:brightness-105 active:scale-95 whitespace-nowrap"
                   aria-label="Sign out"
                 >
                   Sign Out

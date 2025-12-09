@@ -163,12 +163,32 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     description: 'Logged data for 30 days',
     icon: null,
     condition: async (userData) => {
-      const streak = await calculateLoggingStreak()
-      return streak.totalDaysLogged >= 30
+      // Check if user has logged meals/exercises for at least 30 days total
+      // This is approximate - counts unique dates with logs
+      try {
+        const meals = await getMeals()
+        const exercises = await getExercises()
+        const uniqueDates = new Set([
+          ...meals.map(m => m.date),
+          ...exercises.map(e => e.date)
+        ])
+        return uniqueDates.size >= 30
+      } catch {
+        return false
+      }
     },
     progress: async (userData) => {
-      const streak = await calculateLoggingStreak()
-      return Math.min((streak.totalDaysLogged / 30) * 100, 100)
+      try {
+        const meals = await getMeals()
+        const exercises = await getExercises()
+        const uniqueDates = new Set([
+          ...meals.map(m => m.date),
+          ...exercises.map(e => e.date)
+        ])
+        return Math.min((uniqueDates.size / 30) * 100, 100)
+      } catch {
+        return 0
+      }
     },
   },
   // Special achievements
@@ -297,26 +317,116 @@ export async function getAchievementProgress(achievementKey: string, userData: {
   }
 }
 
+// Cache for streak data to avoid multiple calculations
+let cachedStreakData: { data: any; timestamp: number } | null = null
+const STREAK_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
+/**
+ * Get cached streak data or calculate it
+ */
+async function getCachedStreak(): Promise<any> {
+  const now = Date.now()
+  
+  // Return cached data if still valid
+  if (cachedStreakData && (now - cachedStreakData.timestamp) < STREAK_CACHE_DURATION) {
+    return cachedStreakData.data
+  }
+  
+  // Calculate and cache with timeout
+  try {
+    const streakPromise = calculateLoggingStreak()
+    const timeoutPromise = new Promise<any>((resolve) => 
+      setTimeout(() => resolve({ currentStreak: 0, longestStreak: 0, isActive: false }), 5000)
+    )
+    const streak = await Promise.race([streakPromise, timeoutPromise])
+    cachedStreakData = { data: streak, timestamp: now }
+    return streak
+  } catch (error) {
+    console.error('Error calculating streak:', error)
+    // Return default if calculation fails
+    return { currentStreak: 0, longestStreak: 0, isActive: false }
+  }
+}
+
 /**
  * Get all achievement definitions with user progress
+ * Optimized with caching and error handling
  */
 export async function getAchievementsWithProgress(userData: { profile: any }): Promise<Array<AchievementDefinition & { unlocked: boolean; progress: number }>> {
-  const userAchievements = await getUserAchievements()
-  const unlockedKeys = new Set(userAchievements.map(a => a.achievement_key))
+  try {
+    const userAchievements = await getUserAchievements()
+    const unlockedKeys = new Set(userAchievements.map(a => a.achievement_key))
+    
+    // Pre-calculate streak once (used by multiple achievements)
+    const streakData = await getCachedStreak()
 
-  return Promise.all(
-    ACHIEVEMENT_DEFINITIONS.map(async (definition) => {
-      const unlocked = unlockedKeys.has(definition.key)
-      const progress = definition.progress
-        ? await definition.progress(userData)
-        : (unlocked ? 100 : 0)
+    // Process achievements with timeout and error handling
+    const results = await Promise.allSettled(
+      ACHIEVEMENT_DEFINITIONS.map(async (definition) => {
+        try {
+          const unlocked = unlockedKeys.has(definition.key)
+          let progress = unlocked ? 100 : 0
+          
+          // If progress function exists, call it with timeout
+          if (definition.progress) {
+            // Use cached streak data for streak-related achievements
+            if (definition.key.startsWith('streak_')) {
+              // Use cached streak data
+              if (definition.key === 'streak_7') {
+                progress = Math.min((streakData.currentStreak / 7) * 100, 100)
+              } else if (definition.key === 'streak_30') {
+                progress = Math.min((streakData.currentStreak / 30) * 100, 100)
+              } else if (definition.key === 'streak_100') {
+                progress = Math.min((streakData.currentStreak / 100) * 100, 100)
+              }
+            } else {
+              // For other achievements, call progress function with timeout
+              const progressPromise = definition.progress(userData)
+              const timeoutPromise = new Promise<number>((resolve) => 
+                setTimeout(() => resolve(unlocked ? 100 : 0), 3000)
+              )
+              progress = await Promise.race([progressPromise, timeoutPromise])
+            }
+          }
 
-      return {
-        ...definition,
-        unlocked,
-        progress: Math.round(progress),
+          return {
+            ...definition,
+            unlocked,
+            progress: Math.round(progress),
+          }
+        } catch (error) {
+          console.error(`Error calculating progress for ${definition.key}:`, error)
+          // Return default values on error
+          return {
+            ...definition,
+            unlocked: unlockedKeys.has(definition.key),
+            progress: unlockedKeys.has(definition.key) ? 100 : 0,
+          }
+        }
+      })
+    )
+
+    // Extract successful results, use defaults for failed ones
+    return results.map((result, index) => {
+      if (result.status === 'fulfilled') {
+        return result.value
+      } else {
+        const definition = ACHIEVEMENT_DEFINITIONS[index]
+        return {
+          ...definition,
+          unlocked: unlockedKeys.has(definition.key),
+          progress: unlockedKeys.has(definition.key) ? 100 : 0,
+        }
       }
     })
-  )
+  } catch (error) {
+    console.error('Error getting achievements with progress:', error)
+    // Return basic achievement list without progress if everything fails
+    return ACHIEVEMENT_DEFINITIONS.map((definition) => ({
+      ...definition,
+      unlocked: false,
+      progress: 0,
+    }))
+  }
 }
 

@@ -1,4 +1,17 @@
-export default function Logo({ className = '' }: { className?: string }) {
+export default function Logo({ className = '', useImage = false }: { className?: string; useImage?: boolean }) {
+  if (useImage) {
+    return (
+      <div className={`flex items-center ${className}`}>
+        <img 
+          src="/logo.png" 
+          alt="NutriScope" 
+          className="h-8 sm:h-10 md:h-12 w-auto"
+          aria-label="NutriScope Logo"
+        />
+      </div>
+    )
+  }
+
   return (
     <div className={`flex items-center ${className}`}>
       <span className="text-lg sm:text-xl md:text-2xl font-semibold tracking-tight text-text font-sans flex items-center">

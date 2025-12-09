@@ -1,26 +1,86 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
+import { format } from 'date-fns'
 import { useAuth } from '@/contexts/AuthContext'
 import { getAchievementsWithProgress } from '@/services/achievements'
 import AchievementBadge from '@/components/AchievementBadge'
 import PullToRefresh from '@/components/PullToRefresh'
-import { format } from 'date-fns'
 import { Trophy, Target, Award, Star } from 'lucide-react'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
 export default function AchievementsPage() {
   const { user, profile } = useAuth()
+  const queryClient = useQueryClient()
+  const [showFallback, setShowFallback] = useState(false)
+  
+  // Get today's date string for cache invalidation
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const cacheKey = `achievements_${user?.id}_${today}`
 
-  // Set up realtime subscriptions for achievements
+  // Only subscribe to achievements table changes (not meals/exercises to avoid constant refetching)
+  // Achievements will be checked periodically via the widget or when user explicitly refreshes
   useUserRealtimeSubscription('achievements', ['achievementsWithProgress'], user?.id)
-  useUserRealtimeSubscription('meals', ['achievementsWithProgress'], user?.id)
-  useUserRealtimeSubscription('exercises', ['achievementsWithProgress'], user?.id)
-  useUserRealtimeSubscription('daily_logs', ['achievementsWithProgress'], user?.id)
 
-  const { data: achievements = [], isLoading } = useQuery({
-    queryKey: ['achievementsWithProgress', user?.id],
-    queryFn: () => getAchievementsWithProgress({ profile }),
+  // Load cached data from localStorage if available
+  const getCachedAchievements = () => {
+    if (!user?.id) return undefined
+    try {
+      const cached = localStorage.getItem(cacheKey)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        // Check if cache is from today
+        if (parsed.date === today && parsed.data) {
+          return parsed.data
+        }
+      }
+    } catch (e) {
+      // Invalid cache, ignore
+    }
+    return undefined
+  }
+
+  const { data: achievements = [], isLoading, isFetching, error } = useQuery({
+    queryKey: ['achievementsWithProgress', user?.id, today], // Include date in query key
+    queryFn: async () => {
+      const result = await getAchievementsWithProgress({ profile })
+      // Cache in localStorage
+      if (user?.id && result) {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({
+            data: result,
+            date: today,
+            timestamp: Date.now(),
+          }))
+        } catch (e) {
+          // localStorage might be full, ignore
+        }
+      }
+      return result
+    },
     enabled: !!user && !!profile,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false, // Don't refetch on mount if data exists for today
+    refetchOnReconnect: false, // Don't refetch on reconnect
+    staleTime: Infinity, // Data is fresh until date changes (handled by query key)
+    retry: 1,
+    gcTime: 24 * 60 * 60 * 1000, // Keep in cache for 24 hours
+    // Use cached data from localStorage immediately
+    initialData: getCachedAchievements,
+    // Use cached data immediately if available to avoid loading state
+    placeholderData: (previousData) => previousData || getCachedAchievements(),
   })
+  
+  // Show fallback after 5 seconds if still loading (achievements take longer)
+  useEffect(() => {
+    if (isLoading) {
+      const timer = setTimeout(() => {
+        setShowFallback(true)
+      }, 5000)
+      return () => clearTimeout(timer)
+    } else {
+      setShowFallback(false)
+    }
+  }, [isLoading])
 
   const achievementsByType = {
     streak: achievements.filter(a => a.type === 'streak'),
@@ -32,8 +92,78 @@ export default function AchievementsPage() {
   const unlockedCount = achievements.filter(a => a.unlocked).length
   const totalCount = achievements.length
 
+  // Check if we have no data (for showing loading state)
+  const hasNoData = achievements.length === 0 && !error
+
+  // Show loading state only if we have no data at all (first load)
+  // If we have cached data, show it immediately even if fetching in background
+  if (isLoading && hasNoData && !showFallback) {
+    return (
+      <PullToRefresh onRefresh={async () => {}} disabled={!user}>
+        <div className="space-y-4 md:space-y-6 px-3 md:px-0 pb-20 md:pb-0">
+          <div className="border-b border-border pb-4 md:pb-6 px-3 md:px-0 -mx-3 md:mx-0">
+            <div className="px-3 md:px-0">
+              <div className="flex items-center gap-2 md:gap-3 mb-2">
+                <div className="h-px w-6 md:w-8 bg-acid"></div>
+                <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-widest">
+                  {format(new Date(), 'EEEE, MMMM d, yyyy').toUpperCase()}
+                </span>
+              </div>
+              <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-text tracking-tighter mt-2 md:mt-4">
+                Achievements
+              </h1>
+            </div>
+          </div>
+          <div className="card-modern p-8 text-center">
+            <div className="animate-pulse space-y-4">
+              <Trophy className="w-12 h-12 mx-auto text-acid/50" />
+              <div className="h-4 bg-border rounded w-32 mx-auto"></div>
+              <div className="h-3 bg-border rounded w-24 mx-auto"></div>
+            </div>
+          </div>
+        </div>
+      </PullToRefresh>
+    )
+  }
+
+  // Show error or empty state if loading took too long
+  if (isLoading && hasNoData && showFallback) {
+    return (
+      <PullToRefresh onRefresh={async () => {}} disabled={!user}>
+        <div className="space-y-4 md:space-y-6 px-3 md:px-0 pb-20 md:pb-0">
+          <div className="border-b border-border pb-4 md:pb-6 px-3 md:px-0 -mx-3 md:mx-0">
+            <div className="px-3 md:px-0">
+              <div className="flex items-center gap-2 md:gap-3 mb-2">
+                <div className="h-px w-6 md:w-8 bg-acid"></div>
+                <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-widest">
+                  {format(new Date(), 'EEEE, MMMM d, yyyy').toUpperCase()}
+                </span>
+              </div>
+              <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-text tracking-tighter mt-2 md:mt-4">
+                Achievements
+              </h1>
+            </div>
+          </div>
+          <div className="card-modern p-8 text-center">
+            <Trophy className="w-12 h-12 mx-auto text-acid/50 mb-4" />
+            <p className="text-dim font-mono text-sm">
+              Loading achievements...
+            </p>
+            <p className="text-dim font-mono text-xs mt-2">
+              This may take a moment
+            </p>
+          </div>
+        </div>
+      </PullToRefresh>
+    )
+  }
+
+  const handleRefresh = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['achievementsWithProgress'] })
+  }
+
   return (
-    <PullToRefresh onRefresh={async () => {}} disabled={!user}>
+    <PullToRefresh onRefresh={handleRefresh} disabled={!user}>
       <div className="space-y-4 md:space-y-6 px-3 md:px-0 pb-20 md:pb-0">
         {/* Header */}
         <div className="border-b border-border pb-4 md:pb-6 px-3 md:px-0 -mx-3 md:mx-0">
