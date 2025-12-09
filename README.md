@@ -443,7 +443,9 @@ npm run lint
 npm run generate-icons
 ```
 
-The app will be available at `http://localhost:5173`
+The app will be available at `http://localhost:5173` (development)
+
+**Production:** https://nutriscope.app
 
 ## 📁 Project Structure
 

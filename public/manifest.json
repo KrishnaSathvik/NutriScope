@@ -2,12 +2,12 @@
   "name": "NutriScope - AI-Powered Health & Fitness Tracker",
   "short_name": "NutriScope",
   "description": "Track meals, monitor nutrition, and achieve your fitness goals instantly with AI-powered insights",
-  "start_url": "/",
+  "start_url": "https://nutriscope.app/",
   "display": "standalone",
   "background_color": "#0A0A0A",
   "theme_color": "#0A0A0A",
   "orientation": "portrait-primary",
-  "scope": "/",
+  "scope": "https://nutriscope.app/",
   "icons": [
     {
       "src": "/icon-72x72.png",
@@ -65,26 +65,26 @@
       "name": "Log Meal",
       "short_name": "Meal",
       "description": "Quickly log a meal",
-      "url": "/meals",
+      "url": "https://nutriscope.app/meals",
       "icons": [{ "src": "/icon-96x96.png", "sizes": "96x96" }]
     },
     {
       "name": "Log Workout",
       "short_name": "Workout",
       "description": "Quickly log a workout",
-      "url": "/workouts",
+      "url": "https://nutriscope.app/workouts",
       "icons": [{ "src": "/icon-96x96.png", "sizes": "96x96" }]
     },
     {
       "name": "AI Chat",
       "short_name": "Chat",
       "description": "Chat with AI assistant",
-      "url": "/chat",
+      "url": "https://nutriscope.app/chat",
       "icons": [{ "src": "/icon-96x96.png", "sizes": "96x96" }]
     }
   ],
   "share_target": {
-    "action": "/share",
+    "action": "https://nutriscope.app/share",
     "method": "POST",
     "enctype": "multipart/form-data",
     "params": {
