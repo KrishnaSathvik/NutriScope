@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Bot, User, Check, X } from 'lucide-react'
 import { ChatMessage } from '@/types'
-import { stripMarkdown } from '@/utils/format'
+import { stripMarkdown, stripLatex } from '@/utils/format'
 
 interface ChatMessagesProps {
   messages: ChatMessage[]
@@ -53,7 +53,9 @@ export function ChatMessages({ messages, loading, isStreaming, streamingMessage,
             <p className={`whitespace-pre-wrap text-sm md:text-base font-medium font-mono leading-relaxed animate-fade-in break-words ${
               message.role === 'user' ? 'text-acid font-semibold' : 'text-text'
             }`}>
-              {message.role === 'assistant' ? stripMarkdown(message.content) : message.content}
+              {message.role === 'assistant' 
+                ? stripLatex(stripMarkdown(message.content))
+                : message.content}
             </p>
             
             {/* Suggested Prompts - Show only after first assistant message */}
@@ -185,7 +187,7 @@ export function ChatMessages({ messages, loading, isStreaming, streamingMessage,
           </div>
           <div className="flex-1 min-w-0 rounded-2xl p-3 md:p-4 bg-panel border border-border/40 shadow-inner">
             <p className="whitespace-pre-wrap text-sm md:text-base font-medium font-mono leading-relaxed text-text break-words">
-              {stripMarkdown(streamingMessage)}
+              {stripLatex(stripMarkdown(streamingMessage))}
               <span className="inline-block w-0.5 h-3 md:h-4 bg-acid ml-1 animate-blink align-middle" />
             </p>
           </div>

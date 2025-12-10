@@ -37,11 +37,27 @@ export async function transcribeAudio(audioBlob: Blob, userId?: string): Promise
       }
 
       const data = await response.json()
+      if (!data.text) {
+        throw new Error('No transcription text received from server')
+      }
       return data.text
     } catch (error) {
+      console.error('[Transcribe] Error via backend proxy:', error)
+      console.error('[Transcribe] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      })
       // In production, always use backend proxy - no fallback
       if (import.meta.env.PROD) {
         logger.error('Backend proxy failed in production:', error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        // Provide more specific error message if available
+        if (errorMessage.includes('Rate limit')) {
+          throw new Error('Rate limit exceeded. Please try again later.')
+        }
+        if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+          throw new Error('Network error. Please check your connection and try again.')
+        }
         throw new Error('Transcription service unavailable. Please try again later.')
       }
       // Fall back to direct OpenAI only in development

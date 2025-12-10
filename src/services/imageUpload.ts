@@ -40,6 +40,10 @@ export async function uploadImage(
   }
 
   try {
+    if (!supabase) {
+      throw new Error('Supabase client not available')
+    }
+
     const fileExt = compressedFile.name.split('.').pop()
     const fileName = `${userId}/${folder}/${Date.now()}.${fileExt}`
     // Path should be relative to bucket root, not include bucket name
@@ -48,6 +52,7 @@ export async function uploadImage(
     // Retry upload on network errors
     const { error: uploadError } = await retry(
       async () => {
+        if (!supabase) throw new Error('Supabase client not available')
         const result = await supabase.storage
           .from('chat-images')
           .upload(filePath, compressedFile, {
@@ -78,6 +83,10 @@ export async function uploadImage(
       })
     }
 
+    if (!supabase) {
+      throw new Error('Supabase client not available')
+    }
+
     const { data } = supabase.storage
       .from('chat-images')
       .getPublicUrl(fileName)
@@ -97,9 +106,12 @@ export async function uploadImage(
 }
 
 /**
- * Analyze image for meal recognition using OpenAI Vision
+ * Analyze image for meal recognition using OpenAI Vision via backend proxy
  */
-export async function analyzeMealImage(imageUrl: string): Promise<{
+export async function analyzeMealImage(
+  imageUrl: string,
+  userId?: string
+): Promise<{
   description: string
   estimatedNutrition?: {
     calories?: number
@@ -108,10 +120,106 @@ export async function analyzeMealImage(imageUrl: string): Promise<{
     fats?: number
   }
 }> {
-  const { openai } = await import('@/lib/openai')
+  // Use backend proxy if available (same logic as chat)
+  const useBackendProxy = import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
+  const isProduction = import.meta.env.PROD
   
+  // Use backend proxy if enabled (works in both dev and prod)
+  if (useBackendProxy) {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/chat'
+      
+      const prompt = 'Analyze this meal image and provide: 1) A detailed description of the food items, 2) Estimated nutrition (calories, protein in grams, carbs in grams, fats in grams). Respond in JSON format: {"description": "...", "estimatedNutrition": {"calories": ..., "protein": ..., "carbs": ..., "fats": ...}}'
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(userId && { 'x-user-id': userId }),
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: prompt,
+                },
+                {
+                  type: 'image_url',
+                  image_url: { url: imageUrl },
+                },
+              ],
+            },
+          ],
+          imageUrl,
+          userId,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `API returned ${response.status}`)
+      }
+
+      const data = await response.json()
+      const message = data.message || data.action?.message || '{}'
+      
+      try {
+        const parsed = JSON.parse(message)
+        return {
+          description: parsed.description || 'Meal image',
+          estimatedNutrition: parsed.estimatedNutrition,
+        }
+      } catch (e) {
+        // If not JSON, try to extract JSON from the message
+        const jsonMatch = message.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          try {
+            const parsed = JSON.parse(jsonMatch[0])
+            return {
+              description: parsed.description || 'Meal image',
+              estimatedNutrition: parsed.estimatedNutrition,
+            }
+          } catch (e2) {
+            // Fall through to return description only
+          }
+        }
+        return {
+          description: message,
+        }
+      }
+    } catch (error) {
+      console.error('[Image Analysis] Error via backend proxy:', error)
+      // In production, don't fall back to direct OpenAI
+      if (isProduction) {
+        return {
+          description: 'Unable to analyze image',
+        }
+      }
+      // In development, fall back to direct OpenAI if available
+      const { openai } = await import('@/lib/openai')
+      if (!openai) {
+        return {
+          description: 'Unable to analyze image',
+        }
+      }
+      // Continue to direct OpenAI code below
+    }
+  }
+  
+  // Fallback: use direct OpenAI if backend proxy is disabled (dev only)
+  const { openai } = await import('@/lib/openai')
   if (!openai) {
-    throw new Error('OpenAI API key not configured')
+    if (isProduction) {
+      return {
+        description: 'Unable to analyze image',
+      }
+    }
+    return {
+      description: 'Unable to analyze image',
+    }
   }
 
   try {

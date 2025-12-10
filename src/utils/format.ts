@@ -49,6 +49,29 @@ export function stripJSON(text: string): string {
 }
 
 /**
+ * Strip LaTeX formatting from text
+ * Removes LaTeX math delimiters like \[ ... \], \( ... \), \text{}, \frac{}, etc.
+ */
+export function stripLatex(text: string): string {
+  if (!text) return text
+  
+  return text
+    // Remove display math blocks \[ ... \]
+    .replace(/\\\[(?:[\s\S]*?)\\\]/g, '')
+    // Remove inline math blocks \( ... \)
+    .replace(/\\\((?:[\s\S]*?)\\\)/g, '')
+    // Convert \text{Something} -> "Something"
+    .replace(/\\text\{([^}]*)\}/g, '$1')
+    // Convert \frac{a}{b} -> a / b
+    .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '$1 / $2')
+    // Remove other LaTeX commands like \textbf{}, \emph{}, etc. (keep content)
+    .replace(/\\[a-zA-Z]+\{([^}]*)\}/g, '$1')
+    // Clean up extra whitespace
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/**
  * Strip markdown formatting from text
  * Removes **bold**, *italic*, `code`, # headers, etc.
  */

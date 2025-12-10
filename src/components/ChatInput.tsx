@@ -59,7 +59,7 @@ export function ChatInput({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask me anything..."
-          className="flex-1 input-modern bg-surface text-sm md:text-base"
+          className="flex-1 input-modern bg-surface text-[16px] md:text-base"
           disabled={loading || isRecording || isTranscribing || uploadingImage}
           aria-label="Chat message input"
           aria-describedby={loading ? "chat-loading" : isRecording ? "chat-recording" : undefined}

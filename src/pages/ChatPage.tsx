@@ -244,7 +244,7 @@ export default function ChatPage() {
         
         // Analyze image for meal recognition
         try {
-          const analysis = await analyzeMealImage(imageUrl)
+          const analysis = await analyzeMealImage(imageUrl, user.id)
           if (analysis.description) {
             setInput(prev => prev ? `${prev} ${analysis.description}` : analysis.description)
             
@@ -485,7 +485,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 pt-4 md:pt-6 pb-24 md:pb-8 flex flex-col min-h-[calc(100vh-4rem)]">
+    <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 pt-4 md:pt-6 pb-24 md:pb-8 flex flex-col flex-1 min-h-0">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-border pb-4 md:pb-6">
         <div>
