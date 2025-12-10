@@ -16,10 +16,14 @@ export async function generateQuickTip(
   const useBackendProxy = import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
   const isProduction = import.meta.env.PROD
   
+  // Debug logging
+  console.log('[Coach Tip] useBackendProxy:', useBackendProxy, 'isProduction:', isProduction, 'userId:', userId)
+  
   // Use backend proxy if enabled (works in both dev and prod)
   if (useBackendProxy) {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '/api/chat'
+      console.log('[Coach Tip] Calling API:', apiUrl)
       
       const userName = profile?.name || 'you'
       const goalDescription = profile?.goal === 'lose_weight' ? 'losing weight' 
@@ -90,11 +94,17 @@ Generate an inspirational, motivational message now:`
       }
 
       const data = await response.json()
+      console.log('[Coach Tip] API Response:', data)
       // Extract message from response (could be in data.message or data.action.message)
       const message = data.message || data.action?.message || 'Unable to generate tip at this time.'
+      console.log('[Coach Tip] Extracted message:', message)
       return message
     } catch (error) {
-      console.error('Error generating quick tip via backend proxy:', error)
+      console.error('[Coach Tip] Error generating quick tip via backend proxy:', error)
+      console.error('[Coach Tip] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      })
       // In production, don't fall back to direct OpenAI
       if (isProduction) {
         return 'Unable to generate tip. Please try again later.'
@@ -107,12 +117,15 @@ Generate an inspirational, motivational message now:`
   }
   
   // Fallback: use direct OpenAI if backend proxy is disabled (dev only)
+  console.log('[Coach Tip] Backend proxy disabled or failed, checking OpenAI client')
   if (!openai) {
+    console.log('[Coach Tip] OpenAI client not available')
     if (isProduction) {
       return 'AI tips are temporarily unavailable. Please try again later.'
     }
     return 'AI tips are not available. Please configure your OpenAI API key.'
   }
+  console.log('[Coach Tip] Using direct OpenAI')
 
   try {
     const userName = profile?.name || 'you'

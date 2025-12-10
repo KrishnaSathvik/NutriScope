@@ -39,18 +39,31 @@ export default function Dashboard() {
       if (!dailyLog || !user?.id) return null
       
       // Phase 3: Try to get from DB first
-      const { getAICache, saveAICache } = await import('@/services/aiCache')
+      const { getAICache, saveAICache, deleteAICache } = await import('@/services/aiCache')
       const cachedTip = await getAICache(user.id, 'coach_tip', today, tipIndex)
       
-      if (cachedTip) {
+      // Don't use cached error messages - regenerate if cached tip is an error
+      const errorMessages = [
+        'AI tips are temporarily unavailable',
+        'Unable to generate tip',
+        'AI tips are not available',
+      ]
+      const isError = cachedTip && errorMessages.some(msg => cachedTip.includes(msg))
+      
+      if (cachedTip && !isError) {
         return cachedTip
       }
       
-      // Only generate new tip if we don't have cached one
+      // If cached tip is an error, delete it and regenerate
+      if (isError) {
+        await deleteAICache(user.id, 'coach_tip', today, tipIndex)
+      }
+      
+      // Only generate new tip if we don't have cached one or cached one was an error
       const tip = await generateQuickTip(dailyLog, profile, tipIndex, user.id)
       
-      // Phase 3: Save to DB
-      if (tip) {
+      // Phase 3: Save to DB (but don't save error messages)
+      if (tip && !errorMessages.some(msg => tip.includes(msg))) {
         await saveAICache(user.id, 'coach_tip', today, tip, tipIndex)
       }
       

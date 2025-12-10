@@ -103,19 +103,28 @@ export async function saveAICache(
 export async function deleteAICache(
   userId: string,
   cacheType: AICacheType,
-  date: string
+  date: string,
+  tipIndex?: number
 ): Promise<boolean> {
   if (!supabase) {
     return false
   }
 
   try {
-    const { error } = await supabase
+    let query = supabase
       .from('user_ai_cache')
       .delete()
       .eq('user_id', userId)
       .eq('cache_type', cacheType)
       .eq('date', date)
+
+    if (tipIndex !== undefined) {
+      query = query.eq('tip_index', tipIndex)
+    } else {
+      query = query.is('tip_index', null)
+    }
+
+    const { error } = await query
 
     if (error) {
       handleSupabaseError(error, 'deleteAICache')
