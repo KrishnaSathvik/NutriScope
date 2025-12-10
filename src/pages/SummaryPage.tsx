@@ -1,6 +1,6 @@
-import { useMemo, useEffect } from 'react'
+import { useMemo } from 'react'
 import { useParams } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { getDailyLog } from '@/services/dailyLogs'
 import { generateDailyInsights } from '@/services/aiInsights'
@@ -13,7 +13,6 @@ export default function SummaryPage() {
   const { date } = useParams<{ date: string }>()
   const dateStr = date || format(new Date(), 'yyyy-MM-dd')
   const { profile, user } = useAuth()
-  const queryClient = useQueryClient()
 
   // Set up realtime subscriptions for summary data
   useUserRealtimeSubscription('meals', ['dailyLog', 'aiInsights'], user?.id)
