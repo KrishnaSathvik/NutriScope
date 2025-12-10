@@ -129,7 +129,7 @@ export default function Layout() {
       </nav>
 
       {/* Bottom Navigation (Mobile) */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-xl border-t border-border md:hidden z-50 safe-area-bottom" aria-label="Mobile navigation" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}>
+      <nav className="fixed bottom-0 left-0 right-0 bg-surface/95 backdrop-blur-xl border-t border-border md:hidden z-50" aria-label="Mobile navigation" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}>
         <div className="flex justify-around items-stretch relative w-full max-w-full overflow-x-hidden" style={{ minHeight: '4rem' }}>
           {/* Show Dashboard, Meals, Workouts, Chat, Analytics, and More */}
           {[
@@ -156,7 +156,7 @@ export default function Layout() {
                       }, 0)
                     }}
                 className="flex flex-col items-center justify-center flex-1 min-w-0 px-1 py-2 transition-all touch-manipulation group"
-                style={{ minHeight: '4rem', paddingTop: '0.5rem', paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0))' }}
+                style={{ minHeight: '4rem', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}
                 aria-label={item.label}
                 aria-current={isActive ? 'page' : undefined}
               >
@@ -172,7 +172,7 @@ export default function Layout() {
           <button
             onClick={() => setShowMoreMenu(!showMoreMenu)}
             className="flex flex-col items-center justify-center flex-1 min-w-0 px-1 py-2 transition-all relative touch-manipulation group"
-            style={{ minHeight: '4rem', paddingTop: '0.5rem', paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0))' }}
+            style={{ minHeight: '4rem', paddingTop: '0.5rem', paddingBottom: '0.5rem' }}
             aria-label="More menu"
             aria-expanded={showMoreMenu}
             aria-haspopup="true"
