@@ -147,6 +147,7 @@ export interface UserProfile {
   age?: number
   weight?: number
   height?: number
+  gender?: 'male' | 'female'
   goal: UserGoal
   activity_level: ActivityLevel
   dietary_preference: DietaryPreference

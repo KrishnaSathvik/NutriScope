@@ -1,4 +1,4 @@
-import { ChatMessage, AIAction, UserProfile, DailyLog } from '@/types'
+import { ChatMessage, AIAction, UserProfile, DailyLog, MealType } from '@/types'
 import { logger } from '@/utils/logger'
 import { trackAPICall } from '@/utils/performance'
 import { stripJSON } from '@/utils/format'
@@ -291,13 +291,21 @@ Always respond with JSON:
 
 **For Meal Planning:**
 - Extract day and meal type
-- Set requires_confirmation: true
-- Ask for confirmation
+- If user explicitly says "add to meal plan", "save to meal plan", set requires_confirmation: false and add directly
+- Otherwise, set requires_confirmation: true and ask for confirmation
 
 **For Grocery Lists:**
 - Extract individual items
-- Set requires_confirmation: true
-- Ask for confirmation before adding
+- If user explicitly says "add to grocery list", "add to shopping list", set requires_confirmation: false and add directly
+- Otherwise, set requires_confirmation: true and ask for confirmation before adding
+
+**For Workouts:**
+- If user explicitly says "log my workout", "I ran for 30 minutes", "add workout", set requires_confirmation: false and log directly
+- Otherwise, set requires_confirmation: true and ask for confirmation
+
+**For Water:**
+- If user explicitly says "I drank water", "log water", "I had 500ml water", set requires_confirmation: false and log directly
+- Otherwise, set requires_confirmation: true and ask for confirmation
 
 **For Food Questions:**
 - Analyze food in context of user's SPECIFIC goals, dietary preferences, and calorie targets
@@ -402,27 +410,82 @@ export async function executeAction(
           return { success: false, message: 'Missing meal data' }
         }
         const { createMeal } = await import('./meals')
+        
+        // Normalize meal_type - map common values to database values
+        // Database expects: 'pre_breakfast', 'breakfast', 'morning_snack', 'lunch', 'evening_snack', 'dinner', 'post_dinner'
+        let mealType = action.data.meal_type || 'lunch'
+        const mealTypeLower = mealType.toLowerCase().trim()
+        
+        // Check if the meal description or meal_type contains "evening" to determine snack type
+        const mealDescription = (action.data.meal_description || '').toLowerCase()
+        // Check multiple sources for "evening" context
+        const hasEveningContext = 
+          mealDescription.includes('evening') || 
+          mealTypeLower.includes('evening') ||
+          mealTypeLower === 'evening_snack' ||
+          mealTypeLower === 'evening snack'
+        
+        const mealTypeMap: Record<string, MealType> = {
+          'breakfast': 'breakfast',
+          'lunch': 'lunch',
+          'dinner': 'dinner',
+          'snack': hasEveningContext ? 'evening_snack' : 'morning_snack', // Smart default based on context
+          'morning_snack': 'morning_snack',
+          'morning snack': 'morning_snack',
+          'morning': 'morning_snack',
+          'evening_snack': 'evening_snack',
+          'evening snack': 'evening_snack',
+          'evening': 'evening_snack',
+          'pre_breakfast': 'pre_breakfast',
+          'post_dinner': 'post_dinner',
+        }
+        
+        // First check exact matches
+        let normalizedMealType: MealType = mealTypeMap[mealTypeLower] || 'lunch'
+        
+        // If it's still "snack" and we have evening context, override to evening_snack
+        if (normalizedMealType === 'morning_snack' && hasEveningContext && mealTypeLower === 'snack') {
+          normalizedMealType = 'evening_snack'
+        }
+        
+        // Generate meal name from food_items if meal_description is missing
+        let mealName = action.data.meal_description
+        if (!mealName && action.data.food_items && action.data.food_items.length > 0) {
+          // Create a name from the first few food items
+          const itemNames = action.data.food_items
+            .slice(0, 3)
+            .map((item: any) => item.name || item)
+            .filter(Boolean)
+            .join(' with ')
+          mealName = itemNames || normalizedMealType || 'meal'
+        }
+        mealName = mealName || normalizedMealType || 'meal'
+        
         await createMeal({
           date,
-          meal_type: action.data.meal_type || 'lunch',
-          name: action.data.meal_description || undefined,
+          meal_type: normalizedMealType,
+          name: mealName,
           calories: action.data.calories || 0,
           protein: action.data.protein || 0,
           carbs: action.data.carbs,
           fats: action.data.fats,
           food_items: action.data.food_items || [],
         })
-        return { success: true, message: 'Meal logged successfully!' }
+        return { 
+          success: true, 
+          message: `✅ Done! I've logged "${mealName}" as your ${normalizedMealType?.replace('_', ' ') || 'meal'}.` 
+        }
 
       case 'log_workout':
         if (!action.data) {
           return { success: false, message: 'Missing workout data' }
         }
         const { createExercise } = await import('./workouts')
+        const workoutName = action.data.exercise_name || 'Workout'
         await createExercise({
           date,
           exercises: [{
-            name: action.data.exercise_name || 'Workout',
+            name: workoutName,
             type: (action.data.exercise_type as any) || 'other',
             duration: action.data.duration,
             calories_burned: action.data.calories_burned,
@@ -430,15 +493,25 @@ export async function executeAction(
           calories_burned: action.data.calories_burned || 0,
           duration: action.data.duration,
         })
-        return { success: true, message: 'Workout logged successfully!' }
+        const durationText = action.data.duration ? ` for ${action.data.duration} minutes` : ''
+        const caloriesText = action.data.calories_burned ? ` (~${action.data.calories_burned} cal burned)` : ''
+        return { 
+          success: true, 
+          message: `✅ Done! I've logged your ${workoutName}${durationText}${caloriesText}.` 
+        }
 
       case 'log_water':
         if (!action.data?.water_amount) {
           return { success: false, message: 'Missing water amount' }
         }
         const { addWaterIntake } = await import('./water')
-        await addWaterIntake(userId, date, action.data.water_amount)
-        return { success: true, message: 'Water intake logged successfully!' }
+        const waterAmount = action.data.water_amount
+        await addWaterIntake(userId, date, waterAmount)
+        const waterText = waterAmount >= 1000 ? `${(waterAmount / 1000).toFixed(1)}L` : `${waterAmount}ml`
+        return { 
+          success: true, 
+          message: `✅ Done! I've logged ${waterText} of water.` 
+        }
 
       case 'generate_recipe':
         // Recipe is already generated in action.data.recipe
@@ -540,7 +613,11 @@ export async function executeAction(
         }
         const dayKey = dayMap[action.data.day.toLowerCase()] || 'monday'
         await addMealToPlan(mealPlan.week_start_date, dayKey, action.data.meal_plan_meal)
-        return { success: true, message: `Meal added to ${dayKey}'s meal plan!` }
+        const mealPlanName = (action.data.meal_plan_meal as any)?.name || (action.data.meal_plan_meal as any)?.recipe_name || 'meal'
+        return { 
+          success: true, 
+          message: `✅ Done! I've added "${mealPlanName}" to your ${dayKey} meal plan.` 
+        }
 
       case 'add_to_grocery_list':
         // Handle both array and string formats for grocery_items
@@ -606,7 +683,11 @@ export async function executeAction(
           items: [...list.items, ...newItems],
         })
         
-        return { success: true, message: `Added ${newItems.length} item(s) to "${updatedList.name}"!` }
+        const itemsText = newItems.length === 1 ? 'item' : 'items'
+        return { 
+          success: true, 
+          message: `✅ Done! I've added ${newItems.length} ${itemsText} to your "${updatedList.name}".` 
+        }
 
       case 'answer_food_question':
         // Just return the answer - no action needed

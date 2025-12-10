@@ -19,7 +19,7 @@ export default function AchievementsPage() {
   // Subscribe to achievements table changes to catch newly unlocked achievements
   // Also invalidate 'achievements' query key since getAchievementsWithProgress calls getUserAchievements internally
   useUserRealtimeSubscription('achievements', ['achievementsWithProgress', 'achievements'], user?.id)
-  
+
   // Subscribe to underlying data that triggers achievement calculations
   // When meals, exercises, or daily_logs change, achievements need to be recalculated
   useUserRealtimeSubscription('meals', ['achievementsWithProgress', 'achievements'], user?.id)

@@ -35,6 +35,7 @@ interface ChatRequest {
     age?: number
     weight?: number
     height?: number
+    gender?: 'male' | 'female'
     calorie_target?: number
     protein_target?: number
     water_goal?: number
@@ -202,9 +203,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       
       context += `**Your Goals & Preferences:**\n`
-      context += `- Primary Goal: ${goalDescriptions[profile.goal] || profile.goal}\n`
-      context += `- Activity Level: ${activityDescriptions[profile.activity_level] || profile.activity_level}\n`
-      context += `- Dietary Preference: ${dietaryDescriptions[profile.dietary_preference] || profile.dietary_preference}\n`
+      context += `- Primary Goal: ${goalDescriptions[profile.goal || 'maintain'] || profile.goal || 'maintain'}\n`
+      context += `- Activity Level: ${activityDescriptions[profile.activity_level || 'moderate'] || profile.activity_level || 'moderate'}\n`
+      context += `- Dietary Preference: ${dietaryDescriptions[profile.dietary_preference || 'flexitarian'] || profile.dietary_preference || 'flexitarian'}\n`
       context += `\n`
       
       // Personalized targets
@@ -216,15 +217,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     
     if (dailyLog) {
-      const calorieProgress = profile?.calorie_target ? Math.round((dailyLog.calories_consumed / profile.calorie_target) * 100) : 0
-      const proteinProgress = profile?.protein_target ? Math.round((dailyLog.protein / profile.protein_target) * 100) : 0
-      const waterProgress = profile?.water_goal ? Math.round((dailyLog.water_intake / profile.water_goal) * 100) : 0
+      const caloriesConsumed = dailyLog.calories_consumed ?? 0
+      const protein = dailyLog.protein ?? 0
+      const waterIntake = dailyLog.water_intake ?? 0
+      const caloriesBurned = dailyLog.calories_burned ?? 0
+      
+      const calorieProgress = profile?.calorie_target ? Math.round((caloriesConsumed / profile.calorie_target) * 100) : 0
+      const proteinProgress = profile?.protein_target ? Math.round((protein / profile.protein_target) * 100) : 0
+      const waterProgress = profile?.water_goal ? Math.round((waterIntake / profile.water_goal) * 100) : 0
       
       context += `**Today's Progress:**\n`
-      context += `- Calories: ${dailyLog.calories_consumed} / ${profile?.calorie_target || 2000} cal (${calorieProgress}%)\n`
-      context += `- Protein: ${dailyLog.protein}g / ${profile?.protein_target || 150}g (${proteinProgress}%)\n`
-      context += `- Water: ${dailyLog.water_intake}ml / ${profile?.water_goal || 2000}ml (${waterProgress}%)\n`
-      context += `- Calories Burned: ${dailyLog.calories_burned} cal\n`
+      context += `- Calories: ${caloriesConsumed} / ${profile?.calorie_target || 2000} cal (${calorieProgress}%)\n`
+      context += `- Protein: ${protein}g / ${profile?.protein_target || 150}g (${proteinProgress}%)\n`
+      context += `- Water: ${waterIntake}ml / ${profile?.water_goal || 2000}ml (${waterProgress}%)\n`
+      context += `- Calories Burned: ${caloriesBurned} cal\n`
       context += `\n`
     }
 
@@ -250,6 +256,7 @@ PERSONALIZATION RULES
 
 1. Always think in terms of THIS specific user:
    - Use their name if available: "${profile?.name || ''}"
+   - Sex: ${profile?.gender || 'not specified'} (used for BMR calculation and personalized recommendations)
    - Goals: "${profile?.goal || 'general health'}"
    - Calorie target: ${profile?.calorie_target || 2000}
    - Protein target: ${profile?.protein_target || 150}
@@ -257,6 +264,9 @@ PERSONALIZATION RULES
    - Activity level: "${profile?.activity_level || 'moderate'}"
    - Dietary preference: "${profile?.dietary_preference || 'none'}"
    - Restrictions: ${JSON.stringify(profile?.restrictions || [])}
+   
+   Note: Gender-specific considerations:
+   - ${profile?.gender === 'male' ? 'Male users typically have higher BMR and may need slightly more calories/protein for muscle building' : profile?.gender === 'female' ? 'Female users may have different nutritional needs, especially regarding iron, calcium, and protein distribution throughout the day' : 'Consider gender-specific nutritional needs when making recommendations'}
 
 2. Use their current day log when answering:
    - calories_consumed: ${dailyLog?.calories_consumed ?? 0}
@@ -284,6 +294,11 @@ For any message involving food:
 
 1. Parse the meal:
    - Identify meal_type: breakfast / lunch / dinner / snack (guess if needed)
+   - IMPORTANT: meal_type must be one of: 'breakfast', 'lunch', 'dinner', 'morning_snack', 'evening_snack', 'pre_breakfast', 'post_dinner'
+   - For snacks, ALWAYS use 'morning_snack' or 'evening_snack' - NEVER just 'snack'
+   - If user says "evening snack" or mentions "evening" in context, use 'evening_snack'
+   - If user says "morning snack" or mentions "morning" in context, use 'morning_snack'
+   - If user just says "snack" without context, use 'morning_snack' as default
    - Extract each food item with quantity, calories, and macros if provided
    - If the user gives nutrition label values (like "210 cal, 13g protein for 5 nuggets"), TRUST those numbers.
 
@@ -333,11 +348,28 @@ You can help users with:
 1. **Meal Logging:**
    - Understand natural language meal descriptions (e.g., "I had 3 chicken drumsticks and 1 cup salad", "5 nuggets and a protein shake").
    - Extract:
-     • meal_type,
+     • meal_type: MUST be one of these exact values: 'breakfast', 'lunch', 'dinner', 'morning_snack', 'evening_snack', 'pre_breakfast', 'post_dinner'
+     • For snacks, ALWAYS use 'morning_snack' or 'evening_snack' - NEVER just 'snack'
+     • CRITICAL: If user says "evening snack", "for evening snack", "as evening snack", or ANY mention of "evening" with snack, you MUST use 'evening_snack'
+     • If user says "morning snack" or mentions "morning" in context, use 'morning_snack'
+     • If user just says "snack" without any time context, use 'morning_snack' as default
+     • Examples:
+       - "evening snack" → 'evening_snack'
+       - "for evening snack" → 'evening_snack'
+       - "as evening snack" → 'evening_snack'
+       - "snack for evening" → 'evening_snack'
+       - "morning snack" → 'morning_snack'
+       - just "snack" → 'morning_snack'
+     • meal_description: **REQUIRED** - Generate a SHORT, descriptive name for the meal (2-5 words max)
+       - Examples: "Chicken Drumsticks with Salad", "Protein Shake", "Pomegranate", "Oatmeal with Berries", "Grilled Salmon", "Chicken Nuggets"
+       - Use the main food items mentioned by the user
+       - Keep it concise and clear
+       - **CRITICAL: You MUST always include meal_description in action.data - it is REQUIRED, not optional**
      • calories,
      • protein,
      • optionally carbs and fats,
      • food_items: array of { name, calories, protein, carbs, fats, quantity, unit }.
+   - **CRITICAL RULE: meal_description is MANDATORY** - Always generate and include a meal_description in action.data when logging meals. Never omit it.
    - If the user gives explicit calories/protein, **always use those** instead of generic estimates.
    - Use action type: "log_meal_with_confirmation" with requires_confirmation: true.
    - In the message, show a clear summary + day totals and then ask:
@@ -357,8 +389,11 @@ You can help users with:
    - Ask if user wants to save; use "generate_recipe" then "save_recipe" if confirmed.
 
 4. **Meal Planning, Grocery Lists, Workouts, Water:**
-   - Behave as in the original spec (add_to_meal_plan, add_to_grocery_list, log_workout, log_water).
-   - Always set requires_confirmation: true when adding or logging something significant, unless user clearly commands it.
+   - For workouts: If user explicitly says "log my workout", "I ran for 30 minutes", "add workout", set requires_confirmation: false and log directly
+   - For meal plans: If user explicitly says "add to meal plan", "save to meal plan", set requires_confirmation: false and add directly
+   - For grocery lists: If user explicitly says "add to grocery list", "add to shopping list", set requires_confirmation: false and add directly
+   - For water: If user explicitly says "I drank water", "log water", set requires_confirmation: false and log directly
+   - Only set requires_confirmation: true if the user's intent is unclear or they're asking a question about it
 
 ====================
 RESPONSE FORMAT (VERY IMPORTANT)
@@ -377,10 +412,39 @@ You must ALWAYS respond with valid JSON:
   "message": "Your conversational response to show in the chat"
 }
 
+**For log_meal_with_confirmation, action.data MUST include:**
+- meal_type: "breakfast" | "lunch" | "dinner" | "morning_snack" | "evening_snack" | "pre_breakfast" | "post_dinner"
+- meal_description: **REQUIRED** - A short descriptive name (2-5 words)
+- calories: number
+- protein: number
+- carbs: number (optional)
+- fats: number (optional)
+- food_items: array (optional)
+
+**Example log_meal_with_confirmation response:**
+{
+  "action": {
+    "type": "log_meal_with_confirmation",
+    "data": {
+      "meal_type": "lunch",
+      "meal_description": "Chicken Drumsticks with Salad",
+      "calories": 650,
+      "protein": 48,
+      "carbs": 25,
+      "fats": 12,
+      "food_items": [...]
+    },
+    "requires_confirmation": true,
+    "confirmation_message": "Do you want me to log this meal?"
+  },
+  "message": "This meal is ~650 calories and 48g protein..."
+}
+
 - If you are just giving advice or answering a question and not logging anything, use:
   "type": "none" and put the full explanation in "message".
 - Never return plain text outside of JSON.
 - Make sure the JSON is valid and parseable.
+- **CRITICAL: meal_description is MANDATORY for all meal logging actions - never omit it.**
 
 ====================
 FORMATTING RULES (IMPORTANT)

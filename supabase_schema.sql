@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   age INTEGER,
   weight DECIMAL(5,2), -- in kg
   height INTEGER, -- in cm
+  gender TEXT CHECK (gender IN ('male', 'female')), -- for BMR calculation
   goal TEXT NOT NULL DEFAULT 'maintain' CHECK (goal IN ('lose_weight', 'gain_muscle', 'maintain', 'improve_fitness')),
   activity_level TEXT NOT NULL DEFAULT 'moderate' CHECK (activity_level IN ('sedentary', 'light', 'moderate', 'active', 'very_active')),
   dietary_preference TEXT NOT NULL DEFAULT 'flexitarian' CHECK (dietary_preference IN ('vegetarian', 'vegan', 'non_vegetarian', 'flexitarian')),

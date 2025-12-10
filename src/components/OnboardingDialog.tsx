@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { calculatePersonalizedTargets, estimateGenderFromName } from "@/services/personalizedTargets"
+import { calculatePersonalizedTargets } from "@/services/personalizedTargets"
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,9 @@ const onboardingSchema = z.object({
   goal: z.enum(["lose_weight", "gain_muscle", "maintain", "improve_fitness"]),
   dietary_preference: z.enum(["vegetarian", "non_vegetarian", "vegan", "flexitarian"]),
   activity_level: z.enum(["sedentary", "light", "moderate", "active", "very_active"]),
+  gender: z.enum(["male", "female"], {
+    required_error: "Please select male or female",
+  }),
   target_protein: z.number().min(0).max(500).optional(),
   target_calories: z.number().min(0).max(10000).optional(),
   water_goal: z.number().min(500).max(10000).optional(),
@@ -62,6 +65,7 @@ export function OnboardingDialog({
       goal: "maintain",
       dietary_preference: "flexitarian",
       activity_level: "moderate",
+      gender: "male",
     },
   })
 
@@ -117,6 +121,7 @@ export function OnboardingDialog({
         goal: data.goal,
         dietary_preference: data.dietary_preference,
         activity_level: data.activity_level,
+        gender: data.gender || null,
         calorie_target: calorieTarget,
         protein_target: proteinTarget,
         water_goal: data.water_goal || 2000,
@@ -163,15 +168,15 @@ export function OnboardingDialog({
   const goal = watch("goal")
   const dietaryPreference = watch("dietary_preference")
   const activityLevel = watch("activity_level")
-  const name = watch("name")
   const age = watch("age")
   const weight = watch("weight")
   const height = watch("height")
+  const gender = watch("gender")
 
   // Calculate personalized targets when moving to step 3
   useEffect(() => {
-    if (step === 3 && weight && height && age && goal && activityLevel) {
-      const isMale = name ? estimateGenderFromName(name) ?? true : true // Default to male if unknown
+    if (step === 3 && weight && height && age && goal && activityLevel && gender) {
+      const isMale = gender === "male"
       
       const targets = calculatePersonalizedTargets({
         weight,
@@ -188,12 +193,12 @@ export function OnboardingDialog({
       setValue("target_protein", targets.protein_target)
       setValue("water_goal", targets.water_goal)
     }
-  }, [step, weight, height, age, goal, activityLevel, dietaryPreference, name, setValue])
+  }, [step, weight, height, age, goal, activityLevel, dietaryPreference, gender, setValue])
 
   // Calculate personalized explanation for step 3
   const personalizedExplanation = useMemo(() => {
-    if (step === 3 && weight && height && age && goal && activityLevel) {
-      const isMale = name ? estimateGenderFromName(name) ?? true : true
+    if (step === 3 && weight && height && age && goal && activityLevel && gender) {
+      const isMale = gender === "male"
       const targets = calculatePersonalizedTargets({
         weight,
         height,
@@ -206,7 +211,7 @@ export function OnboardingDialog({
       return targets.explanation
     }
     return ""
-  }, [step, weight, height, age, goal, activityLevel, dietaryPreference, name])
+  }, [step, weight, height, age, goal, activityLevel, dietaryPreference, gender])
 
   const goalIcons = {
     lose_weight: TrendingDown,
@@ -245,9 +250,9 @@ export function OnboardingDialog({
             p-5 sm:p-6 md:p-8
             max-h-[90vh] overflow-y-auto scrollbar-hide
           "
-        >
-          <div className="relative">
-            <DialogHeader className="mb-6">
+      >
+        <div className="relative">
+          <DialogHeader className="mb-6">
               <div className="inline-flex text-[11px] font-bold font-mono bg-accent-soft/50 border border-accent/40 rounded-full px-3 py-1.5 gap-2 items-center mb-4" style={{ color: '#0D9488' }}>
               <div className="flex items-center gap-1">
                 <span className="inline-flex h-2 w-2 rounded-full bg-orange-500 shadow-sm"></span>
@@ -318,7 +323,7 @@ export function OnboardingDialog({
             </div>
           </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {step === 1 && (
               <div className="space-y-6">
                 <div>
@@ -337,6 +342,60 @@ export function OnboardingDialog({
                   {errors.name && (
                     <p className="text-sm text-error mt-2 font-mono">
                       {errors.name.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-4">
+                  <Label className="text-sm font-medium text-text font-mono mb-3 block">
+                    Sex (for calorie & BMR calculation)
+                  </Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { value: "male", label: "Male" },
+                      { value: "female", label: "Female" },
+                    ].map((option) => {
+                      const isSelected = gender === option.value
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setValue("gender", option.value as "male" | "female")}
+                          className={`relative rounded-sm p-3 border-2 transition-all font-mono text-center ${
+                            isSelected
+                              ? "bg-accent-soft/50 ring-2"
+                              : "border-border bg-surface hover:border-dim"
+                          }`}
+                          style={
+                            isSelected
+                              ? {
+                                  borderColor: "#0D9488",
+                                  boxShadow: "0 0 0 2px rgba(13, 148, 136, 0.2)",
+                                }
+                              : {}
+                          }
+                        >
+                          <span
+                            className="text-xs block font-medium"
+                            style={{ color: isSelected ? "#111827" : "#6B7280" }}
+                          >
+                            {option.label}
+                          </span>
+                          {isSelected && (
+                            <div
+                              className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow-md"
+                              style={{ backgroundColor: "#0D9488" }}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 text-white stroke-[2.5]" />
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {errors.gender && (
+                    <p className="text-sm text-error mt-2 font-mono">
+                      {errors.gender.message}
                     </p>
                   )}
                 </div>
@@ -547,10 +606,10 @@ export function OnboardingDialog({
                       const currentAge = watch("age")
                       const currentGoal = watch("goal")
                       const currentActivityLevel = watch("activity_level")
-                      const currentName = watch("name")
+                      const currentGender = watch("gender")
                       
-                      if (currentWeight && currentHeight && currentAge && currentGoal && currentActivityLevel) {
-                        const isMale = currentName ? estimateGenderFromName(currentName) ?? true : true
+                      if (currentWeight && currentHeight && currentAge && currentGoal && currentActivityLevel && currentGender) {
+                        const isMale = currentGender === "male"
                         const targets = calculatePersonalizedTargets({
                           weight: currentWeight,
                           height: currentHeight,
@@ -658,7 +717,7 @@ export function OnboardingDialog({
                 </div>
               </div>
             )}
-            </form>
+          </form>
           </div>
         </div>
       </DialogContent>

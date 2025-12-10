@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
@@ -6,12 +6,17 @@ import { UserProfile } from '@/types'
 import { ReminderSettingsSection } from '@/components/ReminderSettings'
 import { getLatestWeight } from '@/services/weightTracking'
 import AchievementWidget from '@/components/AchievementWidget'
+import { GenderSelectionDialog } from '@/components/GenderSelectionDialog'
+import { UpdateTargetsDialog } from '@/components/UpdateTargetsDialog'
+import { calculatePersonalizedTargets } from '@/services/personalizedTargets'
 import { Edit, X, User, Target, Activity, UtensilsCrossed, Flame, Droplet, Mail, CheckCircle2, Scale, UserCircle, Calendar, Weight, Beef } from 'lucide-react'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
+import { useToast } from '@/hooks/use-toast'
 
 export default function ProfilePage() {
-  const { user, profile, isGuest } = useAuth()
+  const { user, profile } = useAuth()
   const queryClient = useQueryClient()
+  const { toast } = useToast()
 
   // Set up realtime subscription for user profile
   useUserRealtimeSubscription('user_profiles', ['profile'], user?.id)
@@ -22,6 +27,15 @@ export default function ProfilePage() {
     queryKey: ['latestWeight'],
     queryFn: getLatestWeight,
   })
+  
+  // Dialog states
+  const [showGenderDialog, setShowGenderDialog] = useState(false)
+  const [showUpdateTargetsDialog, setShowUpdateTargetsDialog] = useState(false)
+  const [newTargets, setNewTargets] = useState<{
+    calories: number
+    protein: number
+    water: number
+  } | null>(null)
   
   const [editing, setEditing] = useState(false)
   const [formData, setFormData] = useState({
@@ -36,6 +50,41 @@ export default function ProfilePage() {
     protein_target: profile?.protein_target || profile?.target_protein || 150,
     water_goal: profile?.water_goal || 2000,
   })
+
+  // Check if user needs to add gender (one-time, only if profile exists but gender is missing)
+  useEffect(() => {
+    if (profile && !profile.gender && user && !showGenderDialog && !showUpdateTargetsDialog) {
+      // Check if user previously dismissed the dialog
+      const dismissedKey = `gender_dialog_dismissed_${user.id}`
+      const wasDismissed = localStorage.getItem(dismissedKey)
+      
+      if (!wasDismissed) {
+        // Small delay to avoid showing immediately on page load
+        const timer = setTimeout(() => {
+          setShowGenderDialog(true)
+        }, 500)
+        return () => clearTimeout(timer)
+      }
+    }
+  }, [profile, user, showGenderDialog, showUpdateTargetsDialog])
+
+  // Sync formData when profile or latestWeight changes (but only when not editing)
+  useEffect(() => {
+    if (!editing) {
+      setFormData({
+        name: profile?.name || '',
+        age: profile?.age || undefined,
+        height: profile?.height || undefined,
+        weight: profile?.weight || latestWeight?.weight || undefined,
+        goal: profile?.goal || 'maintain',
+        activity_level: profile?.activity_level || 'moderate',
+        dietary_preference: profile?.dietary_preference || 'flexitarian',
+        calorie_target: profile?.calorie_target || profile?.target_calories || 2000,
+        protein_target: profile?.protein_target || profile?.target_protein || 150,
+        water_goal: profile?.water_goal || 2000,
+      })
+    }
+  }, [profile, latestWeight, editing])
 
   const updateMutation = useMutation({
     mutationFn: async (data: Partial<UserProfile>) => {
@@ -53,9 +102,126 @@ export default function ProfilePage() {
     },
   })
 
+  // Handle gender selection and recalculate targets
+  const handleGenderSelected = async (gender: 'male' | 'female') => {
+    if (!user || !supabase || !profile) return
+
+    try {
+      // Save gender to profile
+      const { error: updateError } = await supabase
+        .from('user_profiles')
+        .update({ gender })
+        .eq('id', user.id)
+
+      if (updateError) throw updateError
+
+      // Wait for profile to refresh to get updated data
+      await queryClient.invalidateQueries({ queryKey: ['profile'] })
+      
+      // Small delay to ensure profile is refreshed
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Recalculate targets if we have required data
+      // Use the current profile data (which should now include gender)
+      if (profile.weight && profile.height && profile.age && profile.goal && profile.activity_level) {
+        const isMale = gender === 'male'
+        
+        // Calculate NEW targets with the selected gender
+        const newTargets = calculatePersonalizedTargets({
+          weight: profile.weight,
+          height: profile.height,
+          age: profile.age,
+          goal: profile.goal,
+          activityLevel: profile.activity_level,
+          dietaryPreference: profile.dietary_preference,
+          isMale, // Use the NEW gender value
+        })
+
+        // Get CURRENT targets from profile (these were calculated with old/default gender)
+        const currentCalories = profile.calorie_target || profile.target_calories || 2000
+        const currentProtein = profile.protein_target || profile.target_protein || 150
+        const currentWater = profile.water_goal || 2000
+
+        // Only show dialog if there are actual changes
+        const hasChanges = 
+          Math.abs(newTargets.calorie_target - currentCalories) > 0 ||
+          Math.abs(newTargets.protein_target - currentProtein) > 0 ||
+          Math.abs(newTargets.water_goal - currentWater) > 0
+
+        if (hasChanges) {
+          setNewTargets({
+            calories: newTargets.calorie_target,
+            protein: newTargets.protein_target,
+            water: newTargets.water_goal,
+          })
+
+          // Show update targets dialog
+          setShowUpdateTargetsDialog(true)
+        } else {
+          // No changes, just show success message
+          toast({
+            title: "Gender saved",
+            description: "Your targets are already optimized for your sex.",
+          })
+        }
+      } else {
+        toast({
+          title: "Gender saved",
+          description: "Your gender has been saved. Update your weight, height, and age to recalculate targets.",
+        })
+      }
+    } catch (error) {
+      console.error('Error saving gender:', error)
+      throw error
+    }
+  }
+
+  // Handle updating targets
+  const handleUpdateTargets = async () => {
+    if (!user || !supabase || !newTargets) return
+
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          calorie_target: newTargets.calories,
+          target_calories: newTargets.calories,
+          protein_target: newTargets.protein,
+          target_protein: newTargets.protein,
+          water_goal: newTargets.water,
+        })
+        .eq('id', user.id)
+
+      if (error) throw error
+
+      await queryClient.invalidateQueries({ queryKey: ['profile'] })
+      setShowUpdateTargetsDialog(false)
+      setNewTargets(null)
+
+      toast({
+        title: "Targets updated",
+        description: "Your personalized targets have been updated based on your sex.",
+      })
+    } catch (error) {
+      console.error('Error updating targets:', error)
+      toast({
+        title: "Error",
+        description: "Failed to update targets. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Handle skipping target update
+  const handleSkipTargetUpdate = () => {
+    setShowUpdateTargetsDialog(false)
+    setNewTargets(null)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     // Map formData to match database schema (support both field variants)
+    // Note: gender is NOT included here - it cannot be changed after onboarding
     const updateData: Partial<UserProfile> = {
       name: formData.name || undefined,
       age: formData.age || undefined,
@@ -88,8 +254,8 @@ export default function ProfilePage() {
       <div className="card-modern border-acid/30 p-4 md:p-6">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 md:gap-4 mb-4 md:mb-6">
           <div className="flex items-center gap-2 md:gap-3">
-            <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30 flex-shrink-0">
-              <User className="w-4 h-4 md:w-5 md:h-5 text-acid" />
+            <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-blue-500/20 dark:bg-blue-500/20 flex items-center justify-center border border-blue-500/30 dark:border-blue-500/30 flex-shrink-0">
+              <User className="w-4 h-4 md:w-5 md:h-5 text-blue-500 fill-blue-500 dark:text-blue-500 dark:fill-blue-500" />
             </div>
             <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Personal Information</h2>
           </div>
@@ -274,8 +440,8 @@ export default function ProfilePage() {
           </form>
         ) : (
           <div className="space-y-4 md:space-y-6">
-            {/* Basic Information - Name, Age, Height, Weight */}
-            {(profile?.name || profile?.age || profile?.height || profile?.weight || latestWeight?.weight) && (
+            {/* Basic Information - Name, Age, Height, Weight, Gender */}
+            {(profile?.name || profile?.age || profile?.height || profile?.weight || latestWeight?.weight || profile?.gender) && (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                 {profile?.name && (
                   <div className="p-3 md:p-4 border border-border rounded-sm bg-panel/50">
@@ -284,6 +450,21 @@ export default function ProfilePage() {
                       <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Name</span>
                     </div>
                     <div className="font-bold text-text font-mono text-base md:text-lg">{profile.name}</div>
+                  </div>
+                )}
+                {profile?.gender && (
+                  <div className="p-3 md:p-4 border border-border rounded-sm bg-panel/50">
+                    <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
+                      <div className="w-3.5 h-3.5 md:w-4 md:h-4 flex items-center justify-center text-acid flex-shrink-0 font-bold text-lg md:text-xl">
+                        {profile.gender === 'male' ? '♂' : '♀'}
+                      </div>
+                      <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Sex</span>
+                    </div>
+                    <div className="font-bold text-text font-mono text-base md:text-lg capitalize flex items-center gap-2">
+                      <span>{profile.gender}</span>
+                      <CheckCircle2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-success flex-shrink-0" />
+                    </div>
+                    <p className="text-[9px] md:text-[10px] text-dim font-mono mt-1">Gender cannot be changed</p>
                   </div>
                 )}
                 {profile?.age && (
@@ -335,6 +516,7 @@ export default function ProfilePage() {
               </div>
             )}
 
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
               <div className="p-3 md:p-4 border border-border rounded-sm bg-panel/50">
                 <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
@@ -361,8 +543,8 @@ export default function ProfilePage() {
 
             <div className="pt-3 md:pt-4 border-t border-border">
               <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
-                <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30 flex-shrink-0">
-                  <Target className="w-4 h-4 md:w-5 md:h-5 text-acid" />
+                <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-indigo-500/20 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 dark:border-indigo-500/30 flex-shrink-0">
+                  <Target className="w-4 h-4 md:w-5 md:h-5 text-indigo-500 fill-indigo-500 dark:text-indigo-500 dark:fill-indigo-500" />
                 </div>
                 <h3 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Daily Targets</h3>
               </div>
@@ -402,6 +584,36 @@ export default function ProfilePage() {
 
       {/* Reminder Settings */}
       <ReminderSettingsSection />
+
+      {/* Gender Selection Dialog (one-time for existing users) */}
+      <GenderSelectionDialog
+        open={showGenderDialog}
+        onOpenChange={(open) => {
+          setShowGenderDialog(open)
+          // If user closes without selecting, remember dismissal so it doesn't show again
+          if (!open && user && !profile?.gender) {
+            const dismissedKey = `gender_dialog_dismissed_${user.id}`
+            localStorage.setItem(dismissedKey, 'true')
+          }
+        }}
+        onGenderSelected={handleGenderSelected}
+      />
+
+      {/* Update Targets Dialog */}
+      {newTargets && profile && (
+        <UpdateTargetsDialog
+          open={showUpdateTargetsDialog}
+          onOpenChange={setShowUpdateTargetsDialog}
+          currentTargets={{
+            calories: profile.calorie_target || profile.target_calories || 2000,
+            protein: profile.protein_target || profile.target_protein || 150,
+            water: profile.water_goal || 2000,
+          }}
+          newTargets={newTargets}
+          onUpdate={handleUpdateTargets}
+          onSkip={handleSkipTargetUpdate}
+        />
+      )}
     </div>
   )
 }

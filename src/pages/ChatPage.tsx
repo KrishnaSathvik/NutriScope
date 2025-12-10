@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Plus, MessageSquare, Trash2, ChevronDown, X } from 'lucide-react'
+import { Plus, MessageSquare, Trash2 } from 'lucide-react'
 import { ChatMessages } from '@/components/ChatMessages'
 import { ChatInput } from '@/components/ChatInput'
 import { useAuth } from '@/contexts/AuthContext'
@@ -14,6 +14,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { logger } from '@/utils/logger'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 export default function ChatPage() {
   const { profile, user, isGuest } = useAuth()
@@ -307,8 +308,16 @@ export default function ChatPage() {
         queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
         queryClient.invalidateQueries({ queryKey: ['streak'] }) // Update streak when actions are executed
 
-        // Don't add another message when user confirms - the AI already responded
-        // The action execution happens silently in the background
+        // Add confirmation message after successful action execution
+        if (actionResult.message) {
+          const confirmationMessage: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: actionResult.message,
+            timestamp: new Date().toISOString(),
+          }
+          setMessages((prev) => [...prev, confirmationMessage])
+        }
       } else {
         // Show error message
         const errorMessage: ChatMessage = {
@@ -506,115 +515,29 @@ export default function ChatPage() {
                 <span className="hidden sm:inline">New Chat</span>
               </button>
 
-              {/* Chat History Button - Mobile */}
+              {/* Chat History Button */}
               <button
-                onClick={() => setShowHistory(!showHistory)}
-                  className="btn-secondary gap-1.5 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2 md:hidden"
+                onClick={() => setShowHistory(true)}
+                className="btn-secondary gap-1.5 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2"
                 title="Chat History"
               >
                 <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                <span className="hidden sm:inline">History</span>
               </button>
-
-              {/* Chat History Dropdown - Desktop */}
-              <div className="relative hidden md:block">
-                <button
-                  onClick={() => setShowHistory(!showHistory)}
-                  className="btn-secondary gap-1.5 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-1.5 md:py-2"
-                  title="Chat History"
-                >
-                  <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">History</span>
-                  <ChevronDown className={`w-3 h-3 transition-transform ${showHistory ? 'rotate-180' : ''}`} />
-                </button>
-                
-                {/* Dropdown Menu */}
-                {showHistory && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setShowHistory(false)}
-                    />
-                    <div className="absolute right-0 top-full mt-2 w-80 bg-surface border border-border rounded-sm shadow-lg z-50 max-h-[60vh] overflow-hidden flex flex-col">
-                      <div className="p-3 md:p-4 border-b border-border flex-shrink-0">
-                        <div className="flex items-center justify-between">
-                          <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-wider font-mono">Chat History</h2>
-                          <button
-                            onClick={() => setShowHistory(false)}
-                            className="text-dim hover:text-text"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="overflow-y-auto scrollbar-hide flex-1">
-                        {conversations.length === 0 ? (
-                          <div className="p-4 text-center">
-                            <p className="text-xs text-dim font-mono">No previous chats</p>
-                          </div>
-                        ) : (
-                          <div className="divide-y divide-border">
-                            {conversations.map((conversation) => (
-                              <div
-                                key={conversation.id}
-                                onClick={() => handleSelectConversation(conversation.id)}
-                                className={`p-3 md:p-4 cursor-pointer hover:bg-panel/50 transition-colors group ${
-                                  conversationId === conversation.id ? 'bg-panel border-l-2 border-acid' : ''
-                                }`}
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <MessageSquare className="w-3.5 h-3.5 text-acid flex-shrink-0" />
-                                      <p className="text-xs md:text-sm font-mono text-text truncate">
-                                        {getConversationTitle(conversation)}
-                                      </p>
-                                    </div>
-                                    <p className="text-[10px] md:text-xs text-dim font-mono">
-                                      {format(new Date(conversation.updated_at), 'MMM d, h:mm a')}
-                                    </p>
-                                  </div>
-                                  <button
-                                    onClick={(e) => handleDeleteConversation(conversation.id, e)}
-                                    className="opacity-0 group-hover:opacity-100 text-dim hover:text-error transition-opacity p-1"
-                                    title="Delete conversation"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Mobile History Sidebar - Sheet Style */}
-      {showHistory && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/40 z-40 md:hidden"
-            onClick={() => setShowHistory(false)}
-          />
-          <div className="fixed bottom-0 left-0 right-0 max-h-[70vh] z-50 md:hidden bg-surface border-t border-border rounded-t-xl overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-border flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-wider font-mono">Chat History</h2>
-                <button
-                  onClick={() => setShowHistory(false)}
-                  className="text-dim hover:text-text"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto scrollbar-hide p-4" onClick={(e) => e.stopPropagation()}>
+      {/* Chat History Dialog */}
+      <Dialog open={showHistory} onOpenChange={setShowHistory}>
+        <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col p-0">
+          <DialogHeader className="px-4 sm:px-6 py-4 border-b border-border flex-shrink-0">
+            <DialogTitle className="text-xs md:text-sm font-bold text-text uppercase tracking-wider font-mono">
+              Chat History
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto scrollbar-hide px-4 sm:px-6 py-4">
               {conversations.length === 0 ? (
                 <div className="p-4 text-center">
                   <p className="text-xs text-dim font-mono">No previous chats</p>
@@ -625,7 +548,7 @@ export default function ChatPage() {
                     <div
                       key={conversation.id}
                       onClick={() => handleSelectConversation(conversation.id)}
-                      className={`p-3 md:p-4 cursor-pointer hover:bg-panel/50 transition-colors group ${
+                    className={`p-3 md:p-4 cursor-pointer hover:bg-panel/50 transition-colors group rounded-sm ${
                         conversationId === conversation.id ? 'bg-panel border-l-2 border-acid' : ''
                       }`}
                     >
@@ -654,9 +577,8 @@ export default function ChatPage() {
                 </div>
               )}
             </div>
-          </div>
-        </>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Chat Container - Flex layout for better mobile support */}
       <div className="flex-1 flex flex-col min-h-0 bg-surface border border-border md:rounded-sm overflow-hidden mt-4 md:mt-8">

@@ -108,8 +108,8 @@ export default function AchievementWidget() {
     <div className="card-modern p-4 md:p-6">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2 md:gap-3">
-          <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30">
-            <Trophy className="w-4 h-4 md:w-5 md:h-5 text-acid" />
+          <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-amber-500/20 dark:bg-amber-500/20 flex items-center justify-center border border-amber-500/30 dark:border-amber-500/30">
+            <Trophy className="w-4 h-4 md:w-5 md:h-5 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500" />
           </div>
           <div>
             <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">

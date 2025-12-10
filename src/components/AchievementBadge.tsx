@@ -100,7 +100,9 @@ export default function AchievementBadge({
         {/* Unlocked indicator - Visible tick icon or dot */}
         {(achievement.progress === 100 || (achievement.unlocked_at && achievement.unlocked_at.trim() !== '')) && (
           <div className="absolute top-1 right-1 z-20">
-            <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 text-success dark:text-acid fill-success dark:fill-acid/20" />
+            <div className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-success dark:bg-success flex items-center justify-center shadow-md">
+              <CheckCircle2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-white fill-white" />
+            </div>
           </div>
         )}
       </div>

@@ -23,79 +23,109 @@ export async function calculateNutritionFromText(
   }
 
   try {
-    // Build prompt for nutrition extraction
-    const prompt = `Analyze this meal description and extract:
-1. All food items with their quantities/amounts (e.g., "100g chicken", "2 cups rice", "1 piece bread")
-2. Estimated nutrition for each item (calories, protein in grams, carbs in grams, fats in grams)
-3. Meal type if mentioned (breakfast, lunch, dinner, snack)
-4. If user provides specific nutrition values (calories, protein, etc.), use those. Otherwise, calculate from food items.
+    const systemPrompt = `You are a nutrition extraction engine.
 
-Meal description: "${description}"
+Goal:
+- Turn a natural language meal description into structured JSON.
+- NO prose, NO LaTeX, NO markdown – ONLY a single valid JSON object.
 
-IMPORTANT:
-- If user says "100g chicken" or "100 grams of chicken", calculate nutrition for exactly 100g of chicken
-- If user provides calories/protein directly, use those values
-- If no amounts specified, estimate reasonable portions
-- Convert all units to grams/ml for calculation
-- Use accurate nutrition database values (e.g., chicken breast: ~165 cal/100g, 31g protein/100g)
+Rules:
+- If the user provides exact calories / protein / macros for a food item
+  (e.g. "5 nuggets (210 cal, 13g protein)"), ALWAYS use those values.
+- Do NOT override explicit label values with your own estimates.
+- If the user provides only weight/portion (e.g. "100g chicken", "2 cups rice"),
+  estimate calories/protein/carbs/fats using standard nutrition values.
+- If no amount is given, assume a reasonable single serving.
+- Convert all quantities to a string quantity field (e.g. "100 g", "1 cup", "5 pieces").
+- Be conservative rather than wildly overestimating.
 
-Respond in JSON format:
+Output format (JSON ONLY):
 {
   "food_items": [
     {
-      "name": "chicken breast",
-      "quantity": "100g",
-      "calories": 165,
-      "protein": 31,
-      "carbs": 0,
-      "fats": 3.6
+      "name": "string",
+      "quantity": "string",
+      "calories": number,
+      "protein": number,
+      "carbs": number,
+      "fats": number
     }
   ],
-  "meal_type": "lunch" // optional: breakfast, lunch, dinner, snack
+  "meal_type": "breakfast" | "lunch" | "dinner" | "snack" | null
 }
 
-Be accurate with nutrition estimates. Use standard food database values.`
+- All numeric values must be plain numbers (no units, no strings).
+- Do not include any extra fields.
+- Do not include explanations or comments.`
 
-    // Add image if provided
-    let messages: any[] = [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ]
+    const userPrompt = `Meal description: ${JSON.stringify(description)}`
+
+    const messages: any[] = []
+    messages.push({
+      role: 'system',
+      content: systemPrompt,
+    })
 
     if (imageUrl) {
-      messages[0].content = [
-        { type: 'text', text: prompt },
+      messages.push({
+        role: 'user',
+        content: [
+          { type: 'text', text: userPrompt },
         {
           type: 'image_url',
           image_url: { url: imageUrl },
         },
-      ]
+        ],
+      })
+    } else {
+      messages.push({
+        role: 'user',
+        content: userPrompt,
+      })
     }
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages,
       response_format: { type: 'json_object' },
-      temperature: 0.3, // Lower temperature for more accurate nutrition
+      temperature: 0.3,
     })
 
-    const response = completion.choices[0]?.message?.content || '{}'
-    const parsed = JSON.parse(response)
+    const raw = completion.choices[0]?.message?.content || '{}'
+    let parsed: any
+    try {
+      parsed = JSON.parse(raw)
+    } catch (e) {
+      logger.error('Failed to parse nutrition JSON, raw:', raw)
+      throw new Error('Invalid nutrition response from AI')
+    }
 
-    const food_items: FoodItem[] = parsed.food_items || []
+    const food_items: FoodItem[] = Array.isArray(parsed.food_items)
+      ? parsed.food_items
+      : []
     
-    // Calculate totals
+    // Calculate totals safely
     const totals = food_items.reduce(
       (acc, item) => ({
-        calories: acc.calories + (item.calories || 0),
-        protein: acc.protein + (item.protein || 0),
-        carbs: acc.carbs + (item.carbs || 0),
-        fats: acc.fats + (item.fats || 0),
+        calories: acc.calories + (Number(item.calories) || 0),
+        protein: acc.protein + (Number(item.protein) || 0),
+        carbs: acc.carbs + (Number(item.carbs) || 0),
+        fats: acc.fats + (Number(item.fats) || 0),
       }),
       { calories: 0, protein: 0, carbs: 0, fats: 0 }
     )
+
+    // Fallback meal type detection if AI didn't set it
+    let meal_type = parsed.meal_type as
+      | 'breakfast'
+      | 'lunch'
+      | 'dinner'
+      | 'snack'
+      | undefined
+
+    if (!meal_type) {
+      meal_type = extractMealType(description)
+    }
 
     return {
       food_items,
@@ -103,7 +133,7 @@ Be accurate with nutrition estimates. Use standard food database values.`
       total_protein: Math.round(totals.protein),
       total_carbs: Math.round(totals.carbs),
       total_fats: Math.round(totals.fats),
-      meal_type: parsed.meal_type,
+      meal_type,
     }
   } catch (error) {
     logger.error('Error calculating nutrition:', error)

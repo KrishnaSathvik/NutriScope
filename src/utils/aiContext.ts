@@ -23,9 +23,10 @@ export function buildPersonalizedContext(
     const userName = profile.name ? `${profile.name}` : 'you'
     
     // Personal details
-    if (profile.age || profile.weight || profile.height) {
+    if (profile.age || profile.weight || profile.height || profile.gender) {
       context += `**About ${userName}:**\n`
       if (profile.name) context += `- Name: ${profile.name}\n`
+      if (profile.gender) context += `- Sex: ${profile.gender}\n`
       if (profile.age) context += `- Age: ${profile.age} years\n`
       if (profile.weight) context += `- Weight: ${profile.weight}kg\n`
       if (profile.height) context += `- Height: ${profile.height}cm\n`

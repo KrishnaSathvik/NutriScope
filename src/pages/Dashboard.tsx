@@ -32,7 +32,7 @@ export default function Dashboard() {
   // Use date + hour to rotate tips throughout the day
   // Memoize tipIndex to prevent unnecessary recalculations
   const tipIndex = useMemo(() => {
-    const currentHour = new Date().getHours()
+  const currentHour = new Date().getHours()
     return Math.floor(currentHour / 8) % 3 // Rotate every 8 hours: 0-7hrs = tip 0, 8-15hrs = tip 1, 16-23hrs = tip 2
   }, [today]) // Recalculate only when date changes
 

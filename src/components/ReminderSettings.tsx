@@ -119,8 +119,8 @@ export function ReminderSettingsSection() {
     <div className="card-modern border-acid/30 p-4 md:p-6">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 md:gap-4 mb-4 md:mb-6">
         <div className="flex items-center gap-2 md:gap-3">
-          <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30 flex-shrink-0">
-            <Bell className="w-4 h-4 md:w-5 md:h-5 text-acid" />
+          <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-purple-500/20 dark:bg-purple-500/20 flex items-center justify-center border border-purple-500/30 dark:border-purple-500/30 flex-shrink-0">
+            <Bell className="w-4 h-4 md:w-5 md:h-5 text-purple-500 fill-purple-500 dark:text-purple-500 dark:fill-purple-500" />
           </div>
           <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
             Reminders & Notifications

@@ -7,6 +7,20 @@ import { Zap, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import type { StreakData } from '@/services/streak'
 
+/**
+ * Get a motivational message based on streak length
+ */
+function getStreakMessage(streak: number): string {
+  if (streak >= 100) return 'Century club!'
+  if (streak >= 60) return 'Unstoppable legend!'
+  if (streak >= 30) return 'Incredible!'
+  if (streak >= 14) return 'Unstoppable!'
+  if (streak >= 7) return 'On fire!'
+  if (streak >= 3) return 'Building momentum!'
+  if (streak >= 2) return 'Keep it up!'
+  return 'Great start!'
+}
+
 export function StreakWidget() {
   const { user } = useAuth()
   const [showFallback, setShowFallback] = useState(false)
@@ -43,7 +57,7 @@ export function StreakWidget() {
         const daysDiff = Math.floor((todayDate.getTime() - lastLogged.getTime()) / (1000 * 60 * 60 * 24))
         // Use DB streak if it's from today or yesterday (streak might still be active)
         if (daysDiff <= 1 && dbStreak.currentStreak > 0) {
-          return dbStreak
+        return dbStreak
         }
       }
       
@@ -181,7 +195,7 @@ export function StreakWidget() {
             {finalData.isActive ? (
               <>
                 <CheckCircle2 className="w-3 h-3 text-success" />
-                <span className="text-success font-bold dark:font-normal">On fire!</span>
+                <span className="text-success font-bold dark:font-normal">{getStreakMessage(finalData.currentStreak)}</span>
               </>
             ) : (
               <span className="text-dim">Keep it going!</span>

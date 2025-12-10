@@ -82,7 +82,7 @@ export default function SummaryPage() {
           user.id,
           'daily_insight',
           dateStr,
-          insight,
+            insight,
           undefined, // No tip_index for daily insights
           dataSignature
         )

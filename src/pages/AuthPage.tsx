@@ -81,7 +81,7 @@ export default function Auth() {
               title: "Welcome!",
               description: "Successfully logged in. Redirecting to dashboard...",
             });
-            navigate('/dashboard');
+        navigate('/dashboard');
             return;
           }
           attempts++;
@@ -138,7 +138,7 @@ export default function Auth() {
           
           // Small delay to ensure profile is loaded
           setTimeout(() => {
-            navigate('/dashboard');
+          navigate('/dashboard');
           }, 500);
         }
         
