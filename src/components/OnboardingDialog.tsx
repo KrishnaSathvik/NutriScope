@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase, isUsingDummyClient } from "@/lib/supabase"
 import { useAuth } from "@/contexts/AuthContext"
 import type { UserGoal, DietaryPreference, ActivityLevel } from "@/types"
-import { ArrowRight, User, TrendingDown, Dumbbell, Activity, Heart, UtensilsCrossed, Leaf, Fish, Apple, Footprints, Coffee, Briefcase, Zap, Droplet, Lightbulb, Sparkles, CheckCircle2 } from "lucide-react"
+import { ArrowRight, User, TrendingDown, Dumbbell, Activity, Heart, UtensilsCrossed, Leaf, Fish, Apple, Footprints, Coffee, Briefcase, Zap, Sparkles, CheckCircle2 } from "lucide-react"
 
 const onboardingSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -128,7 +128,7 @@ export function OnboardingDialog({
       }
 
       // Try upsert - use only columns that definitely exist
-      const { error, data: insertedData } = await supabase.from("user_profiles").upsert(profileData, {
+      const { error } = await supabase.from("user_profiles").upsert(profileData, {
         onConflict: 'id'
       })
 

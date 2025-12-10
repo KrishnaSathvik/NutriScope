@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { format, subDays, subMonths, differenceInDays } from 'date-fns'
 import { getDailyLog } from '@/services/dailyLogs'
 import { useAuth } from '@/contexts/AuthContext'
@@ -14,7 +14,6 @@ type TimeRange = '7d' | '30d' | '3m' | '1y' | 'custom'
 
 export default function AnalyticsPage() {
   const { profile, user } = useAuth()
-  const queryClient = useQueryClient()
 
   // Set up realtime subscriptions for analytics data
   useUserRealtimeSubscription('meals', ['analytics', 'dailyLog'], user?.id)
@@ -27,16 +26,6 @@ export default function AnalyticsPage() {
   const [showCustomPicker, setShowCustomPicker] = useState(false)
   
   const today = new Date()
-
-  const handleRefresh = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['dailyLog'] }),
-      queryClient.invalidateQueries({ queryKey: ['analytics'] }),
-      queryClient.invalidateQueries({ queryKey: ['weightLogs'] }),
-      queryClient.invalidateQueries({ queryKey: ['correlations'] }),
-      queryClient.invalidateQueries({ queryKey: ['predictions'] }),
-    ])
-  }
   
   const getDateRange = () => {
     switch (timeRange) {

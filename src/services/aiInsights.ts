@@ -7,7 +7,7 @@ import { buildPersonalizedContext } from '@/utils/aiContext'
  * Generate inspirational/motivational coach tips for Dashboard (rotates 2-3 per day)
  */
 export async function generateQuickTip(
-  dailyLog: DailyLog,
+  _dailyLog: DailyLog, // Kept for API compatibility but not used in backend proxy
   profile: UserProfile | null,
   tipIndex: number = 0, // 0, 1, or 2 for rotating tips
   userId?: string
