@@ -47,7 +47,7 @@ export default function Dashboard() {
       }
       
       // Only generate new tip if we don't have cached one
-      const tip = await generateQuickTip(dailyLog, profile, tipIndex)
+      const tip = await generateQuickTip(dailyLog, profile, tipIndex, user.id)
       
       // Phase 3: Save to DB
       if (tip) {

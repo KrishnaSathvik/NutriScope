@@ -9,14 +9,15 @@ import { buildPersonalizedContext } from '@/utils/aiContext'
 export async function generateQuickTip(
   dailyLog: DailyLog,
   profile: UserProfile | null,
-  tipIndex: number = 0 // 0, 1, or 2 for rotating tips
+  tipIndex: number = 0, // 0, 1, or 2 for rotating tips
+  userId?: string
 ): Promise<string> {
-  // Use backend proxy if available (production) or direct OpenAI (development)
+  // Use backend proxy if available (same logic as chat)
   const useBackendProxy = import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
   const isProduction = import.meta.env.PROD
   
-  // In production, use backend proxy
-  if (isProduction && useBackendProxy) {
+  // Use backend proxy if enabled (works in both dev and prod)
+  if (useBackendProxy) {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '/api/chat'
       
@@ -60,6 +61,7 @@ Generate an inspirational, motivational message now:`
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(userId && { 'x-user-id': userId }),
         },
         body: JSON.stringify({
           messages: [
@@ -78,6 +80,7 @@ Generate an inspirational, motivational message now:`
             activity_level: profile.activity_level,
             dietary_preference: profile.dietary_preference,
           } : undefined,
+          userId,
         }),
       })
 
@@ -92,11 +95,18 @@ Generate an inspirational, motivational message now:`
       return message
     } catch (error) {
       console.error('Error generating quick tip via backend proxy:', error)
-      return 'Unable to generate tip. Please try again later.'
+      // In production, don't fall back to direct OpenAI
+      if (isProduction) {
+        return 'Unable to generate tip. Please try again later.'
+      }
+      // In development, fall back to direct OpenAI if available
+      if (!openai) {
+        return 'AI tips are not available. Please configure your OpenAI API key.'
+      }
     }
   }
   
-  // Development: use direct OpenAI if available
+  // Fallback: use direct OpenAI if backend proxy is disabled (dev only)
   if (!openai) {
     if (isProduction) {
       return 'AI tips are temporarily unavailable. Please try again later.'
