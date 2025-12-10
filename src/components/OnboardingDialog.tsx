@@ -350,7 +350,7 @@ export function OnboardingDialog({
                     className="group inline-flex items-center gap-3"
                   >
                     <span>Continue</span>
-                    <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                    <ArrowRight className="w-4 h-4 text-current transition-transform duration-300 group-hover:translate-x-0.5" style={{ color: 'var(--color-on-acid)' }} />
                   </Button>
                 </div>
               </div>
@@ -520,7 +520,7 @@ export function OnboardingDialog({
                     className="group flex-1 inline-flex items-center gap-3"
                   >
                     <span>Continue</span>
-                    <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                    <ArrowRight className="w-4 h-4 text-current transition-transform duration-300 group-hover:translate-x-0.5" style={{ color: 'var(--color-on-acid)' }} />
                   </Button>
                 </div>
               </div>
@@ -598,7 +598,7 @@ export function OnboardingDialog({
                   >
                     <span>{isSubmitting ? "Creating..." : "Complete Setup"}</span>
                     {!isSubmitting && (
-                      <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-0.5" />
+                      <ArrowRight className="w-4 h-4 text-current transition-transform duration-300 group-hover:translate-x-0.5" style={{ color: 'var(--color-on-acid)' }} />
                     )}
                   </Button>
                 </div>

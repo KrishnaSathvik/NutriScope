@@ -80,6 +80,21 @@ export default function AchievementsPage() {
     }
   }, [isLoading])
 
+  // Effect to update localStorage when achievements change
+  useEffect(() => {
+    if (achievements.length > 0 && user) {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          data: achievements,
+          date: today,
+          timestamp: Date.now(),
+        }))
+      } catch (e) {
+        // localStorage might be full, ignore
+      }
+    }
+  }, [achievements, user, today, cacheKey])
+
   const achievementsByType = {
     streak: achievements.filter(a => a.type === 'streak'),
     goal: achievements.filter(a => a.type === 'goal'),
@@ -169,21 +184,6 @@ export default function AchievementsPage() {
     await queryClient.invalidateQueries({ queryKey: ['achievementsWithProgress'] })
     await queryClient.invalidateQueries({ queryKey: ['achievements'] }) // Also invalidate getUserAchievements cache
   }
-  
-  // Effect to update localStorage when achievements change
-  useEffect(() => {
-    if (achievements.length > 0 && user) {
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify({
-          data: achievements,
-          date: today,
-          timestamp: Date.now(),
-        }))
-      } catch (e) {
-        // localStorage might be full, ignore
-      }
-    }
-  }, [achievements, user, today, cacheKey])
 
   return (
     <PullToRefresh onRefresh={handleRefresh} disabled={!user}>

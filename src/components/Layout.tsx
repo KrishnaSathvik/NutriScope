@@ -3,7 +3,6 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Home, UtensilsCrossed, Dumbbell, MessageSquare, Calendar, BarChart3, User, MoreHorizontal, ChefHat, CalendarDays, ShoppingCart, Trophy } from 'lucide-react'
 import Logo from './Logo'
-import { ThemeSwitcher } from './ThemeSwitcher'
 
 export default function Layout() {
   const location = useLocation()
@@ -83,9 +82,6 @@ export default function Layout() {
             </nav>
             
             <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-              {/* Theme Switcher */}
-              <ThemeSwitcher />
-              
               {isGuest && (
                 <span className="flex items-center justify-center h-8 px-2 sm:px-3 text-xs text-dim font-mono uppercase tracking-wider border border-border bg-panel whitespace-nowrap rounded-sm" style={{ minHeight: '2rem' }}>
                   Guest Mode

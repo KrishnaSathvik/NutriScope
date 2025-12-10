@@ -1,7 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import Logo from './Logo'
-import { ThemeSwitcher } from './ThemeSwitcher'
 
 interface HeaderProps {
   user?: any
@@ -137,9 +136,6 @@ export function Header({ user: propUser }: HeaderProps) {
 
           {/* Actions - Right side */}
           <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 flex-shrink-0">
-            {/* Theme Switcher - Show for all users */}
-            <ThemeSwitcher />
-            
             {user || isGuest ? (
               <>
                 {/* On landing page, footer pages, and auth page, show Dashboard link */}

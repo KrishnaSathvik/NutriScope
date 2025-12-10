@@ -124,8 +124,8 @@ export default function LandingPage() {
                     className="btn-primary gap-2 group"
                   >
                     <span>Get Started</span>
-                    <div className="relative flex items-center justify-center w-5 h-5 bg-acid/20 rounded-full group-hover:bg-acid/30 transition-all">
-                      <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                    <div className="relative flex items-center justify-center w-5 h-5 bg-acid/20 dark:bg-acid/30 rounded-full group-hover:bg-acid/30 dark:group-hover:bg-acid/40 transition-all">
+                      <ArrowRight className="w-3.5 h-3.5 text-current transition-transform group-hover:translate-x-0.5" style={{ color: 'var(--color-on-acid)' }} />
                     </div>
                   </Link>
                 </div>

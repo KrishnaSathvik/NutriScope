@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { ThemeSwitcher } from './ThemeSwitcher'
 
 export function Footer() {
   return (
@@ -118,6 +119,9 @@ export function Footer() {
                 <span className="inline-flex h-1.5 w-1.5 rounded-full bg-success flex-shrink-0 animate-pulse"></span>
                 <span>All systems normal</span>
               </div>
+            </div>
+            <div className="flex items-center">
+              <ThemeSwitcher />
             </div>
           </div>
         </div>
