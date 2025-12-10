@@ -35,9 +35,16 @@ export function StreakWidget() {
       
       // Phase 2: Try to get from DB first
       const dbStreak = await getUserStreak(user.id)
-      if (dbStreak && dbStreak.lastLoggedDate === today) {
-        // DB has today's data, use it
-        return dbStreak
+      if (dbStreak && dbStreak.lastLoggedDate) {
+        const lastLogged = new Date(dbStreak.lastLoggedDate)
+        const todayDate = new Date(today)
+        const yesterdayDate = new Date(today)
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1)
+        const daysDiff = Math.floor((todayDate.getTime() - lastLogged.getTime()) / (1000 * 60 * 60 * 24))
+        // Use DB streak if it's from today or yesterday (streak might still be active)
+        if (daysDiff <= 1 && dbStreak.currentStreak > 0) {
+          return dbStreak
+        }
       }
       
       // Calculate fresh streak (will also save to DB)
@@ -46,9 +53,9 @@ export function StreakWidget() {
     },
     enabled: !!user, // Only run if user exists (including guest users)
     refetchOnWindowFocus: false,
-    refetchOnMount: false, // Don't refetch on mount if data exists for today
-    refetchOnReconnect: false, // Don't refetch on reconnect
-    staleTime: Infinity, // Data is fresh until date changes (handled by query key)
+    refetchOnMount: true, // Refetch on mount to ensure fresh data
+    refetchOnReconnect: true, // Refetch on reconnect
+    staleTime: 1000 * 60 * 5, // Consider data stale after 5 minutes
     // Note: invalidateQueries will still trigger refetch even with staleTime: Infinity
     retry: 1,
     gcTime: 24 * 60 * 60 * 1000, // Keep in cache for 24 hours

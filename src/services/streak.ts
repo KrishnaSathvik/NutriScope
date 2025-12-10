@@ -1,9 +1,7 @@
-import { getMeals } from '@/services/meals'
-import { getExercises } from '@/services/workouts'
 import { getWaterIntake } from '@/services/water'
 import { format, subDays } from 'date-fns'
 import { supabase } from '@/lib/supabase'
-import { getUserStreak, updateUserStreak } from './streaks'
+import { updateUserStreak } from './streaks'
 
 export interface StreakData {
   currentStreak: number
@@ -60,7 +58,7 @@ export async function calculateLoggingStreak(): Promise<StreakData> {
   const today = new Date()
   let currentStreak = 0
   let longestStreak = 0
-  let tempStreak = 0
+  let consecutiveDays = 0
   let lastLoggedDate: string | null = null
   let foundToday = false
 
@@ -89,59 +87,42 @@ export async function calculateLoggingStreak(): Promise<StreakData> {
         lastLoggedDate = dateStr
       }
       
-      tempStreak++
-      
-      // If we found today, this is part of current streak
-      if (foundToday && i === tempStreak - 1) {
-        currentStreak = tempStreak
-      }
+      consecutiveDays++
       
       // Update longest streak
-      if (tempStreak > longestStreak) {
-        longestStreak = tempStreak
+      if (consecutiveDays > longestStreak) {
+        longestStreak = consecutiveDays
       }
+      
+      // Current streak is the consecutive days we've found
+      currentStreak = consecutiveDays
     } else {
-      // If we found today and hit a gap, streak is broken
-      if (foundToday && i > 0) {
-        // We've already counted consecutive days, so break
+      // Hit a gap (day not logged)
+      if (foundToday) {
+        // Today is logged, so we've found the complete current streak
+        // The gap breaks the streak
         break
+      } else {
+        // Today isn't logged
+        if (consecutiveDays > 0) {
+          // We have consecutive days from yesterday backwards
+          // This is the active streak (user hasn't logged today yet, but streak is still active)
+          break
+        }
+        // No consecutive days found yet, continue checking backwards
+        // Don't reset consecutiveDays here - we want to keep checking for consecutive days
       }
-      // Reset temp streak for longest streak calculation
-      tempStreak = 0
     }
   }
 
-  // If today hasn't been logged yet, check if yesterday was logged
-  // If yesterday was logged, streak is still active (just not logged today)
-  if (!foundToday && currentStreak > 0) {
-    const yesterday = format(subDays(today, 1), 'yyyy-MM-dd')
-    const hasMeal = await checkHasMeal(user.id, yesterday)
-    const hasWorkout = await checkHasWorkout(user.id, yesterday)
-    const hasWater = await checkHasWater(user.id, yesterday)
-    
-    if (hasMeal || hasWorkout || hasWater) {
-      // Streak is still active, just not logged today yet
-      const result = {
-        currentStreak,
-        longestStreak,
-        lastLoggedDate,
-        isActive: true,
-      }
-      
-      // Phase 2: Save to DB
-      updateUserStreak(user.id, result).catch(err => {
-        console.warn('Failed to save streak to DB:', err)
-      })
-      
-      return result
-    }
-  }
+  // If we found consecutive days but today isn't logged, streak is still active
+  const isActive = foundToday || (consecutiveDays > 0 && !foundToday)
 
   const result = {
-    currentStreak: foundToday ? currentStreak : 0,
+    currentStreak: currentStreak,
     longestStreak,
     lastLoggedDate,
-    isActive: foundToday,
+    isActive,
   }
   
   // Phase 2: Save to DB

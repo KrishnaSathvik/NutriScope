@@ -11,22 +11,96 @@ export async function generateQuickTip(
   profile: UserProfile | null,
   tipIndex: number = 0 // 0, 1, or 2 for rotating tips
 ): Promise<string> {
-  // In production, use backend proxy (if available) or show appropriate message
+  // Use backend proxy if available (production) or direct OpenAI (development)
   const useBackendProxy = import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
   const isProduction = import.meta.env.PROD
   
-  if (!openai && !useBackendProxy) {
+  // In production, use backend proxy
+  if (isProduction && useBackendProxy) {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/chat'
+      
+      const userName = profile?.name || 'you'
+      const goalDescription = profile?.goal === 'lose_weight' ? 'losing weight' 
+        : profile?.goal === 'gain_muscle' ? 'gaining muscle'
+        : profile?.goal === 'maintain' ? 'maintaining your weight'
+        : profile?.goal === 'improve_fitness' ? 'improving fitness'
+        : 'your goals'
+      
+      const hour = new Date().getHours()
+      const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+
+      const tipThemes = [
+        'motivation and encouragement',
+        'mindset and perseverance',
+        'celebrating small wins and progress',
+      ]
+
+      const prompt = `You are a motivational fitness and wellness coach for ${userName}. Generate an INSPIRATIONAL, MOTIVATIONAL message (1-2 sentences max) that encourages and uplifts them. This is tip #${tipIndex + 1} of 3 for today.
+
+**Context:**
+- User's name: ${userName}
+- Their goal: ${goalDescription}
+- Time of day: ${timeOfDay}
+- Theme focus: ${tipThemes[tipIndex % tipThemes.length]}
+
+**Guidelines:**
+1. Keep it SHORT (1-2 sentences maximum)
+2. Be INSPIRATIONAL and MOTIVATIONAL - focus on mindset, encouragement, and positivity
+3. DO NOT mention specific nutrition numbers, calories, protein, meals, or workouts
+4. DO NOT give actionable nutrition advice
+5. Focus on motivation, mindset, perseverance, self-belief, or celebrating progress
+6. Use ${userName}'s name naturally
+7. Make it feel personal and encouraging
+8. Vary the message style based on tipIndex (${tipIndex})
+
+Generate an inspirational, motivational message now:`
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'system',
+              content: `You are a motivational fitness and wellness coach. You provide brief, inspirational messages (1-2 sentences max) that encourage and uplift users. Focus on mindset, motivation, and positivity. Do NOT mention specific nutrition data, calories, macros, meals, or workouts.`,
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          profile: profile ? {
+            name: profile.name,
+            goal: profile.goal,
+            activity_level: profile.activity_level,
+            dietary_preference: profile.dietary_preference,
+          } : undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `API returned ${response.status}`)
+      }
+
+      const data = await response.json()
+      // Extract message from response (could be in data.message or data.action.message)
+      const message = data.message || data.action?.message || 'Unable to generate tip at this time.'
+      return message
+    } catch (error) {
+      console.error('Error generating quick tip via backend proxy:', error)
+      return 'Unable to generate tip. Please try again later.'
+    }
+  }
+  
+  // Development: use direct OpenAI if available
+  if (!openai) {
     if (isProduction) {
       return 'AI tips are temporarily unavailable. Please try again later.'
     }
-    return 'AI tips are not available. Please configure your OpenAI API key in development or set up backend proxy for production.'
-  }
-  
-  if (isProduction && !openai) {
-    return 'AI tips are temporarily unavailable. Please try again later.'
-  }
-  
-  if (!openai) {
     return 'AI tips are not available. Please configure your OpenAI API key.'
   }
 
