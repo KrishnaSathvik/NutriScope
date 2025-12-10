@@ -49,7 +49,7 @@ export default function SummaryPage() {
       if (!dailyLog || !dataSignature || !user?.id) return null
       
       // Phase 3: Try to get from DB first (with signature validation)
-      const { getAICacheWithSignature, saveAICache } = await import('@/services/aiCache')
+      const { getAICacheWithSignature, saveAICache, deleteAICache } = await import('@/services/aiCache')
       const cachedInsight = await getAICacheWithSignature(
         user.id,
         'daily_insight',
@@ -57,20 +57,33 @@ export default function SummaryPage() {
         dataSignature
       )
       
-      if (cachedInsight) {
+      // Don't use cached error messages - regenerate if cached insight is an error
+      const errorMessages = [
+        'AI insights are temporarily unavailable',
+        'Unable to generate insights',
+        'AI insights are not available',
+      ]
+      const isError = cachedInsight && errorMessages.some(msg => cachedInsight.includes(msg))
+      
+      if (cachedInsight && !isError) {
         return cachedInsight
+      }
+      
+      // If cached insight is an error, delete it and regenerate
+      if (isError) {
+        await deleteAICache(user.id, 'daily_insight', dateStr)
       }
       
       // Generate new insight
       const insight = await generateDailyInsights(dailyLog, profile, user.id)
       
-      // Phase 3: Save to DB with signature
-      if (insight) {
+      // Phase 3: Save to DB with signature (but don't save error messages)
+      if (insight && !errorMessages.some(msg => insight.includes(msg))) {
         await saveAICache(
           user.id,
           'daily_insight',
           dateStr,
-            insight,
+          insight,
           undefined, // No tip_index for daily insights
           dataSignature
         )
