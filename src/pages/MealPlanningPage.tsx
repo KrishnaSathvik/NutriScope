@@ -6,7 +6,6 @@ import { getRecipes } from '@/services/recipes'
 import { createMeal } from '@/services/meals'
 import { PlannedMeal, MealType } from '@/types'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import PullToRefresh from '@/components/PullToRefresh'
 import { format, startOfWeek, addDays, parseISO } from 'date-fns'
 import { Plus, X, Calendar, ChefHat, UtensilsCrossed, ArrowLeft, ArrowRight } from 'lucide-react'
 import { Recipe } from '@/types'
@@ -129,7 +128,6 @@ export default function MealPlanningPage() {
   }
 
   return (
-    <PullToRefresh onRefresh={handleRefresh} disabled={!user}>
       <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
         {/* Header */}
         <div className="border-b border-border pb-4 md:pb-6">
@@ -458,7 +456,6 @@ export default function MealPlanningPage() {
           </DialogContent>
         </Dialog>
       </div>
-    </PullToRefresh>
   )
 }
 

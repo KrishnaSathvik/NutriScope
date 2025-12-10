@@ -1,6 +1,6 @@
 // Service Worker for NutriScope PWA
-const CACHE_NAME = 'nutriscope-v4'
-const RUNTIME_CACHE = 'nutriscope-runtime-v4'
+const CACHE_NAME = 'nutriscope-v5'
+const RUNTIME_CACHE = 'nutriscope-runtime-v5'
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
@@ -38,7 +38,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim()
 })
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - network-first for HTML, cache-first for assets
 self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (event.request.method !== 'GET') {
@@ -50,12 +50,55 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // Network-first strategy for HTML documents (ensures fresh content)
+  if (event.request.destination === 'document' || event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // Cache successful responses
+          if (response && response.status === 200 && response.type === 'basic') {
+            const responseToCache = response.clone()
+            caches.open(RUNTIME_CACHE).then((cache) => {
+              cache.put(event.request, responseToCache)
+            })
+          }
+          return response
+        })
+        .catch(() => {
+          // Fallback to cache if network fails
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse
+            }
+            // Fallback to index.html for navigation requests
+            return caches.match('/index.html')
+          })
+        })
+    )
+    return
+  }
+
+  // Cache-first strategy for static assets (JS, CSS, images, etc.)
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
+        // Return cached version, but also update cache in background
+        fetch(event.request)
+          .then((response) => {
+            if (response && response.status === 200 && response.type === 'basic') {
+              const responseToCache = response.clone()
+              caches.open(RUNTIME_CACHE).then((cache) => {
+                cache.put(event.request, responseToCache)
+              })
+            }
+          })
+          .catch(() => {
+            // Ignore fetch errors for background updates
+          })
         return cachedResponse
       }
 
+      // Not in cache, fetch from network
       return fetch(event.request)
         .then((response) => {
           // Don't cache non-successful responses
@@ -73,7 +116,7 @@ self.addEventListener('fetch', (event) => {
           return response
         })
         .catch(() => {
-          // Return offline page if available
+          // Return offline page if available for navigation requests
           if (event.request.destination === 'document') {
             return caches.match('/index.html')
           }

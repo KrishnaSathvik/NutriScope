@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState, useEffect, useMemo } from 'react'
 import { format } from 'date-fns'
 import { calculateLoggingStreak } from '@/services/streak'
+import { getUserStreak } from '@/services/streaks'
 import { Zap, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import type { StreakData } from '@/services/streak'
@@ -12,42 +13,35 @@ export function StreakWidget() {
   
   // Get today's date string for cache invalidation
   const today = format(new Date(), 'yyyy-MM-dd')
-  const cacheKey = `streak_${user?.id}_${today}`
 
-  // Load cached streak data from localStorage if available (useMemo to compute once)
+  // Phase 2: Load cached streak data from DB if available
   const cachedStreakData = useMemo<StreakData | undefined>(() => {
     if (!user?.id) return undefined
-    try {
-      const cached = localStorage.getItem(cacheKey)
-      if (cached) {
-        const parsed = JSON.parse(cached)
-        // Check if cache is from today
-        if (parsed.date === today && parsed.data) {
-          return parsed.data
-        }
-      }
-    } catch (e) {
-      // Invalid cache, ignore
-    }
-    return undefined
-  }, [user?.id, cacheKey, today])
+    // Try to get from DB synchronously (will be async, but useQuery handles it)
+    return undefined // Will be loaded via useQuery
+  }, [user?.id])
   
   const { data: streakData, isLoading, error } = useQuery({
     queryKey: ['streak', user?.id, today], // Include date in query key so it refetches on new day
     queryFn: async () => {
-      const result = await calculateLoggingStreak()
-      // Cache in localStorage
-      if (user?.id && result) {
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify({
-            data: result,
-            date: today,
-            timestamp: Date.now(),
-          }))
-        } catch (e) {
-          // localStorage might be full, ignore
+      if (!user?.id) {
+        return {
+          currentStreak: 0,
+          longestStreak: 0,
+          lastLoggedDate: null,
+          isActive: false,
         }
       }
+      
+      // Phase 2: Try to get from DB first
+      const dbStreak = await getUserStreak(user.id)
+      if (dbStreak && dbStreak.lastLoggedDate === today) {
+        // DB has today's data, use it
+        return dbStreak
+      }
+      
+      // Calculate fresh streak (will also save to DB)
+      const result = await calculateLoggingStreak()
       return result
     },
     enabled: !!user, // Only run if user exists (including guest users)
@@ -58,26 +52,9 @@ export function StreakWidget() {
     // Note: invalidateQueries will still trigger refetch even with staleTime: Infinity
     retry: 1,
     gcTime: 24 * 60 * 60 * 1000, // Keep in cache for 24 hours
-    // Use cached data from localStorage immediately - this prevents loading state
-    ...(cachedStreakData ? { initialData: cachedStreakData } : {}),
     // Use cached data immediately if available to avoid loading state
     placeholderData: (previousData) => previousData || cachedStreakData,
   })
-  
-  // Update localStorage when streakData changes (after refetch)
-  useEffect(() => {
-    if (streakData && user?.id) {
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify({
-          data: streakData,
-          date: today,
-          timestamp: Date.now(),
-        }))
-      } catch (e) {
-        // localStorage might be full, ignore
-      }
-    }
-  }, [streakData, user?.id, cacheKey, today])
   
   // Show fallback after 3 seconds if still loading
   useEffect(() => {
@@ -93,7 +70,7 @@ export function StreakWidget() {
   
   // Default state component
   const DefaultState = () => (
-    <div className="card-modern border-amber-500/30 dark:border-acid/30 p-3 md:p-4">
+    <div className="card-modern p-3 md:p-4">
       <div className="flex items-center gap-2 mb-2">
         <div className="w-8 h-8 rounded-sm bg-amber-500/20 dark:bg-amber-500/20 border border-amber-500/30 dark:border-amber-500/30 flex items-center justify-center">
           <Zap className="w-4 h-4 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500" />
@@ -139,7 +116,7 @@ export function StreakWidget() {
   
   if (isLoading && hasNoData) {
     return (
-      <div className="card-modern border-amber-500/30 dark:border-acid/30 p-3 md:p-4">
+      <div className="card-modern p-3 md:p-4">
         <div className="flex items-center gap-2 mb-2">
           <div className="w-8 h-8 rounded-sm bg-acid/20 border border-acid/30 flex items-center justify-center animate-pulse">
             <Zap className="w-4 h-4 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500" />
@@ -155,7 +132,7 @@ export function StreakWidget() {
 
   if (!displayData || displayData.currentStreak === 0) {
     return (
-      <div className="card-modern border-amber-500/30 dark:border-acid/30 p-3 md:p-4">
+      <div className="card-modern p-3 md:p-4">
         <div className="flex items-center gap-2 mb-2">
           <div className="w-8 h-8 rounded-sm bg-acid/20 border border-acid/30 flex items-center justify-center">
             <Zap className="w-4 h-4 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500" />
@@ -176,7 +153,7 @@ export function StreakWidget() {
   const finalData = displayData!
   
   return (
-    <div className="card-modern border-amber-500/30 dark:border-acid/30 p-3 md:p-4">
+    <div className="card-modern p-3 md:p-4">
       <div className="flex items-center gap-2 mb-2">
         <div className={`w-8 h-8 rounded-sm border flex items-center justify-center ${
           finalData.isActive 
@@ -212,4 +189,5 @@ export function StreakWidget() {
     </div>
   )
 }
+
 

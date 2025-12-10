@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, subDays, subMonths, differenceInDays } from 'date-fns'
 import { getDailyLog } from '@/services/dailyLogs'
 import { useAuth } from '@/contexts/AuthContext'
-import PullToRefresh from '@/components/PullToRefresh'
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, LineChart, AreaChart, Area, ComposedChart, Legend, ScatterChart, Scatter, Cell } from 'recharts'
 import { Flame, Target, Activity, Droplet, TrendingUp, TrendingDown, Minus, Cookie, Calendar, BarChart3, Scale, TrendingUp as TrendingUpIcon, Lightbulb, Beef } from 'lucide-react'
 import { StatCardSkeleton, ChartSkeleton } from '@/components/LoadingSkeleton'
@@ -65,6 +64,9 @@ export default function AnalyticsPage() {
 
   const dateRange = getDateRange()
   const isYearView = timeRange === '1y'
+  
+  // Create stable date range string for query key
+  const dateRangeString = dateRange.map((d) => format(d, 'yyyy-MM-dd')).join(',')
 
   type AnalyticsDataPoint = {
     date: string
@@ -82,7 +84,7 @@ export default function AnalyticsPage() {
 
   // Optimize: Batch load logs in chunks for large date ranges
   const { data: dailyLogs, isLoading } = useQuery<AnalyticsDataPoint[]>({
-    queryKey: ['analytics', timeRange, customStart, customEnd, dateRange.map((d) => format(d, 'yyyy-MM-dd'))],
+    queryKey: ['analytics', timeRange, customStart, customEnd, dateRangeString],
     queryFn: async (): Promise<AnalyticsDataPoint[]> => {
       // For large date ranges, load in batches to avoid overwhelming the API
       const batchSize = timeRange === '1y' ? 30 : timeRange === '3m' ? 30 : 50
@@ -167,7 +169,12 @@ export default function AnalyticsPage() {
       }))
     },
     enabled: Boolean(dateRange.length > 0 && (timeRange !== 'custom' || (customStart && customEnd))),
-    initialData: [] as AnalyticsDataPoint[],
+    staleTime: 1000 * 60 * 5, // Consider data stale after 5 minutes
+    gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
+    refetchOnMount: true, // Refetch when component mounts to ensure fresh data
+    refetchOnWindowFocus: false, // Don't refetch on window focus (too expensive)
+    refetchOnReconnect: true, // Refetch on reconnect
+    retry: 1,
   })
 
   // Calculate statistics
@@ -213,7 +220,6 @@ export default function AnalyticsPage() {
   })
 
   return (
-    <PullToRefresh onRefresh={handleRefresh} disabled={!user}>
       <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
       <div className="border-b border-border pb-4 md:pb-6">
         <div>
@@ -370,7 +376,7 @@ export default function AnalyticsPage() {
 
             <div className="card-modern border-success/30 p-3 md:p-4">
               <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2">
-                <Beef className="w-3.5 h-3.5 md:w-4 md:h-4 text-success fill-success/80 dark:text-success dark:fill-success/80 stroke-success stroke-1 flex-shrink-0" />
+                <Beef className="w-3.5 h-3.5 md:w-4 md:h-4 text-success fill-success dark:text-success dark:fill-success flex-shrink-0" />
                 <span className="text-[10px] md:text-xs text-dim font-mono uppercase truncate">Avg Protein</span>
               </div>
               <div className="text-xl md:text-2xl font-bold text-success font-mono mb-1">{stats.avgProtein}g</div>
@@ -433,7 +439,7 @@ export default function AnalyticsPage() {
                 Target: {calorieTarget} cal
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={280} className="md:h-[350px]">
+            <ResponsiveContainer width="100%" height={240} className="md:h-[350px]">
               <ComposedChart data={logsArray}>
                 <defs>
                   <linearGradient id="caloriesGradient" x1="0" y1="0" x2="0" y2="1">
@@ -505,7 +511,7 @@ export default function AnalyticsPage() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-4 mb-4 md:mb-6">
               <div className="flex items-center gap-2 md:gap-3">
                 <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-success/20 flex items-center justify-center border border-success/30 flex-shrink-0">
-                  <Beef className="w-4 h-4 md:w-5 md:h-5 text-success fill-success/80 dark:text-success dark:fill-success/80 stroke-success stroke-1" />
+                  <Beef className="w-4 h-4 md:w-5 md:h-5 text-success fill-success dark:text-success dark:fill-success" />
                 </div>
                 <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
                   Protein Intake {timeRange === '7d' ? '(Last 7 Days)' : timeRange === '30d' ? '(Last 30 Days)' : timeRange === '3m' ? '(Last 3 Months)' : timeRange === '1y' ? '(Last Year)' : '(Custom Range)'}
@@ -515,7 +521,7 @@ export default function AnalyticsPage() {
                 Target: {proteinTarget}g
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={280} className="md:h-[350px]">
+            <ResponsiveContainer width="100%" height={240} className="md:h-[350px]">
               <AreaChart data={logsArray}>
                 <defs>
                   <linearGradient id="proteinGradient" x1="0" y1="0" x2="0" y2="1">
@@ -573,7 +579,7 @@ export default function AnalyticsPage() {
               </div>
               <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Macronutrients Breakdown</h2>
             </div>
-            <ResponsiveContainer width="100%" height={250} className="md:h-[300px]">
+            <ResponsiveContainer width="100%" height={220} className="md:h-[300px]">
               <AreaChart data={logsArray}>
                 <defs>
                   <linearGradient id="proteinGradient" x1="0" y1="0" x2="0" y2="1">
@@ -656,7 +662,7 @@ export default function AnalyticsPage() {
                 </div>
                 <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Water Intake</h2>
               </div>
-              <ResponsiveContainer width="100%" height={200} className="md:h-[250px]">
+              <ResponsiveContainer width="100%" height={180} className="md:h-[250px]">
                 <LineChart data={logsArray}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#222" />
                   <XAxis 
@@ -700,7 +706,7 @@ export default function AnalyticsPage() {
                 </div>
                 <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Workouts</h2>
               </div>
-              <ResponsiveContainer width="100%" height={200} className="md:h-[250px]">
+              <ResponsiveContainer width="100%" height={180} className="md:h-[250px]">
                 <LineChart data={logsArray}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#222" />
                   <XAxis 
@@ -924,6 +930,5 @@ export default function AnalyticsPage() {
         </div>
       )}
       </div>
-    </PullToRefresh>
   )
 }

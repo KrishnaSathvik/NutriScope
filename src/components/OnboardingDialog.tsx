@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -17,8 +17,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase, isUsingDummyClient } from "@/lib/supabase"
 import { useAuth } from "@/contexts/AuthContext"
 import type { UserGoal, DietaryPreference, ActivityLevel } from "@/types"
-import { Progress } from "@/components/ui/progress"
-import { ArrowRight, User, TrendingDown, Dumbbell, Activity, Heart, UtensilsCrossed, Leaf, Fish, Apple, Footprints, Coffee, Briefcase, Zap, Droplet, Lightbulb, Sparkles } from "lucide-react"
+import { ArrowRight, User, TrendingDown, Dumbbell, Activity, Heart, UtensilsCrossed, Leaf, Fish, Apple, Footprints, Coffee, Briefcase, Zap, Droplet, Lightbulb, Sparkles, CheckCircle2 } from "lucide-react"
 
 const onboardingSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -192,7 +191,7 @@ export function OnboardingDialog({
   }, [step, weight, height, age, goal, activityLevel, dietaryPreference, name, setValue])
 
   // Calculate personalized explanation for step 3
-  const personalizedExplanation = (() => {
+  const personalizedExplanation = useMemo(() => {
     if (step === 3 && weight && height && age && goal && activityLevel) {
       const isMale = name ? estimateGenderFromName(name) ?? true : true
       const targets = calculatePersonalizedTargets({
@@ -207,7 +206,7 @@ export function OnboardingDialog({
       return targets.explanation
     }
     return ""
-  })()
+  }, [step, weight, height, age, goal, activityLevel, dietaryPreference, name])
 
   const goalIcons = {
     lose_weight: TrendingDown,
@@ -234,17 +233,30 @@ export function OnboardingDialog({
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent 
-        className="sm:max-w-3xl max-h-[90vh] overflow-y-auto scrollbar-hide card-modern" 
+        className="sm:max-w-2xl max-h-[90vh] border-none bg-transparent shadow-none p-0" 
         onInteractOutside={(e) => e.preventDefault()}
         hideClose={true}
       >
-        <div className="relative">
-          <DialogHeader className="mb-6">
-            <div className="inline-flex text-xs text-acid font-mono bg-surface border border-border rounded-full px-3 py-1 gap-2 items-center mb-4">
-              <span className="inline-flex h-1.5 w-1.5 rounded-full bg-acid"></span>
+        <div
+          className="
+            bg-surface text-text
+            rounded-2xl border border-border/70 
+            shadow-xl shadow-black/10
+            p-5 sm:p-6 md:p-8
+            max-h-[90vh] overflow-y-auto scrollbar-hide
+          "
+        >
+          <div className="relative">
+            <DialogHeader className="mb-6">
+              <div className="inline-flex text-[11px] font-bold font-mono bg-accent-soft/50 border border-accent/40 rounded-full px-3 py-1.5 gap-2 items-center mb-4" style={{ color: '#0D9488' }}>
+              <div className="flex items-center gap-1">
+                <span className="inline-flex h-2 w-2 rounded-full bg-orange-500 shadow-sm"></span>
+                <span className="inline-flex h-2 w-2 rounded-full bg-purple-500 shadow-sm"></span>
+                <span className="inline-flex h-2 w-2 rounded-full bg-blue-500 shadow-sm"></span>
+              </div>
               Personalization Setup
             </div>
-            <DialogTitle className="text-3xl sm:text-4xl tracking-tight text-text font-mono flex items-center gap-2">
+            <DialogTitle className="text-3xl sm:text-4xl tracking-tight text-text font-mono">
               Welcome to NutriScope!
             </DialogTitle>
             <DialogDescription className="text-base text-dim mt-2">
@@ -254,28 +266,51 @@ export function OnboardingDialog({
 
           {/* Progress Bar */}
           <div className="space-y-3 mb-8">
-            <div className="flex justify-between items-center text-sm text-dim font-mono">
-              <span className="font-medium">Step {step} of {totalSteps}</span>
-              <span className="text-xs">{Math.round(progress)}% Complete</span>
+            <div className="flex justify-between items-center text-sm font-bold font-mono">
+              <span className="text-text font-semibold">Step {step} of {totalSteps}</span>
+              <span className="text-acid font-bold text-base" style={{ color: '#0D9488' }}>{Math.round(progress)}% Complete</span>
             </div>
-            <Progress value={progress} className="h-2" />
+            <div className="relative w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden shadow-inner">
+              <div
+                className="absolute top-0 left-0 h-full transition-all duration-500 ease-out rounded-full shadow-sm"
+                style={{ 
+                  width: `${progress}%`,
+                  background: 'linear-gradient(90deg, #0D9488 0%, #14B8A6 100%)'
+                }}
+              />
+            </div>
             
             {/* Step indicators */}
             <div className="flex justify-between mt-4">
               {[1, 2, 3].map((stepNum) => (
                 <div key={stepNum} className="flex flex-col items-center flex-1">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-mono text-sm font-medium transition-all ${
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center font-mono text-base font-bold transition-all ${
                     stepNum < step 
-                      ? "bg-acid text-void" 
+                      ? "text-white shadow-lg scale-105" 
                       : stepNum === step 
-                      ? "bg-acid text-void ring-4 ring-acid/20" 
-                      : "bg-panel text-dim border border-border"
-                  }`}>
-                    {stepNum < step ? "✓" : stepNum}
+                      ? "text-white ring-4 shadow-xl scale-110" 
+                      : "bg-panel text-dim border border-border/80"
+                  }`}
+                  style={stepNum <= step ? {
+                    background: stepNum < step 
+                      ? 'linear-gradient(135deg, #0D9488 0%, #14B8A6 100%)'
+                      : 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)',
+                    boxShadow: stepNum === step 
+                      ? '0 0 0 4px rgba(20, 184, 166, 0.3), 0 4px 12px rgba(20, 184, 166, 0.4)'
+                      : '0 4px 12px rgba(20, 184, 166, 0.3)'
+                  } : {}}
+                  >
+                    {stepNum < step ? (
+                      <CheckCircle2 className="w-7 h-7 text-white stroke-[3]" />
+                    ) : (
+                      <span className="text-lg">{stepNum}</span>
+                    )}
                   </div>
-                  <span className={`text-xs mt-2 font-mono ${
-                    stepNum <= step ? "text-text font-medium" : "text-dim"
-                  }`}>
+                  <span className={`text-xs mt-2 font-mono font-bold ${
+                    stepNum <= step ? "font-bold" : "text-gray-400 dark:text-gray-500"
+                  }`}
+                  style={stepNum <= step ? { color: '#0D9488' } : {}}
+                  >
                     {stepNum === 1 ? "Basic Info" : stepNum === 2 ? "Goals" : "Targets"}
                   </span>
                 </div>
@@ -283,7 +318,7 @@ export function OnboardingDialog({
             </div>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
             {step === 1 && (
               <div className="space-y-6">
                 <div>
@@ -296,7 +331,7 @@ export function OnboardingDialog({
                       id="name"
                       {...register("name")}
                       placeholder="Enter your name"
-                      className="pl-12"
+                      className="pl-12 bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
                     />
                   </div>
                   {errors.name && (
@@ -316,6 +351,7 @@ export function OnboardingDialog({
                       type="number"
                       {...register("age", { valueAsNumber: true })}
                       placeholder="25"
+                      className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
                     />
                   </div>
                   <div>
@@ -328,6 +364,7 @@ export function OnboardingDialog({
                       step="0.1"
                       {...register("weight", { valueAsNumber: true })}
                       placeholder="70"
+                      className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
                     />
                   </div>
                   <div>
@@ -339,6 +376,7 @@ export function OnboardingDialog({
                       type="number"
                       {...register("height", { valueAsNumber: true })}
                       placeholder="175"
+                      className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
                     />
                   </div>
                 </div>
@@ -364,10 +402,10 @@ export function OnboardingDialog({
                   </Label>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { value: "lose_weight", label: "Lose Weight", icon: TrendingDown, color: "emerald" },
-                      { value: "gain_muscle", label: "Gain Muscle", icon: Dumbbell, color: "orange" },
-                      { value: "maintain", label: "Maintain Weight", icon: Heart, color: "pink" },
-                      { value: "improve_fitness", label: "Improve Fitness", icon: Activity, color: "blue" },
+                      { value: "lose_weight", label: "Lose Weight", icon: TrendingDown, color: "#10B981", bgColor: "rgba(16, 185, 129, 0.15)" }, // emerald-500
+                      { value: "gain_muscle", label: "Gain Muscle", icon: Dumbbell, color: "#F59E0B", bgColor: "rgba(245, 158, 11, 0.15)" }, // amber-500
+                      { value: "maintain", label: "Maintain Weight", icon: Heart, color: "#EC4899", bgColor: "rgba(236, 72, 153, 0.15)" }, // pink-500
+                      { value: "improve_fitness", label: "Improve Fitness", icon: Activity, color: "#3B82F6", bgColor: "rgba(59, 130, 246, 0.15)" }, // blue-500
                     ].map((option) => {
                       const Icon = goalIcons[option.value as UserGoal]
                       const isSelected = goal === option.value
@@ -378,19 +416,24 @@ export function OnboardingDialog({
                           onClick={() => setValue("goal", option.value as UserGoal)}
                           className={`relative rounded-sm p-4 border-2 transition-all font-mono text-left ${
                             isSelected
-                              ? "border-acid bg-acid/10 ring-2 ring-acid/20"
+                              ? "ring-2"
                               : "border-border bg-surface hover:border-dim"
                           }`}
+                          style={isSelected ? { 
+                            borderColor: option.color,
+                            backgroundColor: option.bgColor,
+                            boxShadow: `0 0 0 2px ${option.color}33`
+                          } : {}}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="flex w-10 h-10 rounded-sm items-center justify-center bg-acid/20">
-                              <Icon className="w-5 h-5 text-acid" />
+                            <div className="flex w-10 h-10 rounded-sm items-center justify-center" style={{ backgroundColor: isSelected ? option.bgColor : `${option.color}1A` }}>
+                              <Icon className="w-5 h-5" style={{ color: option.color }} />
                             </div>
                             <span className="font-medium text-text">{option.label}</span>
                           </div>
                           {isSelected && (
-                            <div className="absolute top-2 right-2 w-5 h-5 bg-acid rounded-full flex items-center justify-center">
-                              <span className="text-void text-xs">✓</span>
+                            <div className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: '#0D9488' }}>
+                              <CheckCircle2 className="w-4 h-4 text-white stroke-[2.5]" />
                             </div>
                           )}
                         </button>
@@ -419,17 +462,21 @@ export function OnboardingDialog({
                           onClick={() => setValue("dietary_preference", option.value as DietaryPreference)}
                           className={`relative rounded-sm p-3 border-2 transition-all font-mono text-center ${
                             isSelected
-                              ? "border-acid bg-acid/10 ring-2 ring-acid/20"
+                              ? "bg-acid/10 ring-2"
                               : "border-border bg-surface hover:border-dim"
                           }`}
+                          style={isSelected ? { 
+                            borderColor: '#0D9488',
+                            boxShadow: '0 0 0 2px rgba(13, 148, 136, 0.2)'
+                          } : {}}
                         >
-                          <Icon className={`w-5 h-5 mx-auto mb-1 ${isSelected ? "text-acid" : "text-dim"}`} />
-                          <span className={`text-xs block ${isSelected ? "text-text font-medium" : "text-dim"}`}>
+                          <Icon className="w-5 h-5 mx-auto mb-1" style={{ color: isSelected ? '#0D9488' : '#6B7280' }} />
+                          <span className={`text-xs block font-medium`} style={{ color: isSelected ? '#111827' : '#6B7280' }}>
                             {option.label}
                           </span>
                           {isSelected && (
-                            <div className="absolute top-1 right-1 w-4 h-4 bg-acid rounded-full flex items-center justify-center">
-                              <span className="text-void text-[10px]">✓</span>
+                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ backgroundColor: '#0D9488' }}>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-white stroke-[2.5]" />
                             </div>
                           )}
                         </button>
@@ -459,17 +506,21 @@ export function OnboardingDialog({
                           onClick={() => setValue("activity_level", option.value as ActivityLevel)}
                           className={`relative rounded-sm p-3 border-2 transition-all font-mono text-center ${
                             isSelected
-                              ? "border-acid bg-acid/10 ring-2 ring-acid/20"
+                              ? "bg-acid/10 ring-2"
                               : "border-border bg-surface hover:border-dim"
                           }`}
+                          style={isSelected ? { 
+                            borderColor: '#0D9488',
+                            boxShadow: '0 0 0 2px rgba(13, 148, 136, 0.2)'
+                          } : {}}
                         >
-                          <Icon className={`w-5 h-5 mx-auto mb-1 ${isSelected ? "text-acid" : "text-dim"}`} />
-                          <span className={`text-xs block ${isSelected ? "text-text font-medium" : "text-dim"}`}>
+                          <Icon className="w-5 h-5 mx-auto mb-1" style={{ color: isSelected ? '#0D9488' : '#6B7280' }} />
+                          <span className={`text-xs block font-medium`} style={{ color: isSelected ? '#111827' : '#6B7280' }}>
                             {option.label}
                           </span>
                           {isSelected && (
-                            <div className="absolute top-1 right-1 w-4 h-4 bg-acid rounded-full flex items-center justify-center">
-                              <span className="text-void text-[10px]">✓</span>
+                            <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ backgroundColor: '#0D9488' }}>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-white stroke-[2.5]" />
                             </div>
                           )}
                         </button>
@@ -530,11 +581,11 @@ export function OnboardingDialog({
               <div className="space-y-4 md:space-y-6">
                 {/* Personalized Explanation */}
                 {personalizedExplanation && (
-                  <div className="bg-acid/10 border border-acid/30 rounded-sm p-3 md:p-4 animate-slide-up">
+                  <div className="bg-accent-soft border border-accent/50 rounded-md p-3 md:p-4 animate-slide-up">
                     <div className="flex items-start gap-2 md:gap-3">
-                      <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-acid flex-shrink-0 mt-0.5" />
+                      <Sparkles className="w-4 h-4 md:w-5 md:h-5 text-accent flex-shrink-0 mt-0.5" style={{ color: '#0D9488' }} />
                       <div className="flex-1">
-                        <p className="text-xs md:text-sm font-bold text-acid font-mono mb-2">✨ Personalized for You</p>
+                        <p className="text-xs md:text-sm font-bold font-mono mb-2" style={{ color: '#0D9488' }}>✨ Personalized for You</p>
                         <p className="text-xs md:text-sm font-mono text-text whitespace-pre-line leading-relaxed">
                           {personalizedExplanation}
                         </p>
@@ -555,6 +606,7 @@ export function OnboardingDialog({
                     type="number"
                     {...register("target_protein", { valueAsNumber: true })}
                     placeholder="e.g., 150"
+                    className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
                   />
                 </div>
 
@@ -567,6 +619,7 @@ export function OnboardingDialog({
                     type="number"
                     {...register("target_calories", { valueAsNumber: true })}
                     placeholder="e.g., 2000"
+                    className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
                   />
                 </div>
 
@@ -579,6 +632,7 @@ export function OnboardingDialog({
                     type="number"
                     {...register("water_goal", { valueAsNumber: true })}
                     placeholder="e.g., 2000"
+                    className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
                   />
                 </div>
 
@@ -594,17 +648,18 @@ export function OnboardingDialog({
                   <Button 
                     type="submit" 
                     disabled={isSubmitting} 
-                    className="group flex-1 inline-flex items-center gap-3"
+                    className="group flex-1 inline-flex items-center gap-3 whitespace-nowrap"
                   >
-                    <span>{isSubmitting ? "Creating..." : "Complete Setup"}</span>
+                    <span className="whitespace-nowrap">{isSubmitting ? "Creating..." : "Complete Setup"}</span>
                     {!isSubmitting && (
-                      <ArrowRight className="w-4 h-4 text-current transition-transform duration-300 group-hover:translate-x-0.5" style={{ color: 'var(--color-on-acid)' }} />
+                      <ArrowRight className="w-4 h-4 text-current transition-transform duration-300 group-hover:translate-x-0.5 flex-shrink-0" style={{ color: 'var(--color-on-acid)' }} />
                     )}
                   </Button>
                 </div>
               </div>
             )}
-          </form>
+            </form>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

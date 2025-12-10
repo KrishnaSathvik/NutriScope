@@ -8,7 +8,8 @@ import { handleSupabaseError } from '@/lib/errors'
 export async function saveConversation(
   userId: string,
   messages: ChatMessage[],
-  conversationId?: string
+  conversationId?: string,
+  summary?: string
 ): Promise<string> {
   if (isUsingDummyClient) {
     return conversationId || Date.now().toString()
@@ -17,12 +18,17 @@ export async function saveConversation(
   try {
     if (conversationId) {
       // Update existing conversation
+      const updateData: any = {
+        messages,
+        updated_at: new Date().toISOString(),
+      }
+      if (summary) {
+        updateData.summary = summary
+      }
+      
       const { error } = await supabase
         .from('chat_conversations')
-        .update({
-          messages,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', conversationId)
         .eq('user_id', userId)
 
@@ -33,12 +39,17 @@ export async function saveConversation(
       return conversationId
     } else {
       // Create new conversation
+      const insertData: any = {
+        user_id: userId,
+        messages,
+      }
+      if (summary) {
+        insertData.summary = summary
+      }
+      
       const { data, error } = await supabase
         .from('chat_conversations')
-        .insert({
-          user_id: userId,
-          messages,
-        })
+        .insert(insertData)
         .select()
         .single()
 

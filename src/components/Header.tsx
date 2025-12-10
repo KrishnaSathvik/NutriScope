@@ -13,7 +13,7 @@ export function Header({ user: propUser }: HeaderProps) {
   // Use prop user if provided, otherwise use auth context user
   const user = propUser || authUser
 
-  const isLandingPage = location.pathname === '/'
+  const isLandingPage = location.pathname === '/' || location.pathname === '/landing'
   const isAuthPage = location.pathname === '/auth'
   
   // Footer pages where we only show Dashboard button (no Create Account/Sign Out)
@@ -140,44 +140,62 @@ export function Header({ user: propUser }: HeaderProps) {
               <>
                 {/* On landing page, footer pages, and auth page, show Dashboard link */}
                 {isLandingPage || isFooterPage || isAuthPage ? (
-                  <Link
-                    to="/dashboard"
-                    className="btn-primary text-[10px] sm:text-xs md:text-sm px-3 sm:px-4 md:px-5 py-1.5 sm:py-2 md:py-2.5 whitespace-nowrap"
-                  >
-                    <span className="hidden sm:inline">Dashboard</span>
-                    <span className="sm:hidden">Dashboard</span>
-                  </Link>
+                  <>
+                    <Link
+                      to="/dashboard"
+                      className="btn-primary h-8 px-3 sm:px-4 text-[10px] sm:text-xs font-mono uppercase tracking-wider whitespace-nowrap"
+                      style={{ minHeight: '2rem' }}
+                    >
+                      <span className="hidden sm:inline">Dashboard</span>
+                      <span className="sm:hidden">Dashboard</span>
+                    </Link>
+                    {isGuest && isLandingPage && (
+                      <Link
+                        to="/auth"
+                        className="btn-primary h-8 px-3 sm:px-4 text-[10px] sm:text-xs font-mono uppercase tracking-wider whitespace-nowrap"
+                        style={{ minHeight: '2rem' }}
+                      >
+                        <span className="hidden sm:inline">Create Account</span>
+                        <span className="sm:hidden">Create Account</span>
+                      </Link>
+                    )}
+                  </>
                 ) : (
                   <>
                     {/* Mobile Dashboard Link - Show next to Sign Out on other pages */}
                     <Link
                       to="/dashboard"
-                      className="md:hidden text-[10px] font-mono uppercase tracking-wider text-dim hover:text-text transition-colors px-2.5 py-1.5 whitespace-nowrap rounded-sm hover:bg-panel/50"
+                      className="md:hidden h-8 px-3 text-[10px] font-mono uppercase tracking-wider text-dim hover:text-text transition-colors whitespace-nowrap rounded-sm hover:bg-panel/50 flex items-center justify-center"
+                      style={{ minHeight: '2rem' }}
                     >
                       Dashboard
                     </Link>
                     
                     {isGuest && !isAuthPage && (
                       <>
-                        <span className="hidden sm:inline text-[10px] sm:text-xs font-mono uppercase tracking-wider text-dim border border-border px-3 py-1.5 rounded-sm whitespace-nowrap">
-                          Guest Mode
-                        </span>
+                        {!isLandingPage && (
+                          <span className="hidden sm:inline h-8 px-3 sm:px-4 text-[10px] sm:text-xs font-mono uppercase tracking-wider text-dim border border-border bg-panel rounded-sm whitespace-nowrap flex items-center justify-center leading-none" style={{ minHeight: '2rem' }}>
+                            Guest Mode
+                          </span>
+                        )}
                         <Link
                           to="/auth"
-                          className="btn-primary text-[10px] sm:text-xs md:text-sm px-3 sm:px-4 md:px-5 py-1.5 sm:py-2 md:py-2.5 whitespace-nowrap"
+                          className="btn-primary h-8 px-3 sm:px-4 text-[10px] sm:text-xs font-mono uppercase tracking-wider whitespace-nowrap"
+                          style={{ minHeight: '2rem' }}
                         >
                           <span className="hidden sm:inline">Create Account</span>
-                          <span className="sm:hidden">Create</span>
+                          <span className="sm:hidden">Create Account</span>
                         </Link>
                       </>
                     )}
                     {!isAuthPage && (
                       <button
                         onClick={handleSignOut}
-                        className="btn-secondary text-[10px] sm:text-xs md:text-sm px-3 sm:px-4 md:px-5 py-1.5 sm:py-2 md:py-2.5 whitespace-nowrap"
+                        className="btn-secondary h-8 px-3 sm:px-4 text-[10px] sm:text-xs font-mono uppercase tracking-wider whitespace-nowrap"
+                        style={{ minHeight: '2rem' }}
                       >
                         <span className="hidden sm:inline">Sign Out</span>
-                        <span className="sm:hidden">Out</span>
+                        <span className="sm:hidden">Sign Out</span>
                       </button>
                     )}
                   </>

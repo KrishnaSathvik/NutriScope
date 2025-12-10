@@ -43,22 +43,28 @@ NutriScope is a full-featured health and fitness tracking platform that combines
 ### 📊 **Dashboard & Daily Overview**
 - **Real-time Progress:**
   - Daily calorie balance (consumed/burned/net)
-  - Protein intake tracking
+  - Protein intake tracking with progress bars
   - Water intake progress with goal tracking
   - Quick weight entry widget
   - Streak counter (consecutive logging days)
   - Achievement widget
+  - **Coach Tip Card:** AI-generated personalized insights and recommendations
 
-- **Quick Actions:**
+- **Water Tracking:**
   - Quick water intake buttons (250ml, 500ml, 750ml, 1000ml)
   - Custom water amount entry
-  - Weight entry from dashboard
+  - Progress visualization with goal tracking
+
+- **Quick Entry:**
+  - Weight entry widget from dashboard
   - Navigate to detailed pages via header navigation
 
 - **Summary Cards:**
   - Calorie balance breakdown
+  - Protein intake tracking with progress
   - Macro distribution
   - Activity summary
+  - **Coach Tip Card:** AI-generated personalized insights and recommendations
 
 ### 🔔 **Smart Reminder System**
 - **Meal Reminders:**
@@ -177,6 +183,12 @@ NutriScope is a full-featured health and fitness tracking platform that combines
   - Total workouts and calories burned
   - Average protein intake
   - Water intake averages
+  - Trend indicators (up/down arrows)
+
+- **Data Persistence:**
+  - Cache configuration for data persistence
+  - Real-time data updates
+  - Automatic refetching when returning to page
 
 ### 🏆 **Achievements System**
 - **Achievement Types:**
@@ -203,13 +215,14 @@ NutriScope is a full-featured health and fitness tracking platform that combines
   - Favorite recipes
 
 - **Recipe Features:**
-  - **Manual Nutrition Entry:** Enter nutrition values directly
+  - **Manual Nutrition Entry:** Enter nutrition values directly per serving
   - **Recipe Browser:** Browse all your recipes
   - **Save as Meal Template:** Convert recipes to reusable meal templates
   - **Quick Add:** Add recipes directly to meal plans
   - **Edit & Delete:** Full recipe management
   - **Recipe Detail View:** Full-screen responsive dialog with all recipe information
   - **Favorite Recipes:** Star recipes for quick access
+  - **Nutrition Per Serving:** Display nutrition values per serving (not scaling)
 
 ### 📅 **Meal Planning**
 - **Weekly Calendar View:**
@@ -353,14 +366,25 @@ NutriScope is a full-featured health and fitness tracking platform that combines
     - Chat conversations
     - Meal templates
 
-- **Onboarding:**
-  - Multi-step profile setup
-  - Goal selection (lose weight, gain muscle, maintain, improve fitness)
-  - Activity level configuration
-  - Dietary preferences
-  - Calorie and protein targets
-  - Water goal setting
-  - Height, age, weight collection
+- **Onboarding Dialog (Personalization Setup):**
+  - **3-step wizard:** Basic Info → Goals → Targets
+  - **Step 1:** Name, Age, Weight, Height (all optional except name)
+  - **Step 2:** Goal selection (4 options with colored icons: lose weight, gain muscle, maintain, improve fitness)
+  - **Step 2:** Dietary preference selection (vegetarian, non-vegetarian, vegan, flexitarian)
+  - **Step 2:** Activity level selection (sedentary, light, moderate, active, very active)
+  - **Step 3:** Personalized target calculations based on user profile
+  - **Step 3:** Personalized explanation display for calculated targets
+  - **Step 3:** Editable target fields (calories, protein, water)
+  - Progress bar with step indicators
+  - Real-time validation
+  - Prevents closing during setup
+
+- **Password Strength Meter (Auth Page):**
+  - Real-time password strength assessment
+  - Visual strength bar (Weak/Fair/Good/Strong)
+  - Criteria checklist (8+ chars, uppercase, lowercase, number, special char)
+  - Security tips
+  - Prevents signup with weak passwords
 
 - **Profile Management:**
   - Edit personal information

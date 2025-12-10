@@ -42,75 +42,43 @@ export default function SummaryPage() {
     })
   }, [dailyLog])
 
-  // Clean up old localStorage cache entries when signature changes
-  useEffect(() => {
-    if (!dataSignature || !dateStr) return
-    
-    // Remove old cache entries for this date that don't match current signature
-    const currentCacheKey = `aiInsight_${dateStr}_${btoa(dataSignature).slice(0, 20)}`
-    const keysToRemove: string[] = []
-    
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key && key.startsWith(`aiInsight_${dateStr}_`) && key !== currentCacheKey) {
-        keysToRemove.push(key)
-      }
-    }
-    
-    keysToRemove.forEach(key => localStorage.removeItem(key))
-  }, [dataSignature, dateStr])
-
-  // Create a cache key for localStorage
-  const cacheKey = useMemo(() => {
-    if (!dateStr || !dataSignature) return null
-    return `aiInsight_${dateStr}_${btoa(dataSignature).slice(0, 20)}`
-  }, [dateStr, dataSignature])
-
-  // Use React Query to cache insights based on data signature with localStorage persistence
+  // Use React Query to cache insights based on data signature with DB persistence
   const { data: aiInsight, isLoading: loadingInsight } = useQuery({
     queryKey: ['aiInsights', dateStr, dataSignature],
     queryFn: async () => {
-      if (!dailyLog || !dataSignature) return null
+      if (!dailyLog || !dataSignature || !user?.id) return null
       
-      // Check localStorage first - but only if signature matches
-      if (cacheKey) {
-        const cached = localStorage.getItem(cacheKey)
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached)
-            // Verify the cached data signature matches exactly
-            if (parsed.signature === dataSignature) {
-              return parsed.insight
-            } else {
-              // Signature mismatch - remove stale cache
-              localStorage.removeItem(cacheKey)
-            }
-          } catch (e) {
-            // Invalid cache, remove it and continue to generate new
-            localStorage.removeItem(cacheKey)
-          }
-        }
+      // Phase 3: Try to get from DB first (with signature validation)
+      const { getAICacheWithSignature, saveAICache } = await import('@/services/aiCache')
+      const cachedInsight = await getAICacheWithSignature(
+        user.id,
+        'daily_insight',
+        dateStr,
+        dataSignature
+      )
+      
+      if (cachedInsight) {
+        return cachedInsight
       }
       
       // Generate new insight
       const insight = await generateDailyInsights(dailyLog, profile)
       
-      // Cache in localStorage
-      if (cacheKey && insight) {
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify({
+      // Phase 3: Save to DB with signature
+      if (insight) {
+        await saveAICache(
+          user.id,
+          'daily_insight',
+          dateStr,
             insight,
-            signature: dataSignature,
-            timestamp: Date.now(),
-          }))
-        } catch (e) {
-          // localStorage might be full, ignore
-        }
+          undefined, // No tip_index for daily insights
+          dataSignature
+        )
       }
       
       return insight
     },
-    enabled: !!dailyLog && !!dataSignature && !!cacheKey,
+    enabled: !!dailyLog && !!dataSignature && !!user?.id,
     staleTime: 0, // Always refetch when queryKey changes (signature changes)
     gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
     refetchOnMount: true, // Refetch when component mounts

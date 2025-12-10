@@ -443,6 +443,80 @@ export default function DocumentationPage() {
             </div>
           </section>
 
+          {/* Onboarding Guide */}
+          <section className="border-t border-border bg-surface/30 relative">
+            <div className="max-w-7xl mx-auto pt-16 sm:pt-24 px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24">
+              <div className="text-center mb-12">
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-text mb-4 font-sans">
+                  Onboarding & Account Setup
+                </h2>
+                <p className="text-base sm:text-lg text-dim font-mono max-w-2xl mx-auto">
+                  Complete your profile setup with our guided 3-step onboarding process.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {[
+                  {
+                    step: 'Step 1: Basic Info',
+                    items: [
+                      'Enter your name (required)',
+                      'Enter your age (optional)',
+                      'Enter your weight in kg (optional)',
+                      'Enter your height in cm (optional)',
+                      'Click Continue to proceed',
+                    ],
+                    color: 'acid',
+                  },
+                  {
+                    step: 'Step 2: Goals & Preferences',
+                    items: [
+                      'Select your fitness goal (lose weight, gain muscle, maintain, improve fitness)',
+                      'Choose dietary preference (vegetarian, non-vegetarian, vegan, flexitarian)',
+                      'Select activity level (sedentary, light, moderate, active, very active)',
+                      'Click Continue to proceed',
+                    ],
+                    color: 'success',
+                  },
+                  {
+                    step: 'Step 3: Personalized Targets',
+                    items: [
+                      'Review personalized calorie target (calculated based on your profile)',
+                      'Review personalized protein target',
+                      'Review personalized water goal',
+                      'Read personalized explanation for calculated targets',
+                      'Edit targets if needed',
+                      'Click Complete Setup to finish',
+                    ],
+                    color: 'warning',
+                  },
+                ].map((section, i) => (
+                  <div key={i} className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300">
+                    <div className={`flex w-12 h-12 rounded-sm items-center justify-center mb-4 ${
+                      section.color === 'acid' ? 'bg-indigo-500/20 border border-indigo-500/30' :
+                      section.color === 'success' ? 'bg-emerald-500/20 border border-emerald-500/30' :
+                      'bg-amber-500/20 border border-amber-500/30'
+                    }`}>
+                      <span className={`text-2xl font-bold font-mono ${
+                        section.color === 'acid' ? 'text-indigo-500 dark:text-indigo-400' :
+                        section.color === 'success' ? 'text-emerald-500 dark:text-emerald-400' :
+                        'text-amber-500 dark:text-amber-400'
+                      }`}>{i + 1}</span>
+                    </div>
+                    <h3 className="text-xl font-bold tracking-tight text-text mb-4 font-mono uppercase">{section.step}</h3>
+                    <ul className="space-y-2">
+                      {section.items.map((item, j) => (
+                        <li key={j} className="flex items-start gap-2">
+                          <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0 text-emerald-500 fill-emerald-500 dark:text-emerald-400 dark:fill-emerald-400 stroke-emerald-500 dark:stroke-emerald-400 stroke-2" />
+                          <span className="text-xs text-dim font-mono leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
           {/* Additional Features */}
           <section className="border-t border-border bg-surface/30 relative">
             <div className="max-w-7xl mx-auto pt-16 sm:pt-24 px-4 sm:px-6 lg:px-8 pb-16 sm:pb-24">

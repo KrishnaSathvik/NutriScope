@@ -110,6 +110,7 @@ function AppRoutes() {
       <Suspense fallback={<PageLoadingFallback />}>
         <Routes>
           <Route path="/" element={<RootRoute />} />
+          <Route path="/landing" element={<LandingPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/product" element={<ProductPage />} />
           <Route path="/documentation" element={<DocumentationPage />} />

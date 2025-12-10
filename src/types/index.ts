@@ -134,6 +134,11 @@ export interface ReminderSettings {
   }
 }
 
+export interface UserPreferences {
+  notificationDialogDismissed?: boolean
+  theme?: 'light' | 'dark' | 'system'
+}
+
 export interface UserProfile {
   id: string
   user_id?: string
@@ -153,6 +158,7 @@ export interface UserProfile {
   restrictions?: string[]
   reminder_enabled?: boolean
   reminder_settings?: ReminderSettings
+  preferences?: UserPreferences // Phase 1: User preferences
   created_at: string
   updated_at: string
 }
@@ -173,6 +179,7 @@ export interface ChatConversation {
   user_id: string
   title?: string
   messages: ChatMessage[]
+  summary?: string // AI-generated summary of conversation for long histories
   created_at: string
   updated_at: string
 }

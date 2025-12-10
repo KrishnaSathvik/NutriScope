@@ -5,7 +5,6 @@ import { getExercises, createExercise, updateExercise, deleteExercise } from '@/
 import { useAuth } from '@/contexts/AuthContext'
 import { ExerciseSelector } from '@/components/ExerciseSelector'
 import { ExerciseLibraryItem } from '@/services/exerciseLibrary'
-import PullToRefresh from '@/components/PullToRefresh'
 import { Plus, Trash2, X, Activity, Flame, Clock, Dumbbell, Heart, Zap, Target, TrendingUp, Search, Edit, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Exercise } from '@/types'
@@ -239,7 +238,6 @@ export default function WorkoutsPage() {
   }
 
   return (
-    <PullToRefresh onRefresh={handleRefresh} disabled={!user}>
       <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
       <div className="border-b border-border pb-4 md:pb-6">
         <div>
@@ -667,6 +665,5 @@ export default function WorkoutsPage() {
         </div>
       )}
       </div>
-    </PullToRefresh>
   )
 }

@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
-import { getGroceryLists, getOrCreateDefaultList, updateGroceryList, toggleGroceryItem, generateGroceryListFromMealPlan, categorizeGroceryItem } from '@/services/groceryLists'
+import { getGroceryLists, getOrCreateDefaultList, updateGroceryList, toggleGroceryItem, categorizeGroceryItem } from '@/services/groceryLists'
 import { searchGroceryItems, incrementSearchCount, addGroceryItem } from '@/services/groceryItemsDatabase'
-import { getCurrentWeekMealPlan } from '@/services/mealPlanning'
 import { GroceryList, GroceryItem } from '@/types'
-import PullToRefresh from '@/components/PullToRefresh'
-import { format, startOfWeek } from 'date-fns'
-import { X, ShoppingCart, CheckCircle2, Circle, Package, ChefHat, Search, Trash2, Loader2 } from 'lucide-react'
+import { format } from 'date-fns'
+import { X, ShoppingCart, CheckCircle2, Circle, Package, Search, Trash2, Loader2 } from 'lucide-react'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
 export default function GroceryListPage() {
@@ -55,11 +53,8 @@ export default function GroceryListPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
-
   // Set up realtime subscriptions
   useUserRealtimeSubscription('grocery_lists', ['groceryLists'], user?.id)
-  useUserRealtimeSubscription('meal_plans', ['mealPlan'], user?.id)
 
   const { data: groceryLists = [], isLoading } = useQuery({
     queryKey: ['groceryLists'],
@@ -73,13 +68,6 @@ export default function GroceryListPage() {
   
   // Get the default shopping list (first/only list)
   const defaultList = groceryLists.length > 0 ? groceryLists[0] : null
-
-  const { data: mealPlan } = useQuery({
-    queryKey: ['mealPlan', weekStart],
-    queryFn: getCurrentWeekMealPlan,
-    enabled: !!user,
-  })
-
 
   const updateMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<GroceryList> }) =>
@@ -110,17 +98,6 @@ export default function GroceryListPage() {
       queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
     },
   })
-
-  const generateFromPlanMutation = useMutation({
-    mutationFn: (weekStartDate: string) => generateGroceryListFromMealPlan(weekStartDate),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
-    },
-  })
-
-  const handleRefresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
-  }
 
   const handleAddItem = async (itemName?: string, category?: string) => {
     const itemToAdd = (itemName || searchQuery).trim()
@@ -231,7 +208,6 @@ export default function GroceryListPage() {
   }
 
   return (
-    <PullToRefresh onRefresh={handleRefresh} disabled={!user}>
       <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
         {/* Header */}
         <div className="border-b border-border pb-4 md:pb-6">
@@ -246,17 +222,6 @@ export default function GroceryListPage() {
               <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-text tracking-tighter mt-2 md:mt-4">
                 Grocery List
               </h1>
-              {mealPlan && (
-                <button
-                  onClick={() => generateFromPlanMutation.mutate(weekStart)}
-                  disabled={generateFromPlanMutation.isPending}
-                  className="btn-secondary text-xs md:text-sm px-3 md:px-4 py-2 gap-2"
-                  title="Generate grocery list from meal plan"
-                >
-                  <ChefHat className="w-3 h-3 md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">From Meal Plan</span>
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -346,13 +311,16 @@ export default function GroceryListPage() {
                             </button>
                           )}
                         </div>
+                        {/* Only show tip when there are items in the list */}
+                        {defaultList.items.length > 0 && (
                         <div className="text-[10px] text-dim/70 font-mono mt-1.5 px-1">
                           💡 Tip: Search for items or press Enter/Return to add
                         </div>
+                        )}
                         
                         {/* Suggestions Dropdown */}
                         {showSuggestions && debouncedQuery.length >= 2 && (
-                          <div className="absolute top-full left-0 right-0 mt-2 bg-surface border border-border rounded-sm shadow-lg z-50 max-h-64 overflow-y-auto scrollbar-hide">
+                          <div className="absolute top-full left-0 right-0 mt-2 bg-surface border border-border rounded-sm shadow-lg z-50 max-h-[50vh] overflow-y-auto scrollbar-hide">
                           {suggestions.length > 0 ? (
                             <div className="py-1">
                               {suggestions.map((suggestion, index) => (
@@ -463,7 +431,6 @@ export default function GroceryListPage() {
           </div>
         )}
       </div>
-    </PullToRefresh>
   )
 }
 

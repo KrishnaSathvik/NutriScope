@@ -3,6 +3,7 @@ import { User, Session } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { UserProfile } from '@/types'
 import { migrateGuestDataToNewUser } from '@/services/migrateGuestData'
+import { getUserPreferences, updateUserPreferences, migratePreferencesFromLocalStorage } from '@/services/preferences'
 import { logger } from '@/utils/logger'
 
 interface AuthContextType {
@@ -124,6 +125,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (data) {
         setProfile(data as UserProfile)
         setShowOnboarding(false)
+        
+        // Phase 1: Migrate preferences from localStorage to DB (one-time migration)
+        migratePreferencesFromLocalStorage(userId).catch(err => {
+          logger.warn('Failed to migrate preferences:', err)
+        })
+        
+        // Check notification dialog dismissal from DB preferences
+        const prefs = await getUserPreferences(userId)
+        if (prefs?.notificationDialogDismissed) {
+          // Already dismissed in DB, don't show
+        } else if (typeof window !== 'undefined' && 'Notification' in window) {
+          // Check localStorage as fallback (for backward compatibility during migration)
+          const localStorageDismissed = localStorage.getItem('notification_dialog_dismissed')
+          if (!localStorageDismissed) {
+            // Show notification dialog after a delay
+            setTimeout(() => {
+              setShowNotificationDialog(true)
+            }, 500)
+          }
+        }
       } else {
         // No profile found, show onboarding
         setShowOnboarding(true)
@@ -295,18 +316,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loadProfile(user.id)
     }
     // Show notification dialog after onboarding (if not already dismissed)
-    const notificationDialogDismissed = localStorage.getItem('notification_dialog_dismissed')
-    if (!notificationDialogDismissed && typeof window !== 'undefined' && 'Notification' in window) {
-      // Small delay to let onboarding dialog close smoothly
-      setTimeout(() => {
-        setShowNotificationDialog(true)
-      }, 500)
-    }
+    // Check will happen in loadProfile after preferences are loaded
   }
 
-  const dismissNotificationDialog = () => {
+  const dismissNotificationDialog = async () => {
     setShowNotificationDialog(false)
+    
+    // Phase 1: Save to DB instead of localStorage
+    if (user?.id) {
+      await updateUserPreferences(user.id, { notificationDialogDismissed: true })
+    }
+    
+    // Keep localStorage as fallback for backward compatibility
+    if (typeof window !== 'undefined') {
     localStorage.setItem('notification_dialog_dismissed', 'true')
+    }
   }
 
   const migrateGuestData = async (newUserId: string): Promise<{ success: boolean; errors: string[] }> => {

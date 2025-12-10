@@ -7,6 +7,7 @@ import { Achievement } from '@/types'
 import AchievementBadge from './AchievementBadge'
 import { Trophy, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
 export default function AchievementWidget() {
   const { user, profile } = useAuth()
@@ -16,6 +17,12 @@ export default function AchievementWidget() {
   
   // Get today's date string for cache invalidation
   const today = format(new Date(), 'yyyy-MM-dd')
+
+  // Subscribe to realtime changes that affect achievements
+  useUserRealtimeSubscription('achievements', ['achievements', 'achievementsWithProgress'], user?.id)
+  useUserRealtimeSubscription('meals', ['achievements', 'achievementsWithProgress'], user?.id)
+  useUserRealtimeSubscription('exercises', ['achievements', 'achievementsWithProgress'], user?.id)
+  useUserRealtimeSubscription('daily_logs', ['achievements', 'achievementsWithProgress'], user?.id)
 
   const { data: achievements = [], isLoading, error } = useQuery({
     queryKey: ['achievements', user?.id, today], // Include date in query key

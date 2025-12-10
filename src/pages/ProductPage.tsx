@@ -110,7 +110,7 @@ export default function ProductPage() {
                   {
                     icon: BookOpen,
                     title: 'Recipe Management',
-                    description: 'Create and manage recipes with simplified structure: name, servings, instructions, and nutrition. Save recipes as meal templates. Favorite recipes for quick access.',
+                    description: 'Create and manage recipes with simplified structure: name, servings, instructions, and nutrition per serving. Save recipes as meal templates. Favorite recipes for quick access.',
                     color: 'warning',
                   },
                   {

@@ -29,7 +29,11 @@ export default function HelpPage() {
         },
         {
           q: 'How do I set up my profile?',
-          a: "After creating your account, you'll be guided through an onboarding process where you can set your goals, dietary preferences, and activity level.",
+          a: "After creating your account, you'll be guided through a 3-step onboarding process: Step 1 (Basic Info) - Enter your name, age, weight, and height. Step 2 (Goals) - Select your fitness goal (lose weight, gain muscle, maintain, improve fitness), dietary preference, and activity level. Step 3 (Targets) - Review personalized calorie, protein, and water targets calculated based on your profile, with explanations. You can edit these targets before completing setup.",
+        },
+        {
+          q: 'What is the password strength meter?',
+          a: 'The password strength meter helps you create a secure password. It shows real-time strength assessment (Weak/Fair/Good/Strong), displays a visual strength bar, and checks criteria like 8+ characters, uppercase/lowercase letters, numbers, and special characters. It also provides security tips and prevents signup with weak passwords.',
         },
       ],
     },

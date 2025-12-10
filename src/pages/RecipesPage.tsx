@@ -6,7 +6,6 @@ import { createMealTemplate } from '@/services/mealTemplates'
 import { Recipe, RecipeIngredient, MealType } from '@/types'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Plus, Trash2, X, Edit, ChefHat, Clock, Users, Save, Star, StarOff, Flame, Beef, Eye } from 'lucide-react'
-import PullToRefresh from '@/components/PullToRefresh'
 import { format } from 'date-fns'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
@@ -130,7 +129,6 @@ export default function RecipesPage() {
   }
 
   return (
-    <PullToRefresh onRefresh={handleRefresh} disabled={!user}>
       <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
         {/* Header */}
         <div className="border-b border-border pb-4 md:pb-6">
@@ -793,7 +791,6 @@ export default function RecipesPage() {
         </DialogContent>
       </Dialog>
       </div>
-    </PullToRefresh>
   )
 }
 

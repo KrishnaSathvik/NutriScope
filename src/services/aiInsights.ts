@@ -1,110 +1,109 @@
 import { openai } from '@/lib/openai'
 import { DailyLog } from '@/types'
 import { UserProfile } from '@/types'
+import { buildPersonalizedContext } from '@/utils/aiContext'
 
 /**
- * Build comprehensive personalized context from user profile and daily log
+ * Generate inspirational/motivational coach tips for Dashboard (rotates 2-3 per day)
  */
-function buildPersonalizedContext(profile: UserProfile | null, dailyLog: DailyLog): string {
-  let context = ''
+export async function generateQuickTip(
+  dailyLog: DailyLog,
+  profile: UserProfile | null,
+  tipIndex: number = 0 // 0, 1, or 2 for rotating tips
+): Promise<string> {
+  // In production, use backend proxy (if available) or show appropriate message
+  const useBackendProxy = import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
+  const isProduction = import.meta.env.PROD
   
-  if (profile) {
-    // Personalized greeting with name if available
-    const userName = profile.name ? `${profile.name}` : 'you'
-    
-    // Personal details
-    if (profile.age || profile.weight || profile.height) {
-      context += `**About ${userName}:**\n`
-      if (profile.name) context += `- Name: ${profile.name}\n`
-      if (profile.age) context += `- Age: ${profile.age} years\n`
-      if (profile.weight) context += `- Weight: ${profile.weight}kg\n`
-      if (profile.height) context += `- Height: ${profile.height}cm\n`
-      context += `\n`
+  if (!openai && !useBackendProxy) {
+    if (isProduction) {
+      return 'AI tips are temporarily unavailable. Please try again later.'
     }
-    
-    // Goals and preferences with detailed descriptions
-    const goalDescriptions: Record<string, string> = {
-      lose_weight: 'losing weight',
-      gain_muscle: 'gaining muscle mass',
-      maintain: 'maintaining current weight',
-      improve_fitness: 'improving overall fitness',
-    }
-    
-    const activityDescriptions: Record<string, string> = {
-      sedentary: 'sedentary lifestyle (little to no exercise)',
-      light: 'light activity (1-3 days/week)',
-      moderate: 'moderate activity (3-5 days/week)',
-      active: 'active lifestyle (6-7 days/week)',
-      very_active: 'very active lifestyle (intense daily exercise)',
-    }
-    
-    const dietaryDescriptions: Record<string, string> = {
-      vegetarian: 'vegetarian diet',
-      vegan: 'vegan diet',
-      non_vegetarian: 'non-vegetarian diet',
-      flexitarian: 'flexitarian diet (mostly plant-based)',
-    }
-    
-    context += `**Goals & Preferences:**\n`
-    context += `- Primary Goal: ${goalDescriptions[profile.goal] || profile.goal}\n`
-    context += `- Activity Level: ${activityDescriptions[profile.activity_level] || profile.activity_level}\n`
-    context += `- Dietary Preference: ${dietaryDescriptions[profile.dietary_preference] || profile.dietary_preference}\n`
-    
-    if (profile.restrictions && profile.restrictions.length > 0) {
-      context += `- Dietary Restrictions: ${profile.restrictions.join(', ')}\n`
-    }
-    
-    context += `\n**Personalized Targets:**\n`
-    context += `- Calorie Target: ${profile.calorie_target || 2000} cal/day\n`
-    context += `- Protein Target: ${profile.protein_target || 150}g/day\n`
-    if ('target_carbs' in profile && profile.target_carbs) context += `- Carb Target: ${profile.target_carbs}g/day\n`
-    if ('target_fats' in profile && profile.target_fats) context += `- Fat Target: ${profile.target_fats}g/day\n`
-    context += `- Water Goal: ${profile.water_goal || 2000}ml/day\n`
-    context += `\n`
+    return 'AI tips are not available. Please configure your OpenAI API key in development or set up backend proxy for production.'
+  }
+  
+  if (isProduction && !openai) {
+    return 'AI tips are temporarily unavailable. Please try again later.'
+  }
+  
+  if (!openai) {
+    return 'AI tips are not available. Please configure your OpenAI API key.'
   }
 
-  // Today's progress with percentages
-  const calorieProgress = profile?.calorie_target 
-    ? ((dailyLog.calories_consumed / profile.calorie_target) * 100).toFixed(0) 
-    : '0'
-  const proteinProgress = profile?.protein_target 
-    ? ((dailyLog.protein / profile.protein_target) * 100).toFixed(0) 
-    : '0'
-  const waterProgress = profile?.water_goal 
-    ? ((dailyLog.water_intake / profile.water_goal) * 100).toFixed(0) 
-    : '0'
-  
-  context += `**Today's Progress:**\n`
-  context += `- Calories: ${dailyLog.calories_consumed} / ${profile?.calorie_target || 2000} cal (${calorieProgress}%)\n`
-  context += `- Protein: ${dailyLog.protein}g / ${profile?.protein_target || 150}g (${proteinProgress}%)\n`
-  context += `- Water: ${dailyLog.water_intake}ml / ${profile?.water_goal || 2000}ml (${waterProgress}%)\n`
-  context += `- Calories Burned: ${dailyLog.calories_burned} cal\n`
-  context += `- Net Calories: ${dailyLog.net_calories} cal\n`
-  context += `- Meals Logged: ${dailyLog.meals.length}\n`
-  context += `- Workouts Logged: ${dailyLog.exercises.length}\n`
-  
-  if (dailyLog.meals.length > 0) {
-    context += `\n**Meals Today:**\n`
-    dailyLog.meals.slice(0, 5).forEach((m, i) => {
-      context += `${i + 1}. ${m.meal_type || 'meal'}: ${m.calories} cal, ${m.protein}g protein`
-      if (m.name) context += ` (${m.name})`
-      context += `\n`
+  try {
+    const userName = profile?.name || 'you'
+    const goalDescription = profile?.goal === 'lose_weight' ? 'losing weight' 
+      : profile?.goal === 'gain_muscle' ? 'gaining muscle'
+      : profile?.goal === 'maintain' ? 'maintaining your weight'
+      : profile?.goal === 'improve_fitness' ? 'improving fitness'
+      : 'your goals'
+    
+    // Get time of day for context
+    const hour = new Date().getHours()
+    const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+
+    const tipThemes = [
+      'motivation and encouragement',
+      'mindset and perseverance',
+      'celebrating small wins and progress',
+    ]
+
+    const prompt = `You are a motivational fitness and wellness coach for ${userName}. Generate an INSPIRATIONAL, MOTIVATIONAL message (1-2 sentences max) that encourages and uplifts them. This is tip #${tipIndex + 1} of 3 for today.
+
+**Context:**
+- User's name: ${userName}
+- Their goal: ${goalDescription}
+- Time of day: ${timeOfDay}
+- Theme focus: ${tipThemes[tipIndex % tipThemes.length]}
+
+**Guidelines:**
+1. Keep it SHORT (1-2 sentences maximum)
+2. Be INSPIRATIONAL and MOTIVATIONAL - focus on mindset, encouragement, and positivity
+3. DO NOT mention specific nutrition numbers, calories, protein, meals, or workouts
+4. DO NOT give actionable nutrition advice
+5. Focus on motivation, mindset, perseverance, self-belief, or celebrating progress
+6. Use ${userName}'s name naturally
+7. Make it feel personal and encouraging
+8. Vary the message style based on tipIndex (${tipIndex})
+
+**Examples of good inspirational tips:**
+- "${userName}, every small step you take today brings you closer to your goals. Trust the process and believe in yourself."
+- "Progress isn't always linear, but your commitment to showing up every day is what truly matters. Keep going!"
+- "Remember why you started this journey. You're stronger than you think, and every day is a new opportunity to grow."
+
+**What NOT to do:**
+- Don't say: "You're at 45% of your protein target, add more protein"
+- Don't say: "You've logged 2 meals, log more meals"
+- Don't mention calories, macros, meals, workouts, or specific numbers
+
+Generate an inspirational, motivational message now:`
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a motivational fitness and wellness coach. You provide brief, inspirational messages (1-2 sentences max) that encourage and uplift users. Focus on mindset, motivation, and positivity. Do NOT mention specific nutrition data, calories, macros, meals, or workouts.`,
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      max_tokens: 100, // Shorter for quick tips
+      temperature: 0.9, // Higher temperature for more variety
     })
+
+    return completion.choices[0]?.message?.content || 'Unable to generate tip at this time.'
+  } catch (error) {
+    console.error('Error generating quick tip:', error)
+    return 'Unable to generate tip. Please try again later.'
   }
-  
-  if (dailyLog.exercises.length > 0) {
-    context += `\n**Workouts Today:**\n`
-    dailyLog.exercises.slice(0, 5).forEach((e, i) => {
-      const exerciseNames = e.exercises?.map(ex => ex.name).join(', ') || 'Exercise'
-      context += `${i + 1}. ${exerciseNames}: ${e.duration || 0} min`
-      if (e.calories_burned) context += `, ${e.calories_burned} cal burned`
-      context += `\n`
-    })
-  }
-  
-  return context
 }
 
+/**
+ * Generate comprehensive daily insights for SummaryPage (longer, detailed analysis)
+ */
 export async function generateDailyInsights(
   dailyLog: DailyLog,
   profile: UserProfile | null
@@ -131,8 +130,8 @@ export async function generateDailyInsights(
   }
 
   try {
-    // Build comprehensive personalized context
-    const personalizedContext = buildPersonalizedContext(profile, dailyLog)
+    // Build comprehensive personalized context using shared helper
+    const personalizedContext = buildPersonalizedContext(profile, dailyLog, { mode: 'insight' })
     
     const userName = profile?.name || 'you'
     const goalDescription = profile?.goal === 'lose_weight' ? 'losing weight' 
@@ -193,4 +192,3 @@ Provide your personalized insight now:`
     return 'Unable to generate insights. Please try again later.'
   }
 }
-

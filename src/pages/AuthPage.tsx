@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { migrateGuestDataToNewUser } from "@/services/migrateGuestData";
 import { ArrowRight, Sparkles, ShieldCheck, Zap, CheckCircle2 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
+import { PasswordStrengthMeter } from "@/components/PasswordStrengthMeter";
 
 export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -91,6 +92,25 @@ export default function Auth() {
 
     try {
       if (isSignUp) {
+        // Validate password strength
+        const metCriteria = [
+          password.length >= 8,
+          /[A-Z]/.test(password),
+          /[a-z]/.test(password),
+          /[0-9]/.test(password),
+          /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
+        ].filter(Boolean).length
+
+        if (metCriteria < 3) {
+          toast({
+            title: "Weak Password",
+            description: "Please use a stronger password. Include uppercase, lowercase, numbers, and special characters.",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+
         const { data: { user: currentUser } } = await supabase.auth.getUser();
         const isCurrentGuest = currentUser?.is_anonymous || 
                                !currentUser?.email;
@@ -249,7 +269,11 @@ export default function Auth() {
               {/* Left: Copy */}
               <div className="text-center lg:text-left">
                 <div className="inline-flex items-center gap-2 text-xs text-dim font-mono bg-surface/50 border border-border rounded-full px-3 py-1.5 backdrop-blur-md mb-6" style={{ animation: "fadeSlideIn 1s ease-out 0.1s both" }}>
-                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-acid"></span>
+                  <div className="flex items-center gap-1">
+                    <span className="inline-flex h-1.5 w-1.5 rounded-full bg-orange-500"></span>
+                    <span className="inline-flex h-1.5 w-1.5 rounded-full bg-purple-500"></span>
+                    <span className="inline-flex h-1.5 w-1.5 rounded-full bg-blue-500"></span>
+                  </div>
                   {isSignUp ? "Get Started" : "Welcome Back"}
                 </div>
                 
@@ -336,7 +360,7 @@ export default function Auth() {
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@example.com"
+                        placeholder="Enter email"
                         required
                         className="input-modern"
                       />
@@ -350,11 +374,12 @@ export default function Auth() {
                         type="password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        placeholder="••••••••"
+                        placeholder="Enter password"
                         required
-                        minLength={6}
+                        minLength={8}
                         className="input-modern"
                       />
+                      {isSignUp && <PasswordStrengthMeter password={password} />}
                     </div>
                     <button 
                       type="submit" 

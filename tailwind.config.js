@@ -21,6 +21,7 @@ export default {
         warning: '#ffaa00',
 
         // Theme-aware colors (driven by CSS variables)
+        bg: 'var(--color-void)',
         void: 'var(--color-void)',
         surface: 'var(--color-surface)',
         panel: 'var(--color-panel)',
@@ -30,8 +31,12 @@ export default {
         text: 'var(--color-text)',
 
         acid: 'var(--color-acid)',
+        'accent': 'var(--color-acid)',
+        'accent-soft': 'var(--color-acid-soft)',
         acidSoft: 'var(--color-acid-soft)',
         acidSofter: 'var(--color-acid-softer)',
+        'icon-soft': 'var(--color-icon-soft)',
+        water: 'var(--color-water)',
 
         success: 'var(--color-success)',
         error: 'var(--color-error)',

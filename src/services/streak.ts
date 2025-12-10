@@ -3,6 +3,7 @@ import { getExercises } from '@/services/workouts'
 import { getWaterIntake } from '@/services/water'
 import { format, subDays } from 'date-fns'
 import { supabase } from '@/lib/supabase'
+import { getUserStreak, updateUserStreak } from './streaks'
 
 export interface StreakData {
   currentStreak: number
@@ -120,21 +121,35 @@ export async function calculateLoggingStreak(): Promise<StreakData> {
     
     if (hasMeal || hasWorkout || hasWater) {
       // Streak is still active, just not logged today yet
-      return {
+      const result = {
         currentStreak,
         longestStreak,
         lastLoggedDate,
         isActive: true,
       }
+      
+      // Phase 2: Save to DB
+      updateUserStreak(user.id, result).catch(err => {
+        console.warn('Failed to save streak to DB:', err)
+      })
+      
+      return result
     }
   }
 
-  return {
+  const result = {
     currentStreak: foundToday ? currentStreak : 0,
     longestStreak,
     lastLoggedDate,
     isActive: foundToday,
   }
+  
+  // Phase 2: Save to DB
+  updateUserStreak(user.id, result).catch(err => {
+    console.warn('Failed to save streak to DB:', err)
+  })
+  
+  return result
 }
 
 async function checkHasMeal(userId: string, date: string): Promise<boolean> {

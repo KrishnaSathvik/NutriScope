@@ -6,8 +6,7 @@ import { UserProfile } from '@/types'
 import { ReminderSettingsSection } from '@/components/ReminderSettings'
 import { getLatestWeight } from '@/services/weightTracking'
 import AchievementWidget from '@/components/AchievementWidget'
-import { Edit, X, User, Target, Activity, UtensilsCrossed, Flame, Droplet, Mail, CheckCircle2, Scale, ArrowRight, Shield, UserCircle, Calendar, Weight, Beef } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Edit, X, User, Target, Activity, UtensilsCrossed, Flame, Droplet, Mail, CheckCircle2, Scale, UserCircle, Calendar, Weight, Beef } from 'lucide-react'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
 export default function ProfilePage() {
@@ -85,37 +84,6 @@ export default function ProfilePage() {
           <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-text tracking-tighter mt-2 md:mt-4">Profile</h1>
         </div>
       </div>
-
-      {/* Guest Account Creation Banner */}
-      {isGuest && (
-        <div className="card-modern border-acid/50 bg-acid/5 p-4 md:p-6">
-          <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-6">
-            <div className="flex items-start gap-3 md:gap-4 flex-1">
-              <div className="w-10 h-10 md:w-12 md:h-12 rounded-sm bg-acid/20 flex items-center justify-center border border-acid/30 flex-shrink-0">
-                <Shield className="w-5 h-5 md:w-6 md:h-6 text-acid" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm md:text-base font-bold text-text uppercase tracking-wider font-mono mb-1 md:mb-2">
-                  Create Your Account
-                </h3>
-                <p className="text-xs md:text-sm text-dim font-mono mb-2 md:mb-3 leading-relaxed">
-                  You're currently using NutriScope as a guest. Create a free account to secure your data and access it from any device.
-                </p>
-                <p className="text-[10px] md:text-xs text-acid/80 font-mono">
-                  <CheckCircle2 className="w-4 h-4 inline-block mr-1" /> All your current data will be automatically migrated
-                </p>
-              </div>
-            </div>
-            <Link
-              to="/auth"
-              className="btn-primary inline-flex items-center justify-center gap-2 text-sm md:text-base py-2.5 md:py-3 px-4 md:px-6 font-mono uppercase tracking-wider whitespace-nowrap"
-            >
-              <span>Create Account</span>
-              <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />
-            </Link>
-          </div>
-        </div>
-      )}
 
       <div className="card-modern border-acid/30 p-4 md:p-6">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 md:gap-4 mb-4 md:mb-6">

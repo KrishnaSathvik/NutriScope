@@ -4,7 +4,6 @@ import { format } from 'date-fns'
 import { useAuth } from '@/contexts/AuthContext'
 import { getAchievementsWithProgress } from '@/services/achievements'
 import AchievementBadge from '@/components/AchievementBadge'
-import PullToRefresh from '@/components/PullToRefresh'
 import { Trophy, Target, Award, Star } from 'lucide-react'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
@@ -20,6 +19,12 @@ export default function AchievementsPage() {
   // Subscribe to achievements table changes to catch newly unlocked achievements
   // Also invalidate 'achievements' query key since getAchievementsWithProgress calls getUserAchievements internally
   useUserRealtimeSubscription('achievements', ['achievementsWithProgress', 'achievements'], user?.id)
+  
+  // Subscribe to underlying data that triggers achievement calculations
+  // When meals, exercises, or daily_logs change, achievements need to be recalculated
+  useUserRealtimeSubscription('meals', ['achievementsWithProgress', 'achievements'], user?.id)
+  useUserRealtimeSubscription('exercises', ['achievementsWithProgress', 'achievements'], user?.id)
+  useUserRealtimeSubscription('daily_logs', ['achievementsWithProgress', 'achievements'], user?.id)
 
   // Load cached data from localStorage if available
   const getCachedAchievements = () => {
@@ -112,7 +117,6 @@ export default function AchievementsPage() {
   // If we have cached data, show it immediately even if fetching in background
   if (isLoading && hasNoData && !showFallback) {
     return (
-      <PullToRefresh onRefresh={async () => {}} disabled={!user}>
         <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-6">
           <div className="border-b border-border pb-4 md:pb-6">
             <div>
@@ -135,14 +139,12 @@ export default function AchievementsPage() {
             </div>
           </div>
         </div>
-      </PullToRefresh>
     )
   }
 
   // Show error or empty state if loading took too long
   if (isLoading && hasNoData && showFallback) {
     return (
-      <PullToRefresh onRefresh={async () => {}} disabled={!user}>
         <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-6">
           <div className="border-b border-border pb-4 md:pb-6">
             <div>
@@ -167,7 +169,6 @@ export default function AchievementsPage() {
             </p>
           </div>
         </div>
-      </PullToRefresh>
     )
   }
 
@@ -186,7 +187,6 @@ export default function AchievementsPage() {
   }
 
   return (
-    <PullToRefresh onRefresh={handleRefresh} disabled={!user}>
       <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-6">
         {/* Header */}
         <div className="border-b border-border pb-4 md:pb-6">
@@ -240,10 +240,10 @@ export default function AchievementsPage() {
                     Streak Achievements
                   </h2>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3">
                 {achievementsByType.streak.map((achievement) => (
+                  <div key={achievement.key} className="p-1.5 md:p-0">
                   <AchievementBadge
-                    key={achievement.key}
                     achievement={{
                       id: achievement.key,
                       user_id: user?.id || '',
@@ -258,6 +258,7 @@ export default function AchievementsPage() {
                     size="sm"
                     showProgress={!achievement.unlocked}
                   />
+                  </div>
                 ))}
                 </div>
               </div>
@@ -272,10 +273,10 @@ export default function AchievementsPage() {
                     Goal Achievements
                   </h2>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3">
                 {achievementsByType.goal.map((achievement) => (
+                  <div key={achievement.key} className="p-1.5 md:p-0">
                   <AchievementBadge
-                    key={achievement.key}
                     achievement={{
                       id: achievement.key,
                       user_id: user?.id || '',
@@ -290,6 +291,7 @@ export default function AchievementsPage() {
                     size="sm"
                     showProgress={!achievement.unlocked}
                   />
+                  </div>
                 ))}
                 </div>
               </div>
@@ -304,10 +306,10 @@ export default function AchievementsPage() {
                     Milestone Achievements
                   </h2>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3">
                 {achievementsByType.milestone.map((achievement) => (
+                  <div key={achievement.key} className="p-1.5 md:p-0">
                   <AchievementBadge
-                    key={achievement.key}
                     achievement={{
                       id: achievement.key,
                       user_id: user?.id || '',
@@ -322,6 +324,7 @@ export default function AchievementsPage() {
                     size="sm"
                     showProgress={!achievement.unlocked}
                   />
+                  </div>
                 ))}
                 </div>
               </div>
@@ -336,10 +339,10 @@ export default function AchievementsPage() {
                     Special Achievements
                   </h2>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-3">
                 {achievementsByType.special.map((achievement) => (
+                  <div key={achievement.key} className="p-1.5 md:p-0">
                   <AchievementBadge
-                    key={achievement.key}
                     achievement={{
                       id: achievement.key,
                       user_id: user?.id || '',
@@ -354,6 +357,7 @@ export default function AchievementsPage() {
                     size="sm"
                     showProgress={!achievement.unlocked}
                   />
+                  </div>
                 ))}
                 </div>
               </div>
@@ -361,7 +365,6 @@ export default function AchievementsPage() {
           </div>
         )}
       </div>
-    </PullToRefresh>
   )
 }
 

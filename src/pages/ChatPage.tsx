@@ -7,6 +7,7 @@ import { ChatMessage, ChatConversation } from '@/types'
 import { transcribeAudio } from '@/services/audio'
 import { chatWithAI, executeAction } from '@/services/aiChat'
 import { saveConversation, getConversation, getConversations, deleteConversation } from '@/services/chat'
+import { summarizeConversation } from '@/services/aiSummarization'
 import { uploadImage, analyzeMealImage } from '@/services/imageUpload'
 import { getDailyLog } from '@/services/dailyLogs'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -23,6 +24,7 @@ export default function ChatPage() {
   useUserRealtimeSubscription('chat_conversations', ['conversations'], user?.id)
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  const [conversationSummary, setConversationSummary] = useState<string | undefined>()
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
@@ -128,11 +130,21 @@ export default function ChatPage() {
     return 'New Chat'
   }
 
-  // Save conversation when messages change
+  // Generate summary and save conversation when messages change
   useEffect(() => {
     const saveConversationDebounced = async () => {
       if (messages.length > 1 && user?.id) {
-        const id = await saveConversation(user.id, messages, conversationId || undefined)
+        // Generate summary if conversation is getting long (15+ messages) and we don't have one
+        let summary = conversationSummary
+        if (messages.length >= 15 && !summary) {
+          const newSummary = await summarizeConversation(messages)
+          if (newSummary) {
+            summary = newSummary
+            setConversationSummary(newSummary)
+          }
+        }
+        
+        const id = await saveConversation(user.id, messages, conversationId || undefined, summary)
         if (!conversationId) {
           setConversationId(id)
         }
@@ -143,7 +155,7 @@ export default function ChatPage() {
     
     const timeoutId = setTimeout(saveConversationDebounced, 1000)
     return () => clearTimeout(timeoutId)
-  }, [messages, conversationId, user, isGuest, refetchConversations])
+  }, [messages, conversationId, user, isGuest, refetchConversations, conversationSummary])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -338,14 +350,14 @@ export default function ChatPage() {
     setMessages((prev) => [...prev, cancelMessage])
   }
 
-  const handleSend = async () => {
-    if ((!input.trim() && !selectedImage) || loading) return
+  const sendMessage = async (messageContent: string, imageUrl?: string) => {
+    if ((!messageContent.trim() && !imageUrl) || loading) return
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
-      image_url: selectedImage || undefined,
+      content: messageContent,
+      image_url: imageUrl,
       timestamp: new Date().toISOString(),
     }
 
@@ -360,12 +372,14 @@ export default function ChatPage() {
       }
       
       // Use AI chat service with enhanced context
+      // Message limiting is handled inside chatWithAI (only sends last 12 messages)
       const response = await chatWithAI(
         [...messages, userMessage],
         profile,
         dailyLog || null,
-        selectedImage || undefined,
-        user?.id
+        imageUrl,
+        user?.id,
+        conversationSummary // Pass summary for context
       )
 
       // Animate message typing effect with variable speed
@@ -452,7 +466,7 @@ export default function ChatPage() {
       
       // Start typing animation after a brief delay
       setTimeout(typeNextChar, 100)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error)
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -466,12 +480,12 @@ export default function ChatPage() {
     }
   }
 
+  const handleSend = async () => {
+    await sendMessage(input, selectedImage || undefined)
+  }
+
   return (
-    <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 flex flex-col h-full overflow-hidden" style={{ 
-      height: 'calc(100vh - 4rem - env(safe-area-inset-bottom, 0))',
-      minHeight: 0,
-      maxHeight: 'calc(100vh - 4rem - env(safe-area-inset-bottom, 0))'
-    }}>
+    <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 pt-4 md:pt-6 pb-24 md:pb-8 flex flex-col min-h-[calc(100vh-4rem)]">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-border pb-4 md:pb-6">
         <div>
@@ -581,15 +595,15 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Mobile History Sidebar */}
+      {/* Mobile History Sidebar - Sheet Style */}
       {showHistory && (
         <>
           <div
-            className="fixed inset-0 bg-void/80 z-[60] md:hidden"
+            className="fixed inset-0 bg-black/40 z-40 md:hidden"
             onClick={() => setShowHistory(false)}
           />
-          <div className="fixed left-0 top-0 h-full w-64 z-[70] md:hidden bg-surface border-r border-border">
-            <div className="p-3 md:p-4 border-b border-border flex-shrink-0">
+          <div className="fixed bottom-0 left-0 right-0 max-h-[70vh] z-50 md:hidden bg-surface border-t border-border rounded-t-xl overflow-hidden flex flex-col">
+            <div className="p-4 border-b border-border flex-shrink-0">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-wider font-mono">Chat History</h2>
                 <button
@@ -600,7 +614,7 @@ export default function ChatPage() {
                 </button>
               </div>
             </div>
-            <div className="overflow-y-auto scrollbar-hide" style={{ height: 'calc(100vh - 4rem)' }}>
+            <div className="flex-1 overflow-y-auto scrollbar-hide p-4" onClick={(e) => e.stopPropagation()}>
               {conversations.length === 0 ? (
                 <div className="p-4 text-center">
                   <p className="text-xs text-dim font-mono">No previous chats</p>
@@ -653,6 +667,7 @@ export default function ChatPage() {
           streamingMessage={streamingMessage}
           onConfirmAction={handleConfirmAction}
           onCancelAction={handleCancelAction}
+          onPromptClick={(prompt) => sendMessage(prompt)}
         />
         <ChatInput
           input={input}

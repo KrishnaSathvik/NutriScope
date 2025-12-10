@@ -2,6 +2,12 @@ import { ChatMessage, AIAction, UserProfile, DailyLog } from '@/types'
 import { logger } from '@/utils/logger'
 import { trackAPICall } from '@/utils/performance'
 import { stripJSON } from '@/utils/format'
+import { buildPersonalizedContext } from '@/utils/aiContext'
+
+// Maximum number of messages to send to API (keeps recent context, reduces tokens)
+const MAX_MESSAGES_TO_SEND = 12
+// API timeout in milliseconds
+const API_TIMEOUT_MS = 20000 // 20 seconds
 
 /**
  * Backend proxy for OpenAI API calls
@@ -12,25 +18,41 @@ export async function chatWithAI(
   profile: UserProfile | null,
   dailyLog: DailyLog | null,
   imageUrl?: string,
-  userId?: string
+  userId?: string,
+  conversationSummary?: string
 ): Promise<{ message: string; action?: AIAction }> {
   // Use backend API proxy if available, otherwise fall back to direct OpenAI (dev only)
   const useBackendProxy = import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
+  
+  // Limit message history: only send last N messages to reduce tokens
+  // Keep system message if present, then last N-1 messages
+  const systemMessage = messages.find(m => m.role === 'assistant' && m.content.includes('You are'))
+  const recentMessages = messages.slice(-MAX_MESSAGES_TO_SEND)
+  const messagesToSend = systemMessage && !recentMessages.includes(systemMessage)
+    ? [systemMessage, ...recentMessages]
+    : recentMessages
   
   if (useBackendProxy) {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '/api/chat'
       
+      // Create AbortController for timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS)
+      
       // Track API call performance
       const result = await trackAPICall(apiUrl, async () => {
+        try {
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(userId && { 'x-user-id': userId }),
           },
+            signal: controller.signal,
           body: JSON.stringify({
-            messages,
+              messages: messagesToSend,
+              conversationSummary, // Include summary if available
             profile: profile ? {
               name: profile.name,
               age: profile.age,
@@ -91,6 +113,21 @@ export async function chatWithAI(
         return {
           message: data.message,
           action: data.action,
+          }
+        } catch (fetchError: any) {
+          clearTimeout(timeoutId)
+          // Handle timeout
+          if (fetchError.name === 'AbortError' && !fetchError.message?.includes('404')) {
+            throw new Error('Our AI coach is taking too long to respond. Please try again in a moment.')
+          }
+          // For network errors (including 404), throw a specific error that will trigger fallback
+          if (fetchError.message?.includes('Failed to fetch') || 
+              fetchError.message?.includes('ERR_ABORTED') ||
+              fetchError.name === 'TypeError') {
+            throw new Error('API_ENDPOINT_NOT_FOUND')
+          }
+          // Re-throw to be caught by outer catch for fallback
+          throw fetchError
         }
       })
       return result
@@ -103,11 +140,14 @@ export async function chatWithAI(
       // Fall back to direct OpenAI only in development
       // Check if it's a 404 (endpoint doesn't exist) or network error
       const errorMessage = error?.message || String(error || '')
+      const errorName = error?.name || ''
       const is404 = errorMessage === 'API_ENDPOINT_NOT_FOUND' || 
                     errorMessage.includes('404') ||
                     errorMessage.includes('Not Found') ||
                     errorMessage.includes('ERR_ABORTED') ||
-                    errorMessage.includes('Failed to fetch')
+                    errorMessage.includes('Failed to fetch') ||
+                    errorName === 'TypeError' ||
+                    (errorName === 'AbortError' && errorMessage.includes('404'))
       
       if (is404) {
         logger.debug('API endpoint not found in development, using direct OpenAI')
@@ -143,7 +183,7 @@ async function chatWithAIDirect(
   }
 
   // Build enhanced context
-  const context = buildContext(profile, dailyLog)
+  const context = buildPersonalizedContext(profile, dailyLog, { mode: 'chat' })
   
   // Add image analysis if image provided
   let imageContent: any[] = []
@@ -344,133 +384,7 @@ Be conversational, helpful, personalized, and ask for confirmation before loggin
   return { message, action }
 }
 
-/**
- * Build enhanced personalized context from user profile and daily log
- */
-function buildContext(profile: UserProfile | null, dailyLog: DailyLog | null): string {
-  let context = ''
-  
-  if (profile) {
-    // Personalized greeting with name if available
-    const userName = profile.name ? `Hi ${profile.name}! ` : ''
-    
-    context += `${userName}Here's your personalized profile:\n\n`
-    
-    // Personal details
-    if (profile.age || profile.weight || profile.height) {
-      context += `**About You:**\n`
-      if (profile.name) context += `- Name: ${profile.name}\n`
-      if (profile.age) context += `- Age: ${profile.age} years\n`
-      if (profile.weight) context += `- Weight: ${profile.weight}kg\n`
-      if (profile.height) context += `- Height: ${profile.height}cm\n`
-      context += `\n`
-    }
-    
-    // Goals and preferences
-    const goalDescriptions: Record<string, string> = {
-      lose_weight: 'losing weight',
-      gain_muscle: 'gaining muscle mass',
-      maintain: 'maintaining your current weight',
-      improve_fitness: 'improving overall fitness',
-    }
-    
-    const activityDescriptions: Record<string, string> = {
-      sedentary: 'sedentary lifestyle (little to no exercise)',
-      light: 'light activity (1-3 days/week)',
-      moderate: 'moderate activity (3-5 days/week)',
-      active: 'active lifestyle (6-7 days/week)',
-      very_active: 'very active lifestyle (intense daily exercise)',
-    }
-    
-    const dietaryDescriptions: Record<string, string> = {
-      vegetarian: 'vegetarian diet',
-      vegan: 'vegan diet',
-      non_vegetarian: 'non-vegetarian diet',
-      flexitarian: 'flexitarian diet (mostly plant-based)',
-    }
-    
-    context += `**Your Goals & Preferences:**\n`
-    context += `- Primary Goal: ${goalDescriptions[profile.goal] || profile.goal}\n`
-    context += `- Activity Level: ${activityDescriptions[profile.activity_level] || profile.activity_level}\n`
-    context += `- Dietary Preference: ${dietaryDescriptions[profile.dietary_preference] || profile.dietary_preference}\n`
-    if (profile.restrictions && profile.restrictions.length > 0) {
-      context += `- Dietary Restrictions: ${profile.restrictions.join(', ')}\n`
-    }
-    context += `\n`
-    
-    // Personalized targets
-    context += `**Your Personalized Targets:**\n`
-    context += `- Daily Calorie Target: ${profile.calorie_target || 2000} calories\n`
-    context += `- Daily Protein Target: ${profile.protein_target || 150}g\n`
-    context += `- Daily Water Goal: ${profile.water_goal || 2000}ml\n`
-    if ('target_carbs' in profile && profile.target_carbs) context += `- Daily Carbs Target: ${profile.target_carbs}g\n`
-    if ('target_fats' in profile && profile.target_fats) context += `- Daily Fats Target: ${profile.target_fats}g\n`
-    context += `\n`
-    
-    // Personalized guidance based on goals
-    context += `**Personalized Guidance:**\n`
-    if (profile.goal === 'lose_weight') {
-      context += `- Focus on calorie deficit while maintaining protein intake to preserve muscle\n`
-      context += `- Aim for ${profile.protein_target || 150}g+ protein daily to support weight loss\n`
-      context += `- Stay hydrated - your water goal is ${profile.water_goal || 2000}ml/day\n`
-    } else if (profile.goal === 'gain_muscle') {
-      context += `- Focus on protein-rich meals to support muscle growth\n`
-      context += `- Ensure adequate calories (${profile.calorie_target || 2000} cal/day) for muscle building\n`
-      context += `- Prioritize strength training and recovery\n`
-    } else if (profile.goal === 'maintain') {
-      context += `- Balance your intake around ${profile.calorie_target || 2000} calories daily\n`
-      context += `- Maintain ${profile.protein_target || 150}g protein for muscle maintenance\n`
-    } else if (profile.goal === 'improve_fitness') {
-      context += `- Focus on balanced nutrition and regular exercise\n`
-      context += `- Support your active lifestyle with ${profile.protein_target || 150}g+ protein\n`
-    }
-    context += `\n`
-  }
-
-  if (dailyLog) {
-    const calorieProgress = profile?.calorie_target ? ((dailyLog.calories_consumed / profile.calorie_target) * 100).toFixed(0) : '0'
-    const proteinProgress = profile?.protein_target ? ((dailyLog.protein / profile.protein_target) * 100).toFixed(0) : '0'
-    const waterProgress = profile?.water_goal ? ((dailyLog.water_intake / profile.water_goal) * 100).toFixed(0) : '0'
-    
-    context += `**Today's Progress:**\n`
-    context += `- Calories: ${dailyLog.calories_consumed} / ${profile?.calorie_target || 2000} cal (${calorieProgress}%)\n`
-    context += `- Protein: ${dailyLog.protein}g / ${profile?.protein_target || 150}g (${proteinProgress}%)\n`
-    context += `- Water: ${dailyLog.water_intake}ml / ${profile?.water_goal || 2000}ml (${waterProgress}%)\n`
-    context += `- Calories Burned: ${dailyLog.calories_burned} cal\n`
-    context += `- Meals Logged: ${dailyLog.meals.length}\n`
-    context += `- Workouts Logged: ${dailyLog.exercises.length}\n`
-    
-    if (dailyLog.meals.length > 0) {
-      context += `\n**Recent Meals:**\n`
-      dailyLog.meals.slice(0, 3).forEach((m, i) => {
-        context += `${i + 1}. ${m.meal_type || 'meal'}: ${m.calories} cal, ${m.protein}g protein`
-        if (m.name) context += ` (${m.name})`
-        context += `\n`
-      })
-    }
-    
-    // Personalized suggestions based on progress
-    if (profile) {
-      context += `\n**Personalized Insights:**\n`
-      if (dailyLog.calories_consumed < (profile.calorie_target || 2000) * 0.8) {
-        context += `- You're below your calorie target - consider adding nutrient-dense meals\n`
-      } else if (dailyLog.calories_consumed > (profile.calorie_target || 2000) * 1.2) {
-        context += `- You're above your calorie target - focus on portion control\n`
-      }
-      
-      if (dailyLog.protein < (profile.protein_target || 150) * 0.8) {
-        context += `- Protein intake is below target - add protein-rich foods to your meals\n`
-      }
-      
-      if (dailyLog.water_intake < (profile.water_goal || 2000) * 0.7) {
-        context += `- Water intake is low - remember to stay hydrated throughout the day\n`
-      }
-    }
-    context += `\n`
-  }
-
-  return context
-}
+// Context building now uses shared helper from @/utils/aiContext
 
 /**
  * Execute AI action (log meal, workout, water, recipes, meal plans, grocery lists)

@@ -136,8 +136,8 @@ export default function LandingPage() {
                 {/* Feature bullets */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 mt-8">
                   <div className="flex items-start gap-3">
-                    <div className="flex shrink-0 w-8 h-8 sm:w-9 sm:h-9 bg-surface/50 border border-border rounded-sm items-center justify-center mt-0.5">
-                      <ScanLine className="h-4 w-4 sm:h-5 sm:w-5 text-acid" />
+                    <div className="flex shrink-0 w-8 h-8 sm:w-9 sm:h-9 items-center justify-center mt-0.5">
+                      <ScanLine className="h-4 w-4 sm:h-5 sm:w-5 text-acid stroke-2" />
                     </div>
                     <div>
                       <p className="text-sm font-bold text-text font-mono uppercase">Unified tracking</p>
@@ -145,8 +145,8 @@ export default function LandingPage() {
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <div className="flex shrink-0 w-8 h-8 sm:w-9 sm:h-9 bg-surface/50 border border-border rounded-sm items-center justify-center mt-0.5">
-                      <LineChart className="h-4 w-4 sm:h-5 sm:w-5 text-success" />
+                    <div className="flex shrink-0 w-8 h-8 sm:w-9 sm:h-9 items-center justify-center mt-0.5">
+                      <LineChart className="h-4 w-4 sm:h-5 sm:w-5 text-acid stroke-2 fill-none" />
                     </div>
                     <div>
                       <p className="text-sm font-bold text-text font-mono uppercase">Advanced analytics</p>
@@ -154,8 +154,8 @@ export default function LandingPage() {
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <div className="flex shrink-0 w-8 h-8 sm:w-9 sm:h-9 bg-surface/50 border border-border rounded-sm items-center justify-center mt-0.5">
-                      <Timer className="h-4 w-4 sm:h-5 sm:w-5 text-acid" />
+                    <div className="flex shrink-0 w-8 h-8 sm:w-9 sm:h-9 items-center justify-center mt-0.5">
+                      <Timer className="h-4 w-4 sm:h-5 sm:w-5 text-acid stroke-2" />
                     </div>
                     <div>
                       <p className="text-sm font-bold text-text font-mono uppercase">AI-powered</p>
@@ -236,8 +236,8 @@ export default function LandingPage() {
                   {/* Period labels */}
                   <div className="mt-3 flex justify-between items-center text-[10px] sm:text-xs text-dim">
                     <span className="font-mono">Today</span>
-                    <span className="inline-flex items-center gap-1 text-xs font-bold text-text font-mono">
-                      <ArrowRight className="w-3 h-3" />
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-acid font-mono">
+                      <ArrowRight className="w-3 h-3 text-acid stroke-2" />
                       View Details
                     </span>
                   </div>
@@ -270,13 +270,13 @@ export default function LandingPage() {
                     Log meals through text, voice, photos, or USDA food database search (300,000+ foods). Our AI understands natural language and extracts nutrition data automatically. Edit meals, use templates, or copy previous days.
                   </p>
                   <div className="mt-6 flex items-center gap-3 text-xs sm:text-sm flex-wrap">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-surface/50 border border-border px-2 sm:px-3 py-1">
-                      <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-acid" />
-                      <span className="font-mono text-text">Text & Voice</span>
+                    <span className="inline-flex items-center gap-2">
+                      <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
+                      <span className="font-mono text-dim font-medium">Text & Voice</span>
                     </span>
-                    <span className="inline-flex items-center gap-2 rounded-full bg-surface/50 border border-border px-2 sm:px-3 py-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-success" />
-                    <span className="font-mono text-text">USDA Database</span>
+                    <span className="inline-flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
+                    <span className="font-mono text-dim font-medium">USDA Database</span>
                   </span>
                 </div>
               </article>
@@ -288,13 +288,13 @@ export default function LandingPage() {
                     Create and manage recipes with automatic nutrition calculation. Plan weekly meals with our calendar view. Generate smart grocery lists from meal plans with automatic ingredient aggregation.
                   </p>
                   <div className="mt-6 flex items-center gap-3 text-xs sm:text-sm flex-wrap">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-surface/50 border border-border px-2 sm:px-3 py-1">
-                      <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-acid" />
-                      <span className="font-mono text-text">Recipe Scaling</span>
+                    <span className="inline-flex items-center gap-2">
+                      <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
+                      <span className="font-mono text-dim font-medium">Meal Templates</span>
                     </span>
-                    <span className="inline-flex items-center gap-2 rounded-full bg-surface/50 border border-border px-2 sm:px-3 py-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-accent" />
-                    <span className="font-mono text-text">Smart Lists</span>
+                    <span className="inline-flex items-center gap-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
+                    <span className="font-mono text-dim font-medium">Smart Lists</span>
                   </span>
                 </div>
               </article>
@@ -306,13 +306,13 @@ export default function LandingPage() {
                     Track progress with correlations (weight vs calories, protein vs workouts), predictions, and insights. Unlock achievements for streaks, goals, and milestones. Multiple time ranges (7d to 1 year) with detailed charts.
                   </p>
                   <div className="mt-6 flex items-center gap-3 text-xs sm:text-sm flex-wrap">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-surface/50 border border-border px-2 sm:px-3 py-1">
-                      <LineChart className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-success" />
-                      <span className="font-mono text-text">Correlations</span>
+                    <span className="inline-flex items-center gap-2">
+                      <LineChart className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
+                      <span className="font-mono text-dim font-medium">Correlations</span>
                     </span>
-                    <span className="inline-flex items-center gap-2 rounded-full bg-surface/50 border border-border px-2 sm:px-3 py-1">
-                      <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-acid" />
-                    <span className="font-mono text-text">Achievements</span>
+                    <span className="inline-flex items-center gap-2">
+                      <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
+                    <span className="font-mono text-dim font-medium">Achievements</span>
                   </span>
                 </div>
               </article>
@@ -355,7 +355,7 @@ export default function LandingPage() {
                     <span className="select-none leading-none text-5xl sm:text-6xl md:text-7xl font-bold text-acid/30 font-mono w-12 sm:w-16 text-center">2</span>
                     <div>
                       <p className="text-2xl sm:text-3xl font-bold text-text font-mono uppercase tracking-tight">Plan</p>
-                      <p className="mt-1 text-sm sm:text-base text-dim font-mono leading-relaxed">Create recipes, plan weekly meals, and generate smart grocery lists. Scale recipes for different serving sizes automatically.</p>
+                      <p className="mt-1 text-sm sm:text-base text-dim font-mono leading-relaxed">Create recipes, plan weekly meals, and generate smart grocery lists. Save recipes as meal templates for quick logging.</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-4 sm:gap-6">
@@ -376,19 +376,19 @@ export default function LandingPage() {
                   <div className="card-modern p-6 sm:p-8 relative overflow-hidden">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="card-modern p-3 sm:p-4">
-                        <UtensilsCrossed className="w-6 h-6 sm:w-8 sm:h-8 text-acid mb-2" />
+                        <UtensilsCrossed className="w-6 h-6 sm:w-8 sm:h-8 text-acid mb-2 stroke-2" />
                         <p className="text-text font-mono text-xs sm:text-sm font-bold uppercase">Meal Logged</p>
                       </div>
                       <div className="card-modern p-3 sm:p-4">
-                        <BarChart3 className="w-6 h-6 sm:w-8 sm:h-8 text-success mb-2" />
+                        <BarChart3 className="w-6 h-6 sm:w-8 sm:h-8 text-acid mb-2 stroke-2" />
                         <p className="text-text font-mono text-xs sm:text-sm font-bold uppercase">Analytics</p>
                       </div>
                       <div className="card-modern p-3 sm:p-4">
-                        <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-acid mb-2" />
+                        <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-acid mb-2 stroke-2" />
                         <p className="text-text font-mono text-xs sm:text-sm font-bold uppercase">Progress</p>
                       </div>
                       <div className="card-modern p-3 sm:p-4">
-                        <Target className="w-6 h-6 sm:w-8 sm:h-8 text-success mb-2" />
+                        <Target className="w-6 h-6 sm:w-8 sm:h-8 text-acid mb-2 stroke-2" />
                         <p className="text-text font-mono text-xs sm:text-sm font-bold uppercase">Goals</p>
                       </div>
                     </div>

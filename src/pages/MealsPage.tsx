@@ -5,7 +5,6 @@ import { getMeals, createMeal, updateMeal, deleteMeal } from '@/services/meals'
 import { getMealTemplates, useMealTemplate, createMealTemplate, deleteMealTemplate } from '@/services/mealTemplates'
 import { useAuth } from '@/contexts/AuthContext'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import PullToRefresh from '@/components/PullToRefresh'
 import { Plus, Trash2, X, Clock, UtensilsCrossed, Flame, Cookie, Circle, Sunrise, Moon, Coffee, Sun, BookOpen, Save, Edit, Copy, Lightbulb, Beef, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import { Meal, MealType } from '@/types'
 import { MealCardSkeleton } from '@/components/LoadingSkeleton'
@@ -426,7 +425,6 @@ export default function MealsPage() {
   }
 
   return (
-    <PullToRefresh onRefresh={handleRefresh} disabled={!user}>
       <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
       <div className="border-b border-border pb-4 md:pb-6">
         <div>
@@ -1153,7 +1151,6 @@ export default function MealsPage() {
         </DialogContent>
       </Dialog>
       </div>
-    </PullToRefresh>
   )
 }
 

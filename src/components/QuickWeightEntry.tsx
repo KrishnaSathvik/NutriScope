@@ -106,7 +106,7 @@ export function QuickWeightEntry() {
 
   if (todayLogged && !isOpen) {
     return (
-      <div className="card-modern border-indigo-500/30 dark:border-acid/30 p-3 md:p-4">
+      <div className="card-modern p-3 md:p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 md:gap-3">
             <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-indigo-500/20 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 dark:border-indigo-500/30 flex-shrink-0">
@@ -134,7 +134,7 @@ export function QuickWeightEntry() {
 
   if (!isOpen) {
     return (
-      <div className="card-modern border-indigo-500/30 dark:border-acid/30 p-3 md:p-4 cursor-pointer hover:border-indigo-500/50 dark:hover:border-acid/50 transition-colors" onClick={() => setIsOpen(true)}>
+      <div className="card-modern p-3 md:p-4 cursor-pointer transition-colors" onClick={() => setIsOpen(true)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 md:gap-3">
             <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-indigo-500/20 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 dark:border-indigo-500/30 flex-shrink-0">
@@ -154,7 +154,7 @@ export function QuickWeightEntry() {
   }
 
   return (
-    <div className="card-modern border-indigo-500/30 dark:border-acid/30 p-4 md:p-6">
+    <div className="card-modern p-4 md:p-6">
       <div className="flex items-center justify-between mb-4 md:mb-6">
         <div className="flex items-center gap-2 md:gap-3">
           <div className="w-10 h-10 md:w-12 md:h-12 rounded-sm bg-indigo-500/20 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 dark:border-indigo-500/30 flex-shrink-0">

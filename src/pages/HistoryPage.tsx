@@ -79,11 +79,11 @@ export default function HistoryPage() {
               <button
                 key={dayStr}
                 onClick={() => setSelectedDate(day)}
-                className={`relative p-2 md:p-3 rounded-sm text-center transition-all active:scale-95 ${
+                className={`relative p-2 md:p-3 rounded-sm text-center transition-all active:scale-95 text-[10px] leading-tight min-h-[40px] ${
                   isSelected
                     ? 'bg-acid text-[#020617] dark:text-[#020617] font-bold'
                     : isToday
-                    ? 'bg-panel border-2 border-acid/50 text-text'
+                    ? 'bg-panel border-2 border-acid/60 text-text'
                     : 'bg-panel border border-border hover:border-acid text-text'
                 }`}
               >

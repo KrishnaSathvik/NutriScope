@@ -29,6 +29,7 @@ interface ChatRequest {
     role: 'system' | 'user' | 'assistant'
     content: string | Array<{ type: string; image_url?: { url: string } }>
   }>
+  conversationSummary?: string // Optional summary for long conversations
   profile?: {
     name?: string
     age?: number
@@ -148,7 +149,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: validation.error })
     }
 
-    const { messages, profile, dailyLog, imageUrl }: ChatRequest = req.body
+    const { messages, conversationSummary, profile, dailyLog, imageUrl }: ChatRequest = req.body
 
     // Get OpenAI API key from environment
     const apiKey = process.env.OPENAI_API_KEY
