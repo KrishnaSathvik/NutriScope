@@ -203,26 +203,122 @@ Generate an inspirational, motivational message now:`
  */
 export async function generateDailyInsights(
   dailyLog: DailyLog,
-  profile: UserProfile | null
+  profile: UserProfile | null,
+  userId?: string
 ): Promise<string> {
-  // In production, use backend proxy (if available) or show appropriate message
+  // Use backend proxy if available (same logic as chat and coach tip)
   const useBackendProxy = import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
   const isProduction = import.meta.env.PROD
   
-  if (!openai && !useBackendProxy) {
+  // Use backend proxy if enabled (works in both dev and prod)
+  if (useBackendProxy) {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '/api/chat'
+      
+      // Build comprehensive personalized context using shared helper
+      const personalizedContext = buildPersonalizedContext(profile, dailyLog, { mode: 'insight' })
+      
+      const userName = profile?.name || 'you'
+      const goalDescription = profile?.goal === 'lose_weight' ? 'losing weight' 
+        : profile?.goal === 'gain_muscle' ? 'gaining muscle'
+        : profile?.goal === 'maintain' ? 'maintaining your weight'
+        : profile?.goal === 'improve_fitness' ? 'improving fitness'
+        : 'your goals'
+      
+      // Calculate progress percentages for use in prompt
+      const calorieProgress = profile?.calorie_target 
+        ? ((dailyLog.calories_consumed / profile.calorie_target) * 100).toFixed(0) 
+        : '0'
+      const proteinProgress = profile?.protein_target 
+        ? ((dailyLog.protein / profile.protein_target) * 100).toFixed(0) 
+        : '0'
+
+      const prompt = `You are a personalized AI nutrition and fitness coach for ${userName}. You understand ${userName}'s unique profile, goals, and daily progress. Provide a brief, encouraging, and highly personalized insight (2-3 sentences max).
+
+${personalizedContext}
+
+**IMPORTANT - Personalization Guidelines:**
+1. **Use ${userName}'s name** when addressing them (if available)
+2. **Reference their specific goal** (${goalDescription}) and how today's progress aligns with it
+3. **Consider their dietary preference** (${profile?.dietary_preference || 'flexitarian'}) when making suggestions - suggest foods that fit their diet
+4. **Reference their activity level** (${profile?.activity_level || 'moderate'}) when relevant
+5. **Compare their progress to their personalized targets** - they're at ${calorieProgress}% of calories (${dailyLog.calories_consumed}/${profile?.calorie_target || 2000} cal) and ${proteinProgress}% of protein (${dailyLog.protein}/${profile?.protein_target || 150}g)
+6. **Be specific** - mention exact numbers and percentages from their progress
+7. **Give actionable advice** tailored to their situation, not generic tips
+8. **Be encouraging** and reference what they did well today
+9. **Reference their restrictions** if they have any: ${profile?.restrictions?.join(', ') || 'none'}
+
+Provide your personalized insight now:`
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(userId && { 'x-user-id': userId }),
+        },
+        body: JSON.stringify({
+          messages: [
+            {
+              role: 'system',
+              content: `You are a personalized AI nutrition and fitness coach. You provide brief, encouraging, and highly personalized insights based on each user's unique profile, goals, and daily progress. Always use the user's name, reference their specific targets, and give actionable advice tailored to their situation.`,
+            },
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          profile: profile ? {
+            name: profile.name,
+            age: profile.age,
+            weight: profile.weight,
+            height: profile.height,
+            calorie_target: profile.calorie_target,
+            protein_target: profile.protein_target,
+            water_goal: profile.water_goal,
+            goal: profile.goal,
+            activity_level: profile.activity_level,
+            dietary_preference: profile.dietary_preference,
+            restrictions: profile.restrictions,
+          } : undefined,
+          dailyLog: {
+            calories_consumed: dailyLog.calories_consumed,
+            protein: dailyLog.protein,
+            calories_burned: dailyLog.calories_burned,
+            water_intake: dailyLog.water_intake,
+            meals: dailyLog.meals.slice(0, 5),
+            exercises: dailyLog.exercises.slice(0, 3),
+          },
+          userId,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `API returned ${response.status}`)
+      }
+
+      const data = await response.json()
+      // Extract message from response
+      const message = data.message || data.action?.message || 'Unable to generate insights at this time.'
+      return message
+    } catch (error) {
+      console.error('[Daily Insights] Error generating insights via backend proxy:', error)
+      // In production, don't fall back to direct OpenAI
+      if (isProduction) {
+        return 'Unable to generate insights. Please try again later.'
+      }
+      // In development, fall back to direct OpenAI if available
+      if (!openai) {
+        return 'AI insights are not available. Please configure your OpenAI API key.'
+      }
+    }
+  }
+  
+  // Fallback: use direct OpenAI if backend proxy is disabled (dev only)
+  if (!openai) {
     if (isProduction) {
       return 'AI insights are temporarily unavailable. Please try again later.'
     }
-    return 'AI insights are not available. Please configure your OpenAI API key in development or set up backend proxy for production.'
-  }
-  
-  // For now, only use direct OpenAI in development
-  // TODO: Create backend proxy endpoint for insights (similar to /api/chat)
-  if (isProduction && !openai) {
-    return 'AI insights are temporarily unavailable. Please try again later.'
-  }
-  
-  if (!openai) {
     return 'AI insights are not available. Please configure your OpenAI API key.'
   }
 

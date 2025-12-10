@@ -62,7 +62,7 @@ export default function SummaryPage() {
       }
       
       // Generate new insight
-      const insight = await generateDailyInsights(dailyLog, profile)
+      const insight = await generateDailyInsights(dailyLog, profile, user.id)
       
       // Phase 3: Save to DB with signature
       if (insight) {
