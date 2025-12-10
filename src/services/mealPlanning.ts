@@ -25,8 +25,16 @@ export async function getMealPlan(weekStartDate: string): Promise<MealPlan | nul
   if (error) {
     if (error.code === 'PGRST116') return null // Not found
     // Handle 406 Not Acceptable - table might not exist
-    if (error.code === 'PGRST301' || error.status === 406) {
-      console.warn('meal_plans table may not exist. Please run the migration script in Supabase SQL Editor.')
+    // Check multiple possible error indicators
+    const isTableNotFound = 
+      error.code === 'PGRST301' || 
+      error.status === 406 || 
+      error.message?.includes('406') ||
+      error.message?.includes('Not Acceptable') ||
+      error.message?.includes('meal_plans') && error.message?.includes('not found')
+    
+    if (isTableNotFound) {
+      console.warn('meal_plans table may not exist. Please run add_meal_plans_schema.sql in Supabase SQL Editor.')
       return null
     }
     console.error('Error fetching meal plan:', error)
@@ -76,9 +84,16 @@ export async function createMealPlan(weekStartDate: string): Promise<MealPlan> {
 
   if (error) {
     // Handle 406 Not Acceptable - table might not exist
-    if (error.code === 'PGRST301' || error.status === 406) {
+    const isTableNotFound = 
+      error.code === 'PGRST301' || 
+      error.status === 406 || 
+      error.message?.includes('406') ||
+      error.message?.includes('Not Acceptable') ||
+      error.message?.includes('meal_plans') && error.message?.includes('not found')
+    
+    if (isTableNotFound) {
       console.error('meal_plans table may not exist. Please run add_meal_plans_schema.sql in Supabase SQL Editor.')
-      throw new Error('Meal plans table not found. Please contact support.')
+      throw new Error('Meal plans table not found. Please run the migration script in Supabase SQL Editor.')
     }
     console.error('Error creating meal plan:', error)
     throw new Error('Failed to create meal plan')
@@ -113,9 +128,16 @@ export async function updateMealPlan(
 
   if (error) {
     // Handle 406 Not Acceptable - table might not exist
-    if (error.code === 'PGRST301' || error.status === 406) {
+    const isTableNotFound = 
+      error.code === 'PGRST301' || 
+      error.status === 406 || 
+      error.message?.includes('406') ||
+      error.message?.includes('Not Acceptable') ||
+      error.message?.includes('meal_plans') && error.message?.includes('not found')
+    
+    if (isTableNotFound) {
       console.error('meal_plans table may not exist. Please run add_meal_plans_schema.sql in Supabase SQL Editor.')
-      throw new Error('Meal plans table not found. Please contact support.')
+      throw new Error('Meal plans table not found. Please run the migration script in Supabase SQL Editor.')
     }
     console.error('Error updating meal plan:', error)
     throw new Error('Failed to update meal plan')
@@ -195,8 +217,15 @@ async function getMealPlanById(planId: string): Promise<MealPlan | null> {
   if (error) {
     if (error.code === 'PGRST116') return null
     // Handle 406 Not Acceptable - table might not exist
-    if (error.code === 'PGRST301' || error.status === 406) {
-      console.warn('meal_plans table may not exist. Please run the migration script in Supabase SQL Editor.')
+    const isTableNotFound = 
+      error.code === 'PGRST301' || 
+      error.status === 406 || 
+      error.message?.includes('406') ||
+      error.message?.includes('Not Acceptable') ||
+      error.message?.includes('meal_plans') && error.message?.includes('not found')
+    
+    if (isTableNotFound) {
+      console.warn('meal_plans table may not exist. Please run add_meal_plans_schema.sql in Supabase SQL Editor.')
       return null
     }
     console.error('Error fetching meal plan:', error)

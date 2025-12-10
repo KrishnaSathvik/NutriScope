@@ -467,16 +467,21 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 space-y-4 md:space-y-8" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
-      <div className="border-b border-border pb-4 md:pb-6 relative z-40">
+    <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 flex flex-col h-full overflow-hidden" style={{ 
+      height: 'calc(100vh - 4rem - env(safe-area-inset-bottom, 0))',
+      minHeight: 0,
+      maxHeight: 'calc(100vh - 4rem - env(safe-area-inset-bottom, 0))'
+    }}>
+      {/* Header */}
+      <div className="flex-shrink-0 border-b border-border pb-4 md:pb-6">
         <div>
           <div className="flex items-center gap-2 md:gap-3 mb-2">
             <div className="h-px w-6 md:w-8 bg-acid"></div>
             <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-widest">AI Assistant</span>
           </div>
           <div className="flex items-center justify-between mt-2 md:mt-4">
-            <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-text tracking-tighter">Chat</h1>
-            <div className="flex items-center gap-2 relative z-50">
+            <h1 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl font-bold text-text tracking-tighter">Chat</h1>
+            <div className="flex items-center gap-2">
               {/* New Chat Button */}
               <button
                 onClick={handleNewChat}
@@ -580,11 +585,11 @@ export default function ChatPage() {
       {showHistory && (
         <>
           <div
-            className="fixed inset-0 bg-void/80 z-40 md:hidden"
+            className="fixed inset-0 bg-void/80 z-[60] md:hidden"
             onClick={() => setShowHistory(false)}
           />
-          <div className="fixed left-0 top-0 h-full w-64 z-50 md:hidden bg-surface border-r border-border">
-            <div className="p-3 md:p-4 border-b border-border">
+          <div className="fixed left-0 top-0 h-full w-64 z-[70] md:hidden bg-surface border-r border-border">
+            <div className="p-3 md:p-4 border-b border-border flex-shrink-0">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-wider font-mono">Chat History</h2>
                 <button
@@ -595,7 +600,7 @@ export default function ChatPage() {
                 </button>
               </div>
             </div>
-            <div className="overflow-y-auto scrollbar-hide h-[calc(100vh-12rem)]">
+            <div className="overflow-y-auto scrollbar-hide" style={{ height: 'calc(100vh - 4rem)' }}>
               {conversations.length === 0 ? (
                 <div className="p-4 text-center">
                   <p className="text-xs text-dim font-mono">No previous chats</p>
@@ -639,11 +644,8 @@ export default function ChatPage() {
         </>
       )}
 
-      <div className="chat-container flex flex-col fixed md:relative inset-x-0 top-[10rem] md:top-auto bottom-[calc(4rem+0.5rem+env(safe-area-inset-bottom,0))] md:bottom-auto bg-surface border-x-0 md:border-x border-t-0 md:border-t border-b border-border md:rounded-sm overflow-hidden z-30" style={{ 
-        height: 'calc(100vh - 10rem - 4rem - 0.5rem - env(safe-area-inset-bottom, 0))', 
-        maxHeight: 'calc(100vh - 10rem - 4rem - 0.5rem - env(safe-area-inset-bottom, 0))',
-        minHeight: 0
-      }}>
+      {/* Chat Container - Flex layout for better mobile support */}
+      <div className="flex-1 flex flex-col min-h-0 bg-surface border border-border md:rounded-sm overflow-hidden mt-4 md:mt-8">
         <ChatMessages
           messages={messages}
           loading={loading}

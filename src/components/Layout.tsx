@@ -11,6 +11,16 @@ export default function Layout() {
 
   // Scroll to top when route changes (additional safety for mobile)
   useEffect(() => {
+    // Scroll main element to top
+    const mainElement = document.querySelector('main')
+    if (mainElement) {
+      mainElement.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: 'instant'
+      })
+    }
+    // Fallback: also scroll window
     window.scrollTo({
       top: 0,
       left: 0,
@@ -60,6 +70,10 @@ export default function Layout() {
                     key={item.path}
                     to={item.path}
                     onClick={() => {
+                      const mainElement = document.querySelector('main')
+                      if (mainElement) {
+                        mainElement.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+                      }
                       window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
                     }}
                     className={`flex items-center gap-1 px-1.5 lg:px-2 xl:px-2.5 py-2 rounded-sm transition-all relative whitespace-nowrap ${
@@ -119,13 +133,17 @@ export default function Layout() {
               <Link
                 key={item.path}
                 to={item.path}
-                onClick={() => {
-                  setShowMoreMenu(false)
-                  // Ensure scroll to top on mobile navigation
-                  setTimeout(() => {
-                    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
-                  }, 0)
-                }}
+                    onClick={() => {
+                      setShowMoreMenu(false)
+                      // Ensure scroll to top on mobile navigation
+                      setTimeout(() => {
+                        const mainElement = document.querySelector('main')
+                        if (mainElement) {
+                          mainElement.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+                        }
+                        window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+                      }, 0)
+                    }}
                 className={`flex flex-col items-center justify-center flex-1 min-w-0 px-1 py-2 transition-all touch-manipulation ${
                   isActive
                     ? 'text-acid'
@@ -191,6 +209,10 @@ export default function Layout() {
                         setShowMoreMenu(false)
                         // Ensure scroll to top on mobile navigation
                         setTimeout(() => {
+                          const mainElement = document.querySelector('main')
+                          if (mainElement) {
+                            mainElement.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+                          }
                           window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
                         }, 0)
                       }}

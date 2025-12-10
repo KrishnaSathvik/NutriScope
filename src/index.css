@@ -35,11 +35,8 @@
   html {
     overflow-x: hidden;
     scroll-behavior: smooth;
-    overflow-y: auto;
+    overflow-y: auto; /* Allow scrolling for pages without Layout */
     -webkit-overflow-scrolling: touch;
-    /* Hide scrollbar completely */
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE and Edge */
     /* Use safe area insets for iOS devices */
     padding-bottom: env(safe-area-inset-bottom, 0);
   }
@@ -52,12 +49,9 @@
   
   body {
     overflow-x: hidden;
+    overflow-y: auto; /* Allow scrolling for pages without Layout */
     position: relative;
-    overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    /* Hide scrollbar completely */
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE and Edge */
     /* Prevent layout shifts */
     width: 100%;
     min-height: 100vh;
@@ -109,10 +103,11 @@
   /* Main content area - consistent dimensions */
   main {
     overflow-y: auto;
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     width: 100%;
     max-width: 100vw;
-    /* Prevent layout shifts */
+    /* Prevent layout shifts - use min-height to allow content to grow */
     min-height: calc(100vh - 4rem);
     scrollbar-width: none; /* Firefox */
     -ms-overflow-style: none; /* IE and Edge */
@@ -125,13 +120,15 @@
     height: 0;
   }
   
-  /* Ensure body can scroll on mobile */
+  /* Mobile scrolling adjustments */
   @media (max-width: 768px) {
+    html {
+      overflow-y: auto; /* Allow scrolling */
+    }
+    
     body {
       position: relative;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      height: auto;
+      overflow-y: auto; /* Allow scrolling */
       min-height: 100vh;
     }
   }
@@ -228,13 +225,11 @@
       padding-bottom: env(safe-area-inset-bottom, 0);
     }
     
-    /* Fix chat page viewport on mobile */
-    .chat-container {
-      height: calc(100vh - 10rem - 4rem - 0.5rem - env(safe-area-inset-bottom, 0)) !important;
-      max-height: calc(100vh - 10rem - 4rem - 0.5rem - env(safe-area-inset-bottom, 0)) !important;
-      max-width: 100vw !important;
-      width: 100% !important;
-      bottom: calc(4rem + 0.5rem + env(safe-area-inset-bottom, 0)) !important;
+    /* Chat page mobile layout */
+    main > div[style*="height: calc(100vh"] {
+      height: calc(100vh - 4rem - env(safe-area-inset-bottom, 0)) !important;
+      min-height: calc(100vh - 4rem - env(safe-area-inset-bottom, 0)) !important;
+      max-height: calc(100vh - 4rem - env(safe-area-inset-bottom, 0)) !important;
     }
     
     main {
@@ -242,7 +237,9 @@
       max-width: 100vw;
       padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0)) !important;
       overflow-y: auto !important;
+      overflow-x: hidden !important;
       -webkit-overflow-scrolling: touch;
+      position: relative;
     }
     
     /* Ensure all page containers on mobile stick to viewport */
@@ -253,11 +250,17 @@
       overflow-y: visible !important;
     }
     
-    /* Ensure pages can scroll properly */
+    /* Ensure pages can scroll properly - main can grow beyond viewport */
     main {
       position: relative;
-      height: auto;
-      max-height: none;
+      min-height: calc(100vh - 4rem);
+      /* Remove fixed height to allow scrolling */
+    }
+    
+    /* Chat page specific - remove padding bottom since it uses full height */
+    main > div[style*="height: calc(100vh"] {
+      padding-bottom: 0 !important;
+      margin-bottom: 0 !important;
     }
     
     /* Prevent negative margins from causing overflow on mobile */

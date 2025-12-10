@@ -62,6 +62,8 @@ function AppRoutes() {
     showNotificationDialog, 
     showGuestRestoreDialog,
     user, 
+    isGuest,
+    loading,
     completeOnboarding, 
     dismissNotificationDialog,
     dismissGuestRestoreDialog,
@@ -87,11 +89,27 @@ function AppRoutes() {
     dismissNotificationDialog()
   }
 
+  // Root route handler - redirect authenticated/guest users to Dashboard
+  const RootRoute = () => {
+    // Show loading while checking auth state
+    if (loading) {
+      return <PageLoadingFallback />
+    }
+    
+    // If user is authenticated or guest, redirect to Dashboard
+    if (user || isGuest) {
+      return <Navigate to="/dashboard" replace />
+    }
+    
+    // Otherwise show Landing page for unauthenticated users
+    return <LandingPage />
+  }
+
   return (
     <>
       <Suspense fallback={<PageLoadingFallback />}>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<RootRoute />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/product" element={<ProductPage />} />
           <Route path="/documentation" element={<DocumentationPage />} />
