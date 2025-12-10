@@ -218,7 +218,11 @@ export default function Layout() {
       </nav>
 
       {/* Main Content - Full Width */}
-      <main id="main-content" className="w-full pb-20 md:pb-6 overflow-y-auto md:overflow-y-visible scrollbar-hide" role="main" style={{ width: '100%', minHeight: 'calc(100vh - 4rem)' }}>
+      <main id="main-content" className="w-full overflow-y-auto md:overflow-y-visible scrollbar-hide" role="main" style={{ 
+        width: '100%', 
+        minHeight: 'calc(100vh - 4rem)',
+        paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))'
+      }}>
         <Outlet />
       </main>
     </div>

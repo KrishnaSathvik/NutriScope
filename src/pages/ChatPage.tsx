@@ -467,8 +467,8 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
-      <div className="border-b border-border pb-4 md:pb-6 relative z-40 sticky top-0 md:static">
+    <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 space-y-4 md:space-y-8" style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))' }}>
+      <div className="border-b border-border pb-4 md:pb-6 relative z-40">
         <div>
           <div className="flex items-center gap-2 md:gap-3 mb-2">
             <div className="h-px w-6 md:w-8 bg-acid"></div>
@@ -639,9 +639,9 @@ export default function ChatPage() {
         </>
       )}
 
-      <div className="chat-container flex flex-col fixed md:relative inset-x-0 top-[10rem] md:top-auto bottom-[calc(4rem+env(safe-area-inset-bottom,0))] md:bottom-auto bg-surface border-x-0 md:border-x border-t-0 md:border-t border-b border-border md:rounded-sm overflow-hidden z-30" style={{ 
-        height: 'calc(100vh - 14rem - env(safe-area-inset-bottom, 0))', 
-        maxHeight: 'calc(100vh - 14rem - env(safe-area-inset-bottom, 0))',
+      <div className="chat-container flex flex-col fixed md:relative inset-x-0 top-[10rem] md:top-auto bottom-[calc(4rem+0.5rem+env(safe-area-inset-bottom,0))] md:bottom-auto bg-surface border-x-0 md:border-x border-t-0 md:border-t border-b border-border md:rounded-sm overflow-hidden z-30" style={{ 
+        height: 'calc(100vh - 10rem - 4rem - 0.5rem - env(safe-area-inset-bottom, 0))', 
+        maxHeight: 'calc(100vh - 10rem - 4rem - 0.5rem - env(safe-area-inset-bottom, 0))',
         minHeight: 0
       }}>
         <ChatMessages
