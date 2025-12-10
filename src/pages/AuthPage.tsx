@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { migrateGuestDataToNewUser } from "@/services/migrateGuestData";
-import { ArrowRight, Sparkles, ShieldCheck, Zap, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Sparkles, ShieldCheck, Zap, Loader2, AlertCircle } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { PasswordStrengthMeter } from "@/components/PasswordStrengthMeter";
 
@@ -18,26 +18,85 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Check for email verification redirect
-    const urlParams = new URLSearchParams(window.location.search);
-    const verified = urlParams.get('verified');
-    const accessToken = urlParams.get('access_token');
-    const refreshToken = urlParams.get('refresh_token');
+    if (!supabase) return;
     
-    if (verified === 'true' || accessToken) {
+    // Check for email verification redirect
+    // Supabase puts tokens in URL hash (#access_token=...) or query params (?access_token=...)
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.substring(1)); // Remove # and parse
+    
+    const verified = urlParams.get('verified') || hashParams.get('verified');
+    const accessToken = urlParams.get('access_token') || hashParams.get('access_token');
+    const type = hashParams.get('type'); // Supabase adds ?type=signup or ?type=recovery
+    
+    // Check if this is an email verification callback
+    const isEmailVerification = verified === 'true' || accessToken || (type === 'signup' && hashParams.has('access_token'));
+    
+    if (isEmailVerification) {
+      setIsVerifying(true);
+      setVerificationError(null);
+      
+      // Show success toast for mobile users
+      toast({
+        title: "Email Verified!",
+        description: "Your email has been verified. Logging you in...",
+      });
+      
       // Handle email verification - Supabase will automatically set the session
-      // Just wait a moment for session to be established, then redirect
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 1000);
+      // On mobile browsers, we need to wait for Supabase to process tokens
+      // The onAuthStateChange listener below is the primary handler, but this provides a fallback
+      const checkSessionAndRedirect = async () => {
+        // Retry logic for mobile browsers (may need more time on slower connections)
+        let attempts = 0;
+        const maxAttempts = 8; // Increased for slower mobile connections
+        
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          if (!supabase) {
+            setVerificationError('Authentication service unavailable. Please try again later.');
+            setIsVerifying(false);
+            return;
+          }
+          
+          const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            console.error('Session error:', sessionError);
+            setVerificationError('Failed to establish session. Please try logging in manually.');
+            setIsVerifying(false);
+            return;
+          }
+          
+          if (currentSession?.user && currentSession.user.email_confirmed_at) {
+            // User is verified and has a session - redirect to dashboard
+            setIsVerifying(false);
+            toast({
+              title: "Welcome!",
+              description: "Successfully logged in. Redirecting to dashboard...",
+            });
+            navigate('/dashboard');
+            return;
+          }
+          attempts++;
+        }
+        
+        // If still no session after retries, show error with manual option
+        setVerificationError('Verification may have expired or failed. Please try logging in manually.');
+        setIsVerifying(false);
+      };
+      checkSessionAndRedirect();
     }
 
     // Check if current user is a guest
     const checkGuestStatus = async () => {
+      if (!supabase) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setUser(user);
@@ -53,10 +112,11 @@ export default function Auth() {
     };
     checkGuestStatus();
 
-    // Listen for auth state changes
+    // Listen for auth state changes (this is the primary way Supabase handles verification)
+    if (!supabase) return;
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         const guest = session.user.is_anonymous || !session.user.email;
@@ -64,9 +124,35 @@ export default function Auth() {
         if (guest) {
           setIsSignUp(true);
         }
-        // If user just verified email, redirect to dashboard
-        if (verified === 'true' && !guest) {
-          navigate('/dashboard');
+        
+        // If user just verified email (SIGNED_IN event with confirmed email), redirect to dashboard
+        if (event === 'SIGNED_IN' && session.user.email_confirmed_at && !guest) {
+          setIsVerifying(false);
+          setVerificationError(null);
+          
+          // Show success message
+          toast({
+            title: "Email Verified!",
+            description: "Welcome! Redirecting to dashboard...",
+          });
+          
+          // Small delay to ensure profile is loaded
+          setTimeout(() => {
+            navigate('/dashboard');
+          }, 500);
+        }
+        
+        // Handle verification errors
+        const urlParamsCheck = new URLSearchParams(window.location.search);
+        const hashParamsCheck = new URLSearchParams(window.location.hash.substring(1));
+        const verifiedCheck = urlParamsCheck.get('verified') || hashParamsCheck.get('verified');
+        const accessTokenCheck = urlParamsCheck.get('access_token') || hashParamsCheck.get('access_token');
+        const typeCheck = hashParamsCheck.get('type');
+        const isEmailVerificationCheck = verifiedCheck === 'true' || accessTokenCheck || (typeCheck === 'signup' && hashParamsCheck.has('access_token'));
+        
+        if (event === 'TOKEN_REFRESHED' && !session && isEmailVerificationCheck) {
+          setVerificationError('Verification link may have expired. Please request a new verification email.');
+          setIsVerifying(false);
         }
       } else {
         setIsGuest(false);
@@ -111,6 +197,10 @@ export default function Auth() {
           return;
         }
 
+        if (!supabase) {
+          throw new Error('Authentication service unavailable');
+        }
+
         const { data: { user: currentUser } } = await supabase.auth.getUser();
         const isCurrentGuest = currentUser?.is_anonymous || 
                                !currentUser?.email;
@@ -151,7 +241,6 @@ export default function Auth() {
 
             // Show detailed migration results
             const hasErrors = migrationResult.errors.length > 0;
-            const successCount = migrationResult.success ? 1 : 0;
 
             if (migrationResult.success) {
               toast({
@@ -185,6 +274,10 @@ export default function Auth() {
           });
         }
       } else {
+        if (!supabase) {
+          throw new Error('Authentication service unavailable');
+        }
+        
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -214,6 +307,10 @@ export default function Auth() {
 
     try {
       setLoading(true);
+      
+      if (!supabase) {
+        throw new Error('Authentication service unavailable');
+      }
       
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       
@@ -264,6 +361,55 @@ export default function Auth() {
         <Header user={user} />
         
         <main className="relative">
+          {/* Email Verification Status Overlay */}
+          {(isVerifying || verificationError) && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-surface border border-border rounded-2xl p-6 md:p-8 max-w-md w-full shadow-xl">
+                {isVerifying ? (
+                  <div className="text-center space-y-4">
+                    <div className="flex justify-center">
+                      <Loader2 className="w-12 h-12 text-acid animate-spin" />
+                    </div>
+                    <h2 className="text-xl md:text-2xl font-bold text-text font-mono">Verifying Email</h2>
+                    <p className="text-sm md:text-base text-dim font-mono">
+                      Please wait while we verify your email and log you in...
+                    </p>
+                    <p className="text-xs text-dim/70 font-mono mt-2">
+                      This may take a few seconds on mobile devices
+                    </p>
+                  </div>
+                ) : verificationError ? (
+                  <div className="text-center space-y-4">
+                    <div className="flex justify-center">
+                      <AlertCircle className="w-12 h-12 text-error" />
+                    </div>
+                    <h2 className="text-xl md:text-2xl font-bold text-text font-mono">Verification Failed</h2>
+                    <p className="text-sm md:text-base text-dim font-mono mb-4">
+                      {verificationError}
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        onClick={() => {
+                          setVerificationError(null);
+                          setIsVerifying(false);
+                        }}
+                        className="btn-secondary flex-1"
+                      >
+                        Try Again
+                      </button>
+                      <button
+                        onClick={() => navigate('/dashboard')}
+                        className="btn-primary flex-1"
+                      >
+                        Go to Dashboard
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
+          
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 sm:pt-32 pb-16 sm:pb-24">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
               {/* Left: Copy */}

@@ -91,10 +91,11 @@ export default function SummaryPage() {
       return insight
     },
     enabled: !!dailyLog && !!dataSignature && !!user?.id,
-    staleTime: 0, // Always refetch when queryKey changes (signature changes)
+    staleTime: Infinity, // Never consider stale - data signature in queryKey handles changes
     gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
-    refetchOnMount: true, // Refetch when component mounts
+    refetchOnMount: false, // Don't refetch on mount - dataSignature in queryKey will trigger new query if data changed
     refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchOnReconnect: false, // Don't refetch on reconnect
   })
 
   if (isLoading) {
