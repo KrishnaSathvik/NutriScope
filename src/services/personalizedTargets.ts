@@ -1,4 +1,4 @@
-import { UserGoal, ActivityLevel, DietaryPreference } from '@/types'
+import { UserGoal, UserGoalType, UserGoals, ActivityLevel, DietaryPreference } from '@/types'
 
 /**
  * Calculate Basal Metabolic Rate (BMR) using Mifflin-St Jeor Equation
@@ -27,42 +27,144 @@ function calculateTDEE(bmr: number, activityLevel: ActivityLevel): number {
 }
 
 /**
- * Calculate target calories based on goal
+ * Calculate target calories based on goal(s), target weight, and timeframe
+ * Supports both single goal and multiple goals
+ * If targetWeight and timeframeMonths are provided, calculates deficit/surplus based on required weekly weight change
  */
-function calculateTargetCalories(tdee: number, goal: UserGoal): number {
-  const goalAdjustments: Record<UserGoal, number> = {
-    lose_weight: -500,        // 500 cal deficit for ~1lb/week loss
-    maintain: 0,              // Maintain current weight
-    gain_muscle: 300,         // 300 cal surplus for muscle gain
-    improve_fitness: -200,    // Slight deficit for body recomposition
+function calculateTargetCalories(
+  tdee: number, 
+  goal: UserGoal | UserGoals,
+  currentWeight?: number,
+  targetWeight?: number,
+  timeframeMonths?: number
+): number {
+  // Handle array of goals
+  const goals = Array.isArray(goal) ? goal : [goal]
+  
+  // If no goals, default to maintain
+  if (goals.length === 0) {
+    return tdee
   }
   
-  return Math.round(tdee + goalAdjustments[goal])
+  // If target weight and timeframe are provided, calculate based on required weight change rate
+  if (currentWeight && targetWeight && timeframeMonths && currentWeight !== targetWeight) {
+    const weightDifference = targetWeight - currentWeight // Positive = gain, Negative = loss
+    const totalWeeks = timeframeMonths * 4.33 // Average weeks per month
+    const weeklyWeightChangeKg = weightDifference / totalWeeks
+    
+    // Calculate required calorie adjustment
+    // 1 kg ≈ 7700 calories
+    // Weekly deficit/surplus needed = weeklyWeightChangeKg * 7700 / 7 days
+    const dailyCalorieAdjustment = (weeklyWeightChangeKg * 7700) / 7
+    
+    // Cap adjustments for safety (max 1000 cal deficit or 500 cal surplus per day)
+    const safeAdjustment = Math.max(-1000, Math.min(500, dailyCalorieAdjustment))
+    
+    // Check if goals align with weight change direction
+    const hasWeightLoss = goals.includes('lose_weight') || goals.includes('reduce_body_fat')
+    const hasWeightGain = goals.includes('gain_weight')
+    const hasMuscleGain = goals.includes('gain_muscle')
+    
+    // If goals conflict with weight change direction, use goal-based calculation instead
+    if ((weightDifference < 0 && (hasWeightGain || hasMuscleGain)) || 
+        (weightDifference > 0 && hasWeightLoss)) {
+      // Fall back to goal-based calculation
+      return calculateTargetCaloriesByGoals(tdee, goals)
+    }
+    
+    return Math.round(tdee + safeAdjustment)
+  }
+  
+  // Fall back to goal-based calculation if no target weight/timeframe
+  return calculateTargetCaloriesByGoals(tdee, goals)
 }
 
 /**
- * Calculate target protein based on goal and weight
+ * Calculate target calories based on goals only (fallback method)
  */
-function calculateTargetProtein(weight: number, goal: UserGoal, activityLevel: ActivityLevel): number {
-  // Protein recommendations per kg of bodyweight
-  const proteinMultipliers: Record<UserGoal, number> = {
-    lose_weight: 2.2,         // Higher protein for weight loss (preserves muscle)
-    maintain: 1.6,             // Standard maintenance
-    gain_muscle: 2.0,          // Higher protein for muscle building
-    improve_fitness: 1.8,       // Moderate-high for fitness improvement
+function calculateTargetCaloriesByGoals(tdee: number, goals: UserGoals): number {
+  // Goal adjustments (calorie modifications)
+  const goalAdjustments: Record<UserGoalType, number> = {
+    lose_weight: -500,           // 500 cal deficit for ~1lb/week loss
+    maintain: 0,                 // Maintain current weight
+    gain_muscle: 300,            // 300 cal surplus for muscle gain
+    gain_weight: 400,            // 400 cal surplus for weight gain
+    improve_fitness: -200,       // Slight deficit for body recomposition
+    build_endurance: -100,       // Small deficit, focus on performance
+    improve_health: 0,           // Maintain for health
+    body_recomposition: -200,    // Slight deficit for recomposition
+    increase_energy: 100,        // Small surplus for energy
+    reduce_body_fat: -400,       // Moderate deficit for fat loss
   }
+  
+  // Check for conflicting goals
+  const hasWeightLoss = goals.includes('lose_weight') || goals.includes('reduce_body_fat')
+  const hasWeightGain = goals.includes('gain_weight')
+  const hasMuscleGain = goals.includes('gain_muscle')
+  const hasRecomp = goals.includes('body_recomposition') || goals.includes('improve_fitness')
+  
+  // Handle conflicting goals intelligently
+  if (hasWeightLoss && hasMuscleGain) {
+    // Body recomposition: slight deficit with high protein
+    return Math.round(tdee - 200)
+  }
+  
+  if (hasWeightLoss && hasWeightGain) {
+    // Conflicting - default to maintain
+    return tdee
+  }
+  
+  if (hasRecomp && (hasWeightLoss || hasMuscleGain)) {
+    // Recomp takes priority
+    return Math.round(tdee - 200)
+  }
+  
+  // Calculate average adjustment for multiple non-conflicting goals
+  const adjustments = goals.map(g => goalAdjustments[g] || 0)
+  const avgAdjustment = adjustments.reduce((sum, adj) => sum + adj, 0) / adjustments.length
+  
+  return Math.round(tdee + avgAdjustment)
+}
+
+/**
+ * Calculate target protein based on goal(s) and weight
+ */
+function calculateTargetProtein(weight: number, goal: UserGoal | UserGoals, activityLevel: ActivityLevel): number {
+  // Handle array of goals
+  const goals = Array.isArray(goal) ? goal : [goal]
+  
+  // Protein recommendations per kg of bodyweight
+  const proteinMultipliers: Record<UserGoalType, number> = {
+    lose_weight: 2.2,              // Higher protein for weight loss (preserves muscle)
+    maintain: 1.6,                  // Standard maintenance
+    gain_muscle: 2.0,               // Higher protein for muscle building
+    gain_weight: 1.8,               // Moderate-high for weight gain
+    improve_fitness: 1.8,           // Moderate-high for fitness improvement
+    build_endurance: 1.6,           // Standard for endurance
+    improve_health: 1.6,            // Standard for health
+    body_recomposition: 2.1,        // High protein for recomposition
+    increase_energy: 1.7,            // Moderate for energy
+    reduce_body_fat: 2.2,           // High protein for fat loss (preserves muscle)
+  }
+  
+  // Use the highest protein requirement from selected goals
+  const proteinValues = goals.map(g => proteinMultipliers[g] || 1.6)
+  const maxProteinPerKg = Math.max(...proteinValues)
   
   // Adjust for activity level
   const activityMultiplier = activityLevel === 'very_active' || activityLevel === 'active' ? 1.1 : 1.0
   
-  const proteinPerKg = proteinMultipliers[goal] * activityMultiplier
+  const proteinPerKg = maxProteinPerKg * activityMultiplier
   return Math.round(weight * proteinPerKg)
 }
 
 /**
- * Calculate water goal based on weight, activity level, and goal
+ * Calculate water goal based on weight, activity level, and goal(s)
  */
-function calculateWaterGoal(weight: number, activityLevel: ActivityLevel, goal: UserGoal): number {
+function calculateWaterGoal(weight: number, activityLevel: ActivityLevel, goal: UserGoal | UserGoals): number {
+  // Handle array of goals
+  const goals = Array.isArray(goal) ? goal : [goal]
+  
   // Base: 30-35ml per kg bodyweight
   let baseWater = weight * 33 // ml
   
@@ -77,9 +179,15 @@ function calculateWaterGoal(weight: number, activityLevel: ActivityLevel, goal: 
   
   baseWater += activityAdjustments[activityLevel]
   
-  // Adjust for goal (weight loss needs more hydration)
-  if (goal === 'lose_weight') {
+  // Adjust for goals (weight loss and endurance need more hydration)
+  if (goals.includes('lose_weight') || goals.includes('reduce_body_fat')) {
     baseWater += 300
+  }
+  if (goals.includes('build_endurance')) {
+    baseWater += 200
+  }
+  if (goals.includes('increase_energy')) {
+    baseWater += 150
   }
   
   // Round to nearest 100ml
@@ -88,15 +196,19 @@ function calculateWaterGoal(weight: number, activityLevel: ActivityLevel, goal: 
 
 /**
  * Calculate personalized nutrition targets based on user profile
+ * Now supports both single goal and multiple goals
+ * Also supports target weight and timeframe for personalized deficit/surplus calculation
  */
 export function calculatePersonalizedTargets(params: {
   weight: number
   height: number
   age: number
-  goal: UserGoal
+  goal: UserGoal | UserGoals // Accept both single goal and array
   activityLevel: ActivityLevel
   dietaryPreference?: DietaryPreference
   isMale?: boolean
+  targetWeight?: number // Optional target weight in kg
+  timeframeMonths?: number // Optional timeframe in months
 }): {
   calorie_target: number
   protein_target: number
@@ -106,7 +218,10 @@ export function calculatePersonalizedTargets(params: {
   calorie_deficit: number // Negative for deficit, positive for surplus
   explanation: string
 } {
-  const { weight, height, age, goal, activityLevel, isMale = true } = params
+  const { weight, height, age, goal, activityLevel, isMale = true, targetWeight, timeframeMonths } = params
+  
+  // Normalize goal to array
+  const goals = Array.isArray(goal) ? goal : [goal]
 
   // Calculate BMR
   const bmr = calculateBMR(weight, height, age, isMale)
@@ -114,50 +229,77 @@ export function calculatePersonalizedTargets(params: {
   // Calculate TDEE
   const tdee = calculateTDEE(bmr, activityLevel)
   
-  // Calculate target calories
-  const calorie_target = calculateTargetCalories(tdee, goal)
+  // Calculate target calories (handles multiple goals + target weight/timeframe)
+  const calorie_target = calculateTargetCalories(tdee, goals, weight, targetWeight, timeframeMonths)
   
   // Calculate calorie deficit/surplus (negative = deficit, positive = surplus)
   const calorie_deficit = calorie_target - tdee
   
-  // Calculate target protein
-  const protein_target = calculateTargetProtein(weight, goal, activityLevel)
+  // Calculate target protein (handles multiple goals)
+  const protein_target = calculateTargetProtein(weight, goals, activityLevel)
   
-  // Calculate water goal
-  const water_goal = calculateWaterGoal(weight, activityLevel, goal)
+  // Calculate water goal (handles multiple goals)
+  const water_goal = calculateWaterGoal(weight, activityLevel, goals)
 
   // Generate personalized explanation
-  const goalNames: Record<UserGoal, string> = {
-    lose_weight: 'losing weight',
-    maintain: 'maintaining your weight',
-    gain_muscle: 'gaining muscle',
-    improve_fitness: 'improving fitness',
+  const goalNames: Record<UserGoalType, string> = {
+    lose_weight: 'Lose Weight',
+    gain_muscle: 'Gain Muscle',
+    gain_weight: 'Gain Weight',
+    maintain: 'Maintain Weight',
+    improve_fitness: 'Improve Fitness',
+    build_endurance: 'Build Endurance',
+    improve_health: 'Improve Health',
+    body_recomposition: 'Body Recomposition',
+    increase_energy: 'Increase Energy',
+    reduce_body_fat: 'Reduce Body Fat',
   }
   
-  const activityNames: Record<ActivityLevel, string> = {
-    sedentary: 'sedentary',
-    light: 'light activity',
-    moderate: 'moderate activity',
-    active: 'active',
-    very_active: 'very active',
-  }
-
-  let explanation = `Based on your profile:\n`
-  explanation += `• Goal: ${goalNames[goal]}\n`
-  explanation += `• Activity: ${activityNames[activityLevel]}\n`
-  explanation += `• Weight: ${weight}kg, Height: ${height}cm, Age: ${age}\n\n`
-  explanation += `Your daily energy:\n`
-  explanation += `• BMR (Base): ${bmr} cal/day\n`
-  explanation += `• TDEE (Total Burn): ${tdee} cal/day\n`
-  explanation += `• Target Intake: ${calorie_target} cal/day\n`
-  if (calorie_deficit < 0) {
-    explanation += `• Deficit: ${Math.abs(calorie_deficit)} cal/day (burn ${Math.abs(calorie_deficit)} more than you eat)\n`
-  } else if (calorie_deficit > 0) {
-    explanation += `• Surplus: ${calorie_deficit} cal/day (eat ${calorie_deficit} more than you burn)\n`
+  let explanation = `Based on your profile`
+  if (goals.length > 1) {
+    explanation += ` and goals (${goals.map(g => goalNames[g]).join(', ')})`
   } else {
-    explanation += `• Balanced: Maintain current weight\n`
+    explanation += ` and goal: ${goalNames[goals[0]]}`
   }
-  explanation += `\nYour personalized targets:\n`
+  explanation += `, here are your personalized daily targets:\n\n`
+  
+  // Add goal-specific context
+  const hasWeightLoss = goals.includes('lose_weight') || goals.includes('reduce_body_fat')
+  const hasMuscleGain = goals.includes('gain_muscle')
+  const hasWeightGain = goals.includes('gain_weight')
+  const hasRecomp = goals.includes('body_recomposition') || goals.includes('improve_fitness')
+  
+  if (targetWeight && timeframeMonths && weight !== targetWeight) {
+    // Use target weight/timeframe-based explanation
+    const weightDiff = targetWeight - weight
+    if (weightDiff < 0) {
+      explanation += `To reach your target weight of ${targetWeight.toFixed(1)} kg in ${timeframeMonths} month${timeframeMonths > 1 ? 's' : ''}, aim for ${calorie_target} calories/day.\n`
+      explanation += `This creates a ${Math.abs(calorie_deficit)} calorie deficit (your body burns ${tdee} cal/day).\n\n`
+    } else {
+      explanation += `To reach your target weight of ${targetWeight.toFixed(1)} kg in ${timeframeMonths} month${timeframeMonths > 1 ? 's' : ''}, aim for ${calorie_target} calories/day.\n`
+      explanation += `This creates a ${calorie_deficit} calorie surplus (your body burns ${tdee} cal/day).\n\n`
+    }
+  } else if (hasWeightLoss && hasMuscleGain) {
+    explanation += `For body recomposition (losing fat while building muscle), aim for ${calorie_target} calories/day.\n`
+    explanation += `This creates a ${Math.abs(calorie_deficit)} calorie deficit with high protein to preserve muscle.\n\n`
+  } else if (hasWeightLoss) {
+    explanation += `To lose weight safely, aim for ${calorie_target} calories/day.\n`
+    explanation += `This creates a ${Math.abs(calorie_deficit)} calorie deficit (your body burns ${tdee} cal/day).\n\n`
+  } else if (hasMuscleGain) {
+    explanation += `To build muscle, aim for ${calorie_target} calories/day.\n`
+    explanation += `This creates a ${calorie_deficit} calorie surplus (your body burns ${tdee} cal/day).\n\n`
+  } else if (hasWeightGain) {
+    explanation += `To gain weight, aim for ${calorie_target} calories/day.\n`
+    explanation += `This creates a ${calorie_deficit} calorie surplus (your body burns ${tdee} cal/day).\n\n`
+  } else if (hasRecomp) {
+    explanation += `For body recomposition, aim for ${calorie_target} calories/day.\n`
+    explanation += `Your body burns about ${tdee} calories/day.\n\n`
+  } else {
+    explanation += `To maintain your current weight, aim for ${calorie_target} calories/day.\n`
+    explanation += `This matches what your body burns daily.\n\n`
+  }
+  
+  explanation += `Your Daily Targets:\n`
   explanation += `• Calories: ${calorie_target} cal/day\n`
   explanation += `• Protein: ${protein_target}g/day\n`
   explanation += `• Water: ${water_goal}ml/day`

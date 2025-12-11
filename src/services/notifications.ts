@@ -77,19 +77,20 @@ class NotificationService {
    */
   async showNotification(options: NotificationOptions): Promise<void> {
     if (!this.isSupported()) {
-      console.warn('Notifications are not supported')
+      console.warn('[NotificationService] Notifications are not supported')
       return
     }
 
     if (this.permission !== 'granted') {
       const permission = await this.requestPermission()
       if (permission !== 'granted') {
-        console.warn('Notification permission denied')
+        console.warn('[NotificationService] Notification permission denied')
         return
       }
     }
 
     try {
+      console.log('[NotificationService] Showing notification:', options.title)
       const notification = new Notification(options.title, {
         body: options.body,
         icon: options.icon || '/favicon.ico',
@@ -116,8 +117,19 @@ class NotificationService {
         }
       }
     } catch (error) {
-      console.error('Error showing notification:', error)
+      console.error('[NotificationService] Error showing notification:', error)
     }
+  }
+
+  /**
+   * Test notification - shows immediately
+   */
+  async testNotification(): Promise<void> {
+    await this.showNotification({
+      title: 'Test Notification',
+      body: 'If you see this, notifications are working!',
+      tag: 'test',
+    })
   }
 
   /**
@@ -217,6 +229,11 @@ class NotificationService {
     time: string, // HH:mm format
     options: NotificationOptions
   ): void {
+    if (!this.hasPermission()) {
+      console.warn(`[NotificationService] Cannot schedule reminder "${id}": permission not granted`)
+      return
+    }
+
     const [hours, minutes] = time.split(':').map(Number)
     const now = new Date()
     const reminderTime = new Date()
@@ -229,8 +246,11 @@ class NotificationService {
 
     const scheduleNext = () => {
       const delay = reminderTime.getTime() - new Date().getTime()
+      
+      console.log(`[NotificationService] Scheduled reminder "${id}" for ${reminderTime.toLocaleString()} (in ${Math.round(delay / 1000 / 60)} minutes)`)
 
       const timeoutId = setTimeout(() => {
+        console.log(`[NotificationService] Triggering reminder "${id}"`)
         this.showNotification(options)
         // Schedule for next day
         reminderTime.setDate(reminderTime.getDate() + 1)

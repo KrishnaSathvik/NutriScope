@@ -7,8 +7,10 @@ import { getWaterIntake } from '@/services/water'
 import { generateQuickTip } from '@/services/aiInsights'
 import { QuickWeightEntry } from '@/components/QuickWeightEntry'
 import { StreakWidget } from '@/components/StreakWidget'
-import { Droplet, Flame, Plus, Activity, Beef, Sparkles, Loader2 } from 'lucide-react'
+import { Droplet, Flame, Plus, Activity, Beef, Sparkles, Loader2, Info } from 'lucide-react'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
+import { calculatePersonalizedTargets } from '@/services/personalizedTargets'
+import type { UserGoals } from '@/types'
 
 export default function Dashboard() {
   const [showWaterForm, setShowWaterForm] = useState(false)
@@ -404,34 +406,124 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Calorie Deficit/Surplus */}
+            {/* Calorie Deficit/Surplus - Personalized by Goal */}
             {(() => {
-              const calorieTarget = profile?.calorie_target || 2000
+              // Calculate TDEE if we have required profile data
+              const hasRequiredData = profile?.weight && profile?.height && profile?.age && (profile?.goal || (profile as any)?.goals) && profile?.activity_level && profile?.gender
+              let tdee: number | null = null
+              
+              if (hasRequiredData) {
+                // Use goals array if available, otherwise fall back to single goal
+                const userGoals: UserGoals = (profile as any)?.goals && (profile as any).goals.length > 0
+                  ? (profile as any).goals as UserGoals
+                  : (profile?.goal ? [profile.goal] : ['maintain']) as UserGoals
+                
+                const targets = calculatePersonalizedTargets({
+                  weight: profile.weight!,
+                  height: profile.height!,
+                  age: profile.age!,
+                  goal: userGoals, // Pass array of goals
+                  activityLevel: profile.activity_level!,
+                  dietaryPreference: profile.dietary_preference,
+                  isMale: profile.gender === 'male',
+                })
+                tdee = targets.tdee
+              }
+              
+              // Standard nutrition calculation: Net Calories = Consumed - Burned
               const netCalories = dailyLog.calories_consumed - dailyLog.calories_burned
-              const deficit = calorieTarget - netCalories // Positive = deficit (under target), Negative = surplus (over target)
-              const isDeficit = deficit > 0
-              const isSurplus = deficit < 0
+              
+              // Calculate actual deficit/surplus vs TDEE (maintenance calories)
+              // Deficit = TDEE - Net Calories (positive = deficit, negative = surplus)
+              let actualDeficit: number | null = null
+              let displayLabel = 'Deficit Total'
+              let isGoodDeficit = false
+              let isSurplus = false
+              
+              if (tdee !== null) {
+                actualDeficit = tdee - netCalories
+                
+                // Personalize display based on goal
+                if (profile?.goal === 'lose_weight' || profile?.goal === 'improve_fitness') {
+                  // For weight loss: positive deficit is good (eating less than maintenance)
+                  isGoodDeficit = actualDeficit > 0
+                  isSurplus = actualDeficit < 0
+                  displayLabel = 'Calorie Deficit'
+                } else if (profile?.goal === 'gain_muscle') {
+                  // For muscle gain: negative deficit (surplus) is good (eating more than maintenance)
+                  isGoodDeficit = actualDeficit < 0
+                  isSurplus = actualDeficit < 0
+                  displayLabel = 'Calorie Surplus'
+                  actualDeficit = Math.abs(actualDeficit) // Show as positive surplus
+                } else {
+                  // For maintain: close to 0 is good
+                  isGoodDeficit = Math.abs(actualDeficit) < 50
+                  isSurplus = actualDeficit < 0
+                  displayLabel = 'Balance'
+                }
+              } else {
+                // Fallback: use target-based calculation if TDEE not available
+                const calorieTarget = profile?.calorie_target || 2000
+                actualDeficit = calorieTarget - netCalories
+                isSurplus = actualDeficit < 0
+                displayLabel = 'Deficit Total'
+              }
               
               return (
                 <div className="pt-3 md:pt-0">
-                  <div className="text-xs md:text-sm text-dim font-medium font-mono uppercase tracking-wider mb-1 md:mb-2">Deficit Total</div>
+                  <div className="flex items-center gap-1.5 mb-1 md:mb-2">
+                    <div className="text-xs md:text-sm text-dim font-medium font-mono uppercase tracking-wider">{displayLabel}</div>
+                    {tdee !== null && (
+                      <div className="group relative">
+                        <Info className="w-3.5 h-3.5 md:w-4 md:h-4 text-dim cursor-help hover:text-accent transition-colors" />
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3 bg-surface border border-border rounded-lg shadow-xl text-xs text-text z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-none">
+                          <div className="space-y-2 font-mono">
+                            <div>
+                              <strong className="text-accent">TDEE:</strong> {tdee} cal/day<br />
+                              <span className="text-dim text-[10px]">What you burn daily (maintenance)</span>
+                            </div>
+                            <div>
+                              <strong className="text-accent">Net Calories:</strong> {netCalories} cal<br />
+                              <span className="text-dim text-[10px]">What you actually "kept" after exercise</span>
+                            </div>
+                            <div>
+                              <strong className="text-accent">Deficit:</strong> {Math.abs(actualDeficit || 0)} cal<br />
+                              <span className="text-dim text-[10px]">How much {actualDeficit && actualDeficit > 0 ? 'less' : 'more'} you're eating than maintenance</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <div className={`text-3xl md:text-4xl font-bold font-mono mb-1 ${
-                    isSurplus
-                      ? 'text-success' 
-                      : isDeficit
-                      ? 'text-error' 
-                      : 'text-text'
+                    isSurplus && (profile?.goal === 'lose_weight' || profile?.goal === 'improve_fitness')
+                      ? 'text-error' // Surplus is bad for weight loss
+                      : isGoodDeficit
+                      ? 'text-success' // Good deficit/surplus for goal
+                      : isSurplus && profile?.goal === 'gain_muscle'
+                      ? 'text-success' // Surplus is good for muscle gain
+                      : 'text-error' // Deficit is bad for muscle gain
                   }`}>
-                    {isSurplus ? '+' : ''}
-                    {Math.abs(deficit)}
+                    {isSurplus && profile?.goal === 'gain_muscle' ? '+' : ''}
+                    {Math.abs(actualDeficit || 0)}
                   </div>
                   <div className="text-xs md:text-sm text-dim font-medium font-mono">
-                    {isSurplus 
-                      ? 'cal surplus' 
-                      : isDeficit
-                      ? 'cal deficit' 
-                      : 'balanced'}
+                    {isSurplus && (profile?.goal === 'lose_weight' || profile?.goal === 'improve_fitness')
+                      ? 'cal surplus'
+                      : isSurplus && profile?.goal === 'gain_muscle'
+                      ? 'cal surplus'
+                      : actualDeficit === 0 || (actualDeficit !== null && Math.abs(actualDeficit) < 50)
+                      ? 'balanced'
+                      : 'cal deficit'}
                   </div>
+                  {tdee !== null && (
+                    <div className="mt-2 pt-2 border-t border-border/50">
+                      <div className="text-[10px] md:text-xs text-dim font-mono space-y-0.5">
+                        <div>Net: {netCalories} cal (consumed - burned)</div>
+                        <div>TDEE: {tdee} cal (maintenance)</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             })()}
@@ -448,12 +540,35 @@ export default function Dashboard() {
             
             {/* Progress Bar Showing All 3 Metrics */}
             {(() => {
-              const calorieTarget = profile?.calorie_target || 2000
-              const consumedPercent = Math.min((dailyLog.calories_consumed / calorieTarget) * 100, 100)
-              const burnedPercent = Math.min((dailyLog.calories_burned / calorieTarget) * 100, 100)
+              // Calculate TDEE for accurate deficit calculation
+              const hasRequiredData = profile?.weight && profile?.height && profile?.age && profile?.goal && profile?.activity_level && profile?.gender
+              let tdee: number | null = null
+              
+              if (hasRequiredData) {
+                const targets = calculatePersonalizedTargets({
+                  weight: profile.weight!,
+                  height: profile.height!,
+                  age: profile.age!,
+                  goal: profile.goal!,
+                  activityLevel: profile.activity_level!,
+                  dietaryPreference: profile.dietary_preference,
+                  isMale: profile.gender === 'male',
+                })
+                tdee = targets.tdee
+              }
+              
+              // Use TDEE for progress bar if available, otherwise use target
+              const referenceCalories = tdee || profile?.calorie_target || 2000
+              
+              const consumedPercent = Math.min((dailyLog.calories_consumed / referenceCalories) * 100, 100)
+              const burnedPercent = Math.min((dailyLog.calories_burned / referenceCalories) * 100, 100)
+              
+              // Standard nutrition: Net Calories = Consumed - Burned
               const netCalories = dailyLog.calories_consumed - dailyLog.calories_burned
-              const deficit = calorieTarget - netCalories
-              const deficitPercent = Math.min((Math.abs(deficit) / calorieTarget) * 100, 100)
+              
+              // Actual deficit vs TDEE (or target if TDEE not available)
+              const actualDeficit = referenceCalories - netCalories
+              const deficitPercent = Math.min((Math.abs(actualDeficit) / referenceCalories) * 100, 100)
               
               return (
                 <>
@@ -477,19 +592,23 @@ export default function Dashboard() {
                       />
                     )}
                     
-                    {/* Deficit/Surplus Indicator (Green/Red) */}
-                    {deficit !== 0 && (
+                    {/* Deficit/Surplus Indicator (Green/Red) - Personalized by Goal */}
+                    {actualDeficit !== 0 && (
                       <div
                         className={`absolute top-0 h-full border-2 border-dashed transition-all duration-1000 ease-out ${
-                          deficit < 0 
-                            ? 'border-success bg-success/20' 
-                            : 'border-error bg-error/20'
+                          (actualDeficit < 0 && (profile?.goal === 'lose_weight' || profile?.goal === 'improve_fitness'))
+                            ? 'border-error bg-error/20' // Surplus is bad for weight loss
+                            : (actualDeficit > 0 && (profile?.goal === 'lose_weight' || profile?.goal === 'improve_fitness'))
+                            ? 'border-success bg-success/20' // Deficit is good for weight loss
+                            : (actualDeficit < 0 && profile?.goal === 'gain_muscle')
+                            ? 'border-success bg-success/20' // Surplus is good for muscle gain
+                            : 'border-error bg-error/20' // Deficit is bad for muscle gain
                         }`}
                         style={{ 
                           left: `${consumedPercent + burnedPercent}%`,
                           width: `${Math.min(deficitPercent, 100 - consumedPercent - burnedPercent)}%`
                         }}
-                        title={`${deficit < 0 ? 'Surplus' : 'Deficit'}: ${Math.abs(deficit)} cal`}
+                        title={`${actualDeficit < 0 ? 'Surplus' : 'Deficit'}: ${Math.abs(actualDeficit)} cal`}
                       />
                     )}
                     
@@ -530,23 +649,35 @@ export default function Dashboard() {
                       </div>
                     )}
                     
-                    {/* Deficit/Surplus */}
+                    {/* Deficit/Surplus - Personalized by Goal */}
                     <div className="flex items-center gap-2">
                       <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 border-2 border-dashed ${
-                        deficit < 0 
-                          ? 'bg-success/20 border-success' 
-                          : deficit > 0
-                          ? 'bg-error/20 border-error'
-                          : 'bg-border border-border'
+                        (actualDeficit < 0 && (profile?.goal === 'lose_weight' || profile?.goal === 'improve_fitness'))
+                          ? 'bg-error/20 border-error' // Surplus is bad for weight loss
+                          : (actualDeficit > 0 && (profile?.goal === 'lose_weight' || profile?.goal === 'improve_fitness'))
+                          ? 'bg-success/20 border-success' // Deficit is good for weight loss
+                          : (actualDeficit < 0 && profile?.goal === 'gain_muscle')
+                          ? 'bg-success/20 border-success' // Surplus is good for muscle gain
+                          : actualDeficit === 0 || Math.abs(actualDeficit) < 50
+                          ? 'bg-border border-border'
+                          : 'bg-error/20 border-error' // Deficit is bad for muscle gain
                       }`}></div>
                       <div className="flex flex-col">
                         <span className={`${
-                          deficit < 0 ? 'text-success' : deficit > 0 ? 'text-error' : 'text-dim'
+                          (actualDeficit < 0 && (profile?.goal === 'lose_weight' || profile?.goal === 'improve_fitness'))
+                            ? 'text-error' // Surplus is bad for weight loss
+                            : (actualDeficit > 0 && (profile?.goal === 'lose_weight' || profile?.goal === 'improve_fitness'))
+                            ? 'text-success' // Deficit is good for weight loss
+                            : (actualDeficit < 0 && profile?.goal === 'gain_muscle')
+                            ? 'text-success' // Surplus is good for muscle gain
+                            : actualDeficit === 0 || Math.abs(actualDeficit) < 50
+                            ? 'text-dim'
+                            : 'text-error' // Deficit is bad for muscle gain
                         }`}>
-                          {deficit < 0 ? 'Surplus' : deficit > 0 ? 'Deficit' : 'Balanced'}
+                          {actualDeficit < 0 ? 'Surplus' : actualDeficit > 0 ? 'Deficit' : 'Balanced'}
                         </span>
                         <span className="text-dim text-[10px]">
-                          {deficit !== 0 ? `${Math.abs(deficit)} cal` : 'On target'}
+                          {actualDeficit !== 0 ? `${Math.abs(actualDeficit)} cal` : 'On target'}
                         </span>
                       </div>
                     </div>

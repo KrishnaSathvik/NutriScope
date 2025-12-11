@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
-import { supabase } from '@/lib/supabase'
-import { UserProfile } from '@/types'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { UserProfile, UserGoal, UserGoalType, UserGoals, ActivityLevel, DietaryPreference } from '@/types'
 import { ReminderSettingsSection } from '@/components/ReminderSettings'
 import { getLatestWeight } from '@/services/weightTracking'
 import AchievementWidget from '@/components/AchievementWidget'
 import { GenderSelectionDialog } from '@/components/GenderSelectionDialog'
 import { UpdateTargetsDialog } from '@/components/UpdateTargetsDialog'
 import { calculatePersonalizedTargets } from '@/services/personalizedTargets'
-import { Edit, X, User, Target, Activity, UtensilsCrossed, Flame, Droplet, Mail, CheckCircle2, Scale, UserCircle, Calendar, Weight, Beef, TrendingDown, TrendingUp } from 'lucide-react'
+import { Edit, X, User, Target, Activity, UtensilsCrossed, Flame, Droplet, Mail, CheckCircle2, Scale, UserCircle, Calendar, Weight, Beef, TrendingDown, TrendingUp, Dumbbell, Heart, Zap as EnergyIcon } from 'lucide-react'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { useToast } from '@/hooks/use-toast'
 
@@ -19,7 +19,36 @@ export default function ProfilePage() {
   const { toast } = useToast()
 
   // Set up realtime subscription for user profile
-  useUserRealtimeSubscription('user_profiles', ['profile'], user?.id)
+  // Note: user_profiles uses 'id' as primary key (not user_id), so we need a custom subscription
+  useEffect(() => {
+    if (!supabase || !isSupabaseConfigured() || !user?.id) return
+    
+    const channel = supabase
+      .channel(`user_profiles_${user.id}_changes`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_profiles',
+          filter: `id=eq.${user.id}`, // Filter by id (primary key), not user_id
+        },
+        () => {
+          // Invalidate profile query to trigger refetch and update UI immediately
+          queryClient.invalidateQueries({ queryKey: ['profile'] })
+          // Also invalidate dailyLog so Dashboard recalculates TDEE/deficit
+          queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
+        }
+      )
+      .subscribe()
+    
+    return () => {
+      if (supabase) {
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [user?.id, queryClient])
+  
   useUserRealtimeSubscription('weight_logs', ['latestWeight'], user?.id)
   
   // Weight tracking - for displaying in Personal Information section
@@ -38,12 +67,27 @@ export default function ProfilePage() {
   } | null>(null)
   
   const [editing, setEditing] = useState(false)
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string
+    age?: number
+    height?: number
+    weight?: number
+    goal: UserGoal
+    goals?: UserGoals // Array of goals for multi-selection
+    activity_level: ActivityLevel
+    dietary_preference: DietaryPreference
+    calorie_target?: number
+    protein_target?: number
+    water_goal?: number
+  }>({
     name: profile?.name || '',
     age: profile?.age || undefined,
     height: profile?.height || undefined,
     weight: profile?.weight || latestWeight?.weight || undefined,
     goal: profile?.goal || 'maintain',
+    goals: (profile as any)?.goals && (profile as any).goals.length > 0 
+      ? (profile as any).goals as UserGoals 
+      : (profile?.goal ? [profile.goal] : ['maintain']) as UserGoals,
     activity_level: profile?.activity_level || 'moderate',
     dietary_preference: profile?.dietary_preference || 'flexitarian',
     calorie_target: profile?.calorie_target || profile?.target_calories || 2000,
@@ -90,15 +134,81 @@ export default function ProfilePage() {
     mutationFn: async (data: Partial<UserProfile>) => {
       if (!user) throw new Error('Not authenticated')
       if (!supabase) throw new Error('Supabase not configured')
-      const { error } = await supabase
+      
+      // Map form field names to database column names
+      // The database uses: calorie_target, protein_target (not target_calories, target_protein)
+      const fieldMapping: Record<string, string> = {
+        target_calories: 'calorie_target',
+        target_protein: 'protein_target',
+      }
+      
+      // Filter out undefined, null, and empty string values
+      // Also convert empty strings to null for number fields to allow clearing
+      const cleanData: Record<string, any> = {}
+      Object.entries(data).forEach(([key, value]) => {
+        // Skip undefined and null
+        if (value === undefined || value === null) return
+        
+        // Map field name to database column name if needed
+        const dbColumnName = fieldMapping[key] || key
+        
+        // For number fields (age, weight, height, targets), allow empty string to clear
+        const numberFields = ['age', 'weight', 'height', 'calorie_target', 'protein_target', 'water_goal', 'target_carbs', 'target_fats']
+        if (numberFields.includes(dbColumnName)) {
+          if (value === '' || value === null || value === undefined) {
+            cleanData[dbColumnName] = null // Set to null to clear the field
+          } else {
+            cleanData[dbColumnName] = Number(value) // Ensure it's a number
+          }
+        } else if (value !== '') {
+          // For other fields, skip empty strings
+          cleanData[dbColumnName] = value
+        }
+      })
+      
+      // Don't send update if there's nothing to update
+      if (Object.keys(cleanData).length === 0) {
+        return
+      }
+      
+      const { error, data: updateData } = await supabase
         .from('user_profiles')
-        .update(data)
+        .update(cleanData)
         .eq('id', user.id)
-      if (error) throw error
+        .select()
+      
+      if (error) {
+        console.error('Profile update error:', error)
+        console.error('Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        })
+        console.error('Data attempted:', cleanData)
+        throw new Error(error.message || `Failed to update profile: ${error.code}`)
+      }
+      
+      return updateData
     },
     onSuccess: () => {
+      // Invalidate profile query to trigger refetch and update UI immediately
       queryClient.invalidateQueries({ queryKey: ['profile'] })
+      // Also invalidate dailyLog so Dashboard recalculates TDEE/deficit when targets change
+      queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
       setEditing(false)
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been updated successfully.",
+      })
+    },
+    onError: (error: any) => {
+      console.error('Error updating profile:', error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update profile. Please try again.",
+        variant: "destructive",
+      })
     },
   })
 
@@ -185,9 +295,7 @@ export default function ProfilePage() {
         .from('user_profiles')
         .update({
           calorie_target: newTargets.calories,
-          target_calories: newTargets.calories,
           protein_target: newTargets.protein,
-          target_protein: newTargets.protein,
           water_goal: newTargets.water,
         })
         .eq('id', user.id)
@@ -220,21 +328,21 @@ export default function ProfilePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Map formData to match database schema (support both field variants)
+    // Map formData to match database schema
     // Note: gender is NOT included here - it cannot be changed after onboarding
+    // Only use calorie_target and protein_target (not target_calories/target_protein)
     const updateData: Partial<UserProfile> = {
       name: formData.name || undefined,
       age: formData.age || undefined,
       height: formData.height || undefined,
       weight: formData.weight || undefined,
-      goal: formData.goal,
+      goal: formData.goal, // Single goal for backward compatibility
+      goals: formData.goals && formData.goals.length > 0 ? formData.goals : undefined, // Array of goals (new)
       activity_level: formData.activity_level,
       dietary_preference: formData.dietary_preference,
-      calorie_target: formData.calorie_target,
-      target_calories: formData.calorie_target,
-      protein_target: formData.protein_target,
-      target_protein: formData.protein_target,
-      water_goal: formData.water_goal,
+      calorie_target: formData.calorie_target ?? undefined,
+      protein_target: formData.protein_target ?? undefined,
+      water_goal: formData.water_goal ?? undefined,
     }
     updateMutation.mutate(updateData)
   }
@@ -324,17 +432,73 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">Goal</label>
-              <select
-                value={formData.goal}
-                onChange={(e) => setFormData({ ...formData, goal: e.target.value as any })}
-                className="input-modern text-sm md:text-base"
-              >
-                <option value="lose_weight">Lose Weight</option>
-                <option value="gain_muscle">Gain Muscle</option>
-                <option value="maintain">Maintain</option>
-                <option value="improve_fitness">Improve Fitness</option>
-              </select>
+              <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">
+                Goals (Select one or more)
+              </label>
+              <p className="text-xs text-dim font-mono mb-3">
+                Select multiple goals to get personalized targets based on your combined objectives.
+              </p>
+              <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto scrollbar-hide">
+                {[
+                  { value: "lose_weight" as UserGoalType, label: "Lose Weight", icon: TrendingDown, color: "#10B981", bgColor: "rgba(16, 185, 129, 0.15)" },
+                  { value: "gain_muscle" as UserGoalType, label: "Gain Muscle", icon: Dumbbell, color: "#F59E0B", bgColor: "rgba(245, 158, 11, 0.15)" },
+                  { value: "gain_weight" as UserGoalType, label: "Gain Weight", icon: TrendingUp, color: "#F97316", bgColor: "rgba(249, 115, 22, 0.15)" },
+                  { value: "maintain" as UserGoalType, label: "Maintain", icon: Heart, color: "#EC4899", bgColor: "rgba(236, 72, 153, 0.15)" },
+                  { value: "improve_fitness" as UserGoalType, label: "Improve Fitness", icon: Activity, color: "#3B82F6", bgColor: "rgba(59, 130, 246, 0.15)" },
+                  { value: "build_endurance" as UserGoalType, label: "Build Endurance", icon: Activity, color: "#06B6D4", bgColor: "rgba(6, 182, 212, 0.15)" },
+                  { value: "improve_health" as UserGoalType, label: "Improve Health", icon: Heart, color: "#8B5CF6", bgColor: "rgba(139, 92, 246, 0.15)" },
+                  { value: "body_recomposition" as UserGoalType, label: "Body Recomp", icon: Target, color: "#6366F1", bgColor: "rgba(99, 102, 241, 0.15)" },
+                  { value: "increase_energy" as UserGoalType, label: "Increase Energy", icon: EnergyIcon, color: "#FBBF24", bgColor: "rgba(251, 191, 36, 0.15)" },
+                  { value: "reduce_body_fat" as UserGoalType, label: "Reduce Body Fat", icon: TrendingDown, color: "#14B8A6", bgColor: "rgba(20, 184, 166, 0.15)" },
+                ].map((option) => {
+                  const Icon = option.icon
+                  const currentGoals = formData.goals || []
+                  const isSelected = currentGoals.includes(option.value)
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        const updatedGoals = isSelected
+                          ? currentGoals.filter(g => g !== option.value)
+                          : [...currentGoals, option.value]
+                        setFormData({ 
+                          ...formData, 
+                          goals: updatedGoals as UserGoals,
+                          goal: updatedGoals.length > 0 ? (updatedGoals[0] as UserGoal) : 'maintain' // Update single goal for backward compatibility
+                        })
+                      }}
+                      className={`relative rounded-sm p-3 border-2 transition-all font-mono text-left text-xs ${
+                        isSelected
+                          ? "ring-2"
+                          : "border-border bg-surface hover:border-dim"
+                      }`}
+                      style={isSelected ? { 
+                        borderColor: option.color,
+                        backgroundColor: option.bgColor,
+                        boxShadow: `0 0 0 2px ${option.color}33`
+                      } : {}}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="flex w-8 h-8 rounded-sm items-center justify-center flex-shrink-0" style={{ backgroundColor: isSelected ? option.bgColor : `${option.color}1A` }}>
+                          <Icon className="w-4 h-4" style={{ color: option.color }} />
+                        </div>
+                        <span className="font-medium text-text">{option.label}</span>
+                      </div>
+                      {isSelected && (
+                        <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: '#0D9488' }}>
+                          <CheckCircle2 className="w-3 h-3 text-white stroke-[2.5]" />
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+              {formData.goals && formData.goals.length > 0 && (
+                <p className="text-xs text-accent font-mono mt-2">
+                  {formData.goals.length} goal{formData.goals.length > 1 ? 's' : ''} selected
+                </p>
+              )}
             </div>
 
             <div>
@@ -371,27 +535,39 @@ export default function ProfilePage() {
                 <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">Calorie Target</label>
                 <input
                   type="number"
-                  value={formData.calorie_target}
-                  onChange={(e) => setFormData({ ...formData, calorie_target: Number(e.target.value) })}
+                  value={formData.calorie_target || ''}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? undefined : Number(e.target.value)
+                    setFormData({ ...formData, calorie_target: value })
+                  }}
                   className="input-modern text-sm md:text-base"
+                  placeholder="e.g., 2000"
                 />
               </div>
               <div>
                 <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">Protein Target (g)</label>
                 <input
                   type="number"
-                  value={formData.protein_target}
-                  onChange={(e) => setFormData({ ...formData, protein_target: Number(e.target.value) })}
+                  value={formData.protein_target || ''}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? undefined : Number(e.target.value)
+                    setFormData({ ...formData, protein_target: value })
+                  }}
                   className="input-modern text-sm md:text-base"
+                  placeholder="e.g., 150"
                 />
               </div>
               <div>
                 <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">Water Goal (ml)</label>
                 <input
                   type="number"
-                  value={formData.water_goal}
-                  onChange={(e) => setFormData({ ...formData, water_goal: Number(e.target.value) })}
+                  value={formData.water_goal || ''}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? undefined : Number(e.target.value)
+                    setFormData({ ...formData, water_goal: value })
+                  }}
                   className="input-modern text-sm md:text-base"
+                  placeholder="e.g., 2000"
                 />
               </div>
             </div>
@@ -399,7 +575,7 @@ export default function ProfilePage() {
             <div className="flex space-x-4 pt-4 border-t border-border">
               <button
                 type="submit"
-                className="btn-primary gap-2"
+                className="btn-secondary gap-2"
                 disabled={updateMutation.isPending}
               >
                 {updateMutation.isPending ? (
@@ -565,7 +741,11 @@ export default function ProfilePage() {
                     isMale: profile.gender === 'male',
                   })
                   tdee = targets.tdee
-                  deficit = targets.calorie_deficit
+                  
+                  // Calculate deficit based on actual calorie_target vs TDEE
+                  // If user manually changed calorie_target, use that instead of calculated target
+                  const actualCalorieTarget = profile?.calorie_target || targets.calorie_target
+                  deficit = actualCalorieTarget - tdee // Positive = deficit, Negative = surplus
                 }
                 
                 return (

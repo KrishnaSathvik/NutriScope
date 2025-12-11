@@ -169,6 +169,49 @@ export default function ChatPage() {
 
   const startRecording = async () => {
     try {
+      // Check if we already have permission and a stream
+      if (streamRef.current && streamRef.current.active) {
+        // Reuse existing stream
+        const mediaRecorder = new MediaRecorder(streamRef.current, {
+          mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
+        })
+        mediaRecorderRef.current = mediaRecorder
+        audioChunksRef.current = []
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data)
+          }
+        }
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType })
+          setIsRecording(false)
+          setIsTranscribing(true)
+
+          try {
+            const transcribedText = await transcribeAudio(audioBlob, user?.id)
+            setInput(transcribedText)
+            setIsTranscribing(false)
+          } catch (error) {
+            console.error('Transcription error:', error)
+            setIsTranscribing(false)
+            const errorMessage: ChatMessage = {
+              id: Date.now().toString(),
+              role: 'assistant',
+              content: error instanceof Error ? error.message : 'Failed to transcribe audio. Please try again.',
+              timestamp: new Date().toISOString(),
+            }
+            setMessages((prev) => [...prev, errorMessage])
+          }
+        }
+
+        mediaRecorder.start()
+        setIsRecording(true)
+        return
+      }
+
+      // Request new stream if we don't have one
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
       audioChunksRef.current = []
@@ -203,13 +246,8 @@ export default function ChatPage() {
             timestamp: new Date().toISOString(),
           }
           setMessages((prev) => [...prev, errorMessage])
-        } finally {
-          // Stop all tracks
-          if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop())
-            streamRef.current = null
-          }
         }
+        // Don't stop tracks - keep stream alive for reuse
       }
 
       mediaRecorder.start()

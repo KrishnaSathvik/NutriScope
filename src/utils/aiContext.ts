@@ -37,8 +37,14 @@ export function buildPersonalizedContext(
     const goalDescriptions: Record<string, string> = {
       lose_weight: 'losing weight',
       gain_muscle: 'gaining muscle mass',
+      gain_weight: 'gaining weight',
       maintain: 'maintaining your current weight',
       improve_fitness: 'improving overall fitness',
+      build_endurance: 'building endurance',
+      improve_health: 'improving overall health',
+      body_recomposition: 'body recomposition (losing fat while gaining muscle)',
+      increase_energy: 'increasing energy levels',
+      reduce_body_fat: 'reducing body fat percentage',
     }
     
     const activityDescriptions: Record<string, string> = {
@@ -56,8 +62,20 @@ export function buildPersonalizedContext(
       flexitarian: 'flexitarian diet (mostly plant-based)',
     }
     
+    // Handle multiple goals (new) or single goal (backward compatibility)
+    const userGoals = profile.goals && profile.goals.length > 0 
+      ? profile.goals 
+      : (profile.goal ? [profile.goal] : ['maintain'])
+    
+    const goalLabels = userGoals.map(g => goalDescriptions[g] || g).join(', ')
+    
     context += `**Goals & Preferences:**\n`
-    context += `- Primary Goal: ${goalDescriptions[profile.goal] || profile.goal}\n`
+    if (userGoals.length > 1) {
+      context += `- Goals: ${goalLabels}\n`
+      context += `- Primary Goal (for backward compatibility): ${goalDescriptions[profile.goal] || profile.goal}\n`
+    } else {
+      context += `- Primary Goal: ${goalLabels}\n`
+    }
     context += `- Activity Level: ${activityDescriptions[profile.activity_level] || profile.activity_level}\n`
     context += `- Dietary Preference: ${dietaryDescriptions[profile.dietary_preference] || profile.dietary_preference}\n`
     
@@ -76,20 +94,55 @@ export function buildPersonalizedContext(
     // Personalized guidance (only for chat mode or when explicitly requested)
     if (includeGuidance && mode === 'chat') {
       context += `**Personalized Guidance:**\n`
-      if (profile.goal === 'lose_weight') {
+      
+      // Handle multiple goals
+      const hasWeightLoss = userGoals.includes('lose_weight') || userGoals.includes('reduce_body_fat')
+      const hasMuscleGain = userGoals.includes('gain_muscle')
+      const hasWeightGain = userGoals.includes('gain_weight')
+      const hasRecomp = userGoals.includes('body_recomposition') || userGoals.includes('improve_fitness')
+      const hasEndurance = userGoals.includes('build_endurance')
+      const hasEnergy = userGoals.includes('increase_energy')
+      const hasHealth = userGoals.includes('improve_health')
+      const hasMaintain = userGoals.includes('maintain')
+      
+      if (hasWeightLoss && hasMuscleGain) {
+        context += `- Body recomposition focus: slight calorie deficit with high protein to lose fat while building muscle\n`
+        context += `- Aim for ${profile.protein_target || 150}g+ protein daily to preserve muscle during fat loss\n`
+        context += `- Prioritize strength training with adequate recovery\n`
+      } else if (hasWeightLoss) {
         context += `- Focus on calorie deficit while maintaining protein intake to preserve muscle\n`
         context += `- Aim for ${profile.protein_target || 150}g+ protein daily to support weight loss\n`
         context += `- Stay hydrated - your water goal is ${profile.water_goal || 2000}ml/day\n`
-      } else if (profile.goal === 'gain_muscle') {
+      } else if (hasMuscleGain) {
         context += `- Focus on protein-rich meals to support muscle growth\n`
         context += `- Ensure adequate calories (${profile.calorie_target || 2000} cal/day) for muscle building\n`
         context += `- Prioritize strength training and recovery\n`
-      } else if (profile.goal === 'maintain') {
+      } else if (hasWeightGain) {
+        context += `- Focus on calorie surplus with balanced nutrition\n`
+        context += `- Aim for ${profile.protein_target || 150}g+ protein to support healthy weight gain\n`
+        context += `- Include strength training to build muscle mass\n`
+      } else if (hasRecomp) {
+        context += `- Body recomposition: slight deficit with high protein for fat loss and muscle gain\n`
+        context += `- Prioritize ${profile.protein_target || 150}g+ protein daily\n`
+        context += `- Combine strength training with moderate cardio\n`
+      } else if (hasEndurance) {
+        context += `- Focus on balanced nutrition to support endurance training\n`
+        context += `- Ensure adequate carbs for energy and ${profile.protein_target || 150}g+ protein for recovery\n`
+        context += `- Stay well-hydrated - your water goal is ${profile.water_goal || 2000}ml/day\n`
+      } else if (hasEnergy) {
+        context += `- Focus on balanced meals with adequate protein and complex carbs\n`
+        context += `- Ensure regular meal timing to maintain energy levels\n`
+        context += `- Stay hydrated - your water goal is ${profile.water_goal || 2000}ml/day\n`
+      } else if (hasHealth) {
+        context += `- Focus on balanced, nutrient-dense meals\n`
+        context += `- Maintain ${profile.protein_target || 150}g protein for overall health\n`
+        context += `- Include variety of fruits, vegetables, and whole grains\n`
+      } else if (hasMaintain) {
         context += `- Balance your intake around ${profile.calorie_target || 2000} calories daily\n`
         context += `- Maintain ${profile.protein_target || 150}g protein for muscle maintenance\n`
-      } else if (profile.goal === 'improve_fitness') {
-        context += `- Focus on balanced nutrition and regular exercise\n`
-        context += `- Support your active lifestyle with ${profile.protein_target || 150}g+ protein\n`
+      } else {
+        context += `- Focus on balanced nutrition aligned with your goals\n`
+        context += `- Aim for ${profile.protein_target || 150}g+ protein daily\n`
       }
       context += `\n`
     }

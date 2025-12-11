@@ -4,7 +4,6 @@ import { notificationService } from '@/services/notifications'
 import { ReminderSettings } from '@/types'
 import { getDailyLog } from '@/services/dailyLogs'
 import { getWaterIntake } from '@/services/water'
-import { UtensilsCrossed, Droplet, Dumbbell, BarChart3, Target } from 'lucide-react'
 
 /**
  * ReminderScheduler Component
@@ -15,212 +14,261 @@ export function ReminderScheduler() {
   const initializedRef = useRef(false)
 
   useEffect(() => {
-    if (!user || !profile || initializedRef.current) return
+    if (!user || !profile || initializedRef.current) {
+      if (!user) {
+        console.log('[ReminderScheduler] No user, skipping initialization')
+      } else if (!profile) {
+        console.log('[ReminderScheduler] No profile, skipping initialization')
+      } else if (initializedRef.current) {
+        console.log('[ReminderScheduler] Already initialized, skipping')
+      }
+      return
+    }
 
     const settings: ReminderSettings | undefined = profile.reminder_settings
 
+    console.log('[ReminderScheduler] Initializing with settings:', settings)
+
     if (!settings?.enabled) {
+      console.log('[ReminderScheduler] Reminders are disabled in settings')
       return
     }
 
     initializedRef.current = true
 
-    // Request notification permission
-    notificationService.requestPermission()
+    // Request notification permission and check if granted
+    notificationService.requestPermission().then((permission) => {
+      console.log('[ReminderScheduler] Notification permission:', permission)
+      
+      if (permission !== 'granted') {
+        console.warn('[ReminderScheduler] Notification permission not granted:', permission)
+        return
+      }
 
-    // Schedule meal reminders
-    if (settings.meal_reminders?.enabled) {
-      const mealReminders = settings.meal_reminders
+      console.log('[ReminderScheduler] Scheduling reminders...')
 
-      if (mealReminders.breakfast) {
-        notificationService.scheduleDailyReminder(
-          'meal-breakfast',
-          mealReminders.breakfast,
+      // Schedule meal reminders
+      if (settings.meal_reminders?.enabled) {
+        console.log('[ReminderScheduler] Scheduling meal reminders')
+        const mealReminders = settings.meal_reminders
+
+        if (mealReminders.breakfast) {
+          console.log('[ReminderScheduler] Scheduling breakfast reminder at', mealReminders.breakfast)
+          notificationService.scheduleDailyReminder(
+            'meal-breakfast',
+            mealReminders.breakfast,
+            {
+              title: 'Breakfast Time!',
+              body: 'Time to log your breakfast and start your day right.',
+              tag: 'meal-breakfast',
+              data: { url: '/meals' },
+            }
+          )
+        }
+
+        if (mealReminders.lunch) {
+          console.log('[ReminderScheduler] Scheduling lunch reminder at', mealReminders.lunch)
+          notificationService.scheduleDailyReminder(
+            'meal-lunch',
+            mealReminders.lunch,
+            {
+              title: 'Lunch Time!',
+              body: 'Don\'t forget to log your lunch.',
+              tag: 'meal-lunch',
+              data: { url: '/meals' },
+            }
+          )
+        }
+
+        if (mealReminders.dinner) {
+          console.log('[ReminderScheduler] Scheduling dinner reminder at', mealReminders.dinner)
+          notificationService.scheduleDailyReminder(
+            'meal-dinner',
+            mealReminders.dinner,
+            {
+              title: 'Dinner Time!',
+              body: 'Time to log your dinner.',
+              tag: 'meal-dinner',
+              data: { url: '/meals' },
+            }
+          )
+        }
+
+        if (mealReminders.morning_snack) {
+          console.log('[ReminderScheduler] Scheduling morning snack reminder at', mealReminders.morning_snack)
+          notificationService.scheduleDailyReminder(
+            'meal-morning-snack',
+            mealReminders.morning_snack,
+            {
+              title: 'Morning Snack',
+              body: 'Time for your morning snack.',
+              tag: 'meal-morning-snack',
+              data: { url: '/meals' },
+            }
+          )
+        }
+
+        if (mealReminders.evening_snack) {
+          console.log('[ReminderScheduler] Scheduling evening snack reminder at', mealReminders.evening_snack)
+          notificationService.scheduleDailyReminder(
+            'meal-evening-snack',
+            mealReminders.evening_snack,
+            {
+              title: 'Evening Snack',
+              body: 'Time for your evening snack.',
+              tag: 'meal-evening-snack',
+              data: { url: '/meals' },
+            }
+          )
+        }
+      }
+
+      // Schedule water reminders
+      if (settings.water_reminders?.enabled) {
+        console.log('[ReminderScheduler] Scheduling water reminders')
+        const waterReminders = settings.water_reminders
+        const intervalMinutes = waterReminders.interval_minutes || 60
+        const startTime = new Date()
+        const endTime = new Date()
+
+        if (waterReminders.start_time) {
+          const [startHour, startMin] = waterReminders.start_time
+            .split(':')
+            .map(Number)
+          startTime.setHours(startHour, startMin, 0, 0)
+        } else {
+          startTime.setHours(8, 0, 0, 0) // Default 8 AM
+        }
+
+        if (waterReminders.end_time) {
+          const [endHour, endMin] = waterReminders.end_time
+            .split(':')
+            .map(Number)
+          endTime.setHours(endHour, endMin, 0, 0)
+        } else {
+          endTime.setHours(22, 0, 0, 0) // Default 10 PM
+        }
+
+        console.log('[ReminderScheduler] Water reminder:', {
+          intervalMinutes,
+          startTime: startTime.toLocaleTimeString(),
+          endTime: endTime.toLocaleTimeString(),
+        })
+
+        notificationService.scheduleRecurringReminder(
+          'water-reminder',
+          intervalMinutes,
+          startTime,
+          endTime,
           {
-            title: 'Breakfast Time!',
-            body: 'Time to log your breakfast and start your day right.',
-            tag: 'meal-breakfast',
+            title: 'Stay Hydrated!',
+            body: 'Time to drink some water. Track your intake to meet your daily goal.',
+            tag: 'water-reminder',
             data: { url: '/meals' },
           }
         )
       }
 
-      if (mealReminders.lunch) {
-        notificationService.scheduleDailyReminder(
-          'meal-lunch',
-          mealReminders.lunch,
+      // Schedule workout reminders
+      if (settings.workout_reminders?.enabled && settings.workout_reminders.time) {
+        const workoutTime = settings.workout_reminders.time
+        console.log('[ReminderScheduler] Scheduling workout reminders at', workoutTime)
+        const workoutReminders = settings.workout_reminders
+        const days = workoutReminders.days || [1, 2, 3, 4, 5] // Default weekdays
+
+        notificationService.scheduleWeeklyReminder(
+          'workout-reminder',
+          workoutTime,
+          days,
           {
-            title: 'Lunch Time!',
-            body: 'Don\'t forget to log your lunch.',
-            tag: 'meal-lunch',
-            data: { url: '/meals' },
+            title: 'Workout Time!',
+            body: 'Time to log your workout and stay active.',
+            tag: 'workout-reminder',
+            data: { url: '/workouts' },
           }
         )
       }
 
-      if (mealReminders.dinner) {
+      // Schedule goal check reminders
+      if (settings.goal_reminders?.enabled && settings.goal_reminders.check_progress_time) {
+        const goalTime = settings.goal_reminders.check_progress_time
+        console.log('[ReminderScheduler] Scheduling goal check reminder at', goalTime)
         notificationService.scheduleDailyReminder(
-          'meal-dinner',
-          mealReminders.dinner,
+          'goal-check',
+          goalTime,
           {
-            title: 'Dinner Time!',
-            body: 'Time to log your dinner.',
-            tag: 'meal-dinner',
-            data: { url: '/meals' },
+            title: 'Check Your Progress',
+            body: 'Review your daily progress and see how you\'re doing with your goals.',
+            tag: 'goal-check',
+            data: { url: '/dashboard' },
           }
         )
       }
 
-      if (mealReminders.morning_snack) {
-        notificationService.scheduleDailyReminder(
-          'meal-morning-snack',
-          mealReminders.morning_snack,
+      // Schedule weight logging reminders
+      if (settings.weight_reminders?.enabled && settings.weight_reminders.time) {
+        const weightTime = settings.weight_reminders.time
+        console.log('[ReminderScheduler] Scheduling weight reminder at', weightTime)
+        const weightReminders = settings.weight_reminders
+        const days = weightReminders.days || [1, 2, 3, 4, 5, 6, 0] // Default: daily
+
+        notificationService.scheduleWeeklyReminder(
+          'weight-reminder',
+          weightTime,
+          days,
           {
-            title: 'Morning Snack',
-            body: 'Time for your morning snack.',
-            tag: 'meal-morning-snack',
-            data: { url: '/meals' },
+            title: 'Log Your Weight',
+            body: 'Time to track your weight and monitor your progress.',
+            tag: 'weight-reminder',
+            data: { url: '/dashboard' },
           }
         )
       }
 
-      if (mealReminders.evening_snack) {
-        notificationService.scheduleDailyReminder(
-          'meal-evening-snack',
-          mealReminders.evening_snack,
+      // Schedule streak reminders
+      if (settings.streak_reminders?.enabled && settings.streak_reminders.time) {
+        const streakTime = settings.streak_reminders.time
+        console.log('[ReminderScheduler] Scheduling streak reminder at', streakTime)
+        const streakReminders = settings.streak_reminders
+        const days = streakReminders.check_days || [1, 2, 3, 4, 5] // Default: weekdays
+
+        notificationService.scheduleWeeklyReminder(
+          'streak-reminder',
+          streakTime,
+          days,
           {
-            title: 'Evening Snack',
-            body: 'Time for your evening snack.',
-            tag: 'meal-evening-snack',
-            data: { url: '/meals' },
+            title: 'Keep Your Streak Going!',
+            body: 'Don\'t forget to log your meals, workouts, or water to maintain your streak.',
+            tag: 'streak-reminder',
+            data: { url: '/dashboard' },
           }
         )
       }
-    }
 
-    // Schedule water reminders
-    if (settings.water_reminders?.enabled) {
-      const waterReminders = settings.water_reminders
-      const intervalMinutes = waterReminders.interval_minutes || 60
-      const startTime = new Date()
-      const endTime = new Date()
-
-      if (waterReminders.start_time) {
-        const [startHour, startMin] = waterReminders.start_time
-          .split(':')
-          .map(Number)
-        startTime.setHours(startHour, startMin, 0, 0)
-      } else {
-        startTime.setHours(8, 0, 0, 0) // Default 8 AM
+      // Schedule daily summary reminders
+      if (settings.summary_reminders?.enabled && settings.summary_reminders.time) {
+        const summaryTime = settings.summary_reminders.time
+        console.log('[ReminderScheduler] Scheduling summary reminder at', summaryTime)
+        notificationService.scheduleDailyReminder(
+          'summary-reminder',
+          summaryTime,
+          {
+            title: 'Daily Summary Ready',
+            body: 'Check out your daily summary and AI insights for today.',
+            tag: 'summary-reminder',
+            data: { url: '/dashboard' },
+          }
+        )
       }
 
-      if (waterReminders.end_time) {
-        const [endHour, endMin] = waterReminders.end_time
-          .split(':')
-          .map(Number)
-        endTime.setHours(endHour, endMin, 0, 0)
-      } else {
-        endTime.setHours(22, 0, 0, 0) // Default 10 PM
-      }
-
-      notificationService.scheduleRecurringReminder(
-        'water-reminder',
-        intervalMinutes,
-        startTime,
-        endTime,
-        {
-          title: 'Stay Hydrated!',
-          body: 'Time to drink some water. Track your intake to meet your daily goal.',
-          tag: 'water-reminder',
-          data: { url: '/meals' },
-        }
-      )
-    }
-
-    // Schedule workout reminders
-    if (settings.workout_reminders?.enabled && settings.workout_reminders.time) {
-      const workoutReminders = settings.workout_reminders
-      const days = workoutReminders.days || [1, 2, 3, 4, 5] // Default weekdays
-
-      notificationService.scheduleWeeklyReminder(
-        'workout-reminder',
-        workoutReminders.time,
-        days,
-        {
-          title: 'Workout Time!',
-          body: 'Time to log your workout and stay active.',
-          tag: 'workout-reminder',
-          data: { url: '/workouts' },
-        }
-      )
-    }
-
-    // Schedule goal check reminders
-    if (settings.goal_reminders?.enabled && settings.goal_reminders.check_progress_time) {
-      notificationService.scheduleDailyReminder(
-        'goal-check',
-        settings.goal_reminders.check_progress_time,
-        {
-          title: 'Check Your Progress',
-          body: 'Review your daily progress and see how you\'re doing with your goals.',
-          tag: 'goal-check',
-          data: { url: '/dashboard' },
-        }
-      )
-    }
-
-    // Schedule weight logging reminders
-    if (settings.weight_reminders?.enabled && settings.weight_reminders.time) {
-      const weightReminders = settings.weight_reminders
-      const days = weightReminders.days || [1, 2, 3, 4, 5, 6, 0] // Default: daily
-
-      notificationService.scheduleWeeklyReminder(
-        'weight-reminder',
-        weightReminders.time,
-        days,
-        {
-          title: 'Log Your Weight',
-          body: 'Time to track your weight and monitor your progress.',
-          tag: 'weight-reminder',
-          data: { url: '/dashboard' },
-        }
-      )
-    }
-
-    // Schedule streak reminders
-    if (settings.streak_reminders?.enabled && settings.streak_reminders.time) {
-      const streakReminders = settings.streak_reminders
-      const days = streakReminders.check_days || [1, 2, 3, 4, 5] // Default: weekdays
-
-      notificationService.scheduleWeeklyReminder(
-        'streak-reminder',
-        streakReminders.time,
-        days,
-        {
-          title: 'Keep Your Streak Going!',
-          body: 'Don\'t forget to log your meals, workouts, or water to maintain your streak.',
-          tag: 'streak-reminder',
-          data: { url: '/dashboard' },
-        }
-      )
-    }
-
-    // Schedule daily summary reminders
-    if (settings.summary_reminders?.enabled && settings.summary_reminders.time) {
-      notificationService.scheduleDailyReminder(
-        'summary-reminder',
-        settings.summary_reminders.time,
-        {
-          title: 'Daily Summary Ready',
-          body: 'Check out your daily summary and AI insights for today.',
-          tag: 'summary-reminder',
-          data: { url: '/dashboard' },
-        }
-      )
-    }
+      console.log('[ReminderScheduler] All reminders scheduled successfully')
+    }).catch((error) => {
+      console.error('[ReminderScheduler] Error initializing reminders:', error)
+    })
 
     // Cleanup on unmount
     return () => {
+      console.log('[ReminderScheduler] Cleaning up reminders')
       notificationService.cancelAllReminders()
       initializedRef.current = false
     }

@@ -16,21 +16,29 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { supabase, isUsingDummyClient } from "@/lib/supabase"
 import { useAuth } from "@/contexts/AuthContext"
-import type { UserGoal, DietaryPreference, ActivityLevel } from "@/types"
-import { ArrowRight, User, TrendingDown, Dumbbell, Activity, Heart, UtensilsCrossed, Leaf, Fish, Apple, Footprints, Coffee, Briefcase, Zap, Sparkles, CheckCircle2 } from "lucide-react"
+import type { UserGoal, UserGoalType, UserGoals, DietaryPreference, ActivityLevel } from "@/types"
+import { ArrowRight, User, TrendingDown, Dumbbell, Activity, Heart, UtensilsCrossed, Leaf, Fish, Apple, Footprints, Coffee, Briefcase, Zap, Sparkles, CheckCircle2, TrendingUp, Target, Zap as EnergyIcon } from "lucide-react"
 
 const onboardingSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   age: z.number().min(13).max(120).optional(),
   // Metric fields
-  weight: z.number().min(30).max(300).optional(),   // kg
+  weight: z.number().min(30).max(300).optional(),   // kg - current weight
   height: z.number().min(100).max(250).optional(),  // cm
+  target_weight: z.number().min(30).max(300).optional(), // kg - target weight
+  timeframe_months: z.number().min(1).max(24).optional(), // months - duration to reach target
   // Unit system and imperial fields
   unit_system: z.enum(["metric", "imperial"]),
-  weight_lbs: z.number().min(66).max(660).optional(), // ~30–300 kg
+  weight_lbs: z.number().min(66).max(660).optional(), // ~30–300 kg - current weight
+  target_weight_lbs: z.number().min(66).max(660).optional(), // ~30–300 kg - target weight
   height_feet: z.number().min(3).max(8).optional(),
   height_inches: z.number().min(0).max(11).optional(),
-  goal: z.enum(["lose_weight", "gain_muscle", "maintain", "improve_fitness"]),
+  goal: z.enum(["lose_weight", "gain_muscle", "maintain", "improve_fitness"]).optional().or(z.string().optional()), // Keep for backward compatibility, accept any string
+  goals: z.array(z.enum([
+    "lose_weight", "gain_muscle", "gain_weight", "maintain", 
+    "improve_fitness", "build_endurance", "improve_health", 
+    "body_recomposition", "increase_energy", "reduce_body_fat"
+  ])).min(1, "Please select at least one goal").optional(),
   dietary_preference: z.enum(["vegetarian", "non_vegetarian", "vegan", "flexitarian"]),
   activity_level: z.enum(["sedentary", "light", "moderate", "active", "very_active"]),
   gender: z.enum(["male", "female"], {
@@ -78,8 +86,10 @@ export function OnboardingDialog({
 
   const unitSystem = watch("unit_system")
   const weightLbs = watch("weight_lbs")
+  const targetWeightLbs = watch("target_weight_lbs")
   const heightFeet = watch("height_feet")
   const heightInches = watch("height_inches")
+  const timeframeMonths = watch("timeframe_months")
 
   const totalSteps = 3
   const progress = (step / totalSteps) * 100
@@ -148,7 +158,10 @@ export function OnboardingDialog({
         age: data.age || null,
         weight: weightKg,
         height: heightCm,
-        goal: data.goal,
+        goal: data.goal || (data.goals && data.goals[0]) || 'maintain', // Backward compatibility
+        goals: data.goals || (data.goal ? [data.goal] : ['maintain']), // New multi-selection
+        target_weight: data.target_weight || (data.target_weight_lbs ? data.target_weight_lbs * 0.453592 : undefined), // Convert to kg if imperial
+        timeframe_months: data.timeframe_months || undefined,
         dietary_preference: data.dietary_preference,
         activity_level: data.activity_level,
         gender: data.gender || null,
@@ -221,26 +234,39 @@ export function OnboardingDialog({
     }
   }
 
-  const goal = watch("goal")
+  const goal = watch("goal") // Single goal for backward compatibility
+  const goals = watch("goals") || [] // Array of goals (new multi-selection)
   const dietaryPreference = watch("dietary_preference")
   const activityLevel = watch("activity_level")
   const age = watch("age")
   const weight = watch("weight")
   const height = watch("height")
   const gender = watch("gender")
+  
+  // Use goals array if available, otherwise fall back to single goal
+  const activeGoals: UserGoals = (goals && goals.length > 0) 
+    ? (goals as UserGoalType[]).filter((g): g is UserGoalType => 
+        ['lose_weight', 'gain_muscle', 'gain_weight', 'maintain', 'improve_fitness', 'build_endurance', 'improve_health', 'body_recomposition', 'increase_energy', 'reduce_body_fat'].includes(g as UserGoalType)
+      ) as UserGoals
+    : (goal ? [goal as UserGoalType] : ['maintain']) as UserGoals
 
   // Helper function to get metric values from either unit system
   function getMetricValues() {
     const unit = unitSystem
     let weightKg: number | undefined
+    let targetWeightKg: number | undefined
     let heightCm: number | undefined
     
     if (unit === "metric") {
       weightKg = weight
+      targetWeightKg = watch("target_weight")
       heightCm = height
     } else {
       if (weightLbs) {
         weightKg = weightLbs * 0.453592
+      }
+      if (targetWeightLbs) {
+        targetWeightKg = targetWeightLbs * 0.453592
       }
       if (heightFeet != null || heightInches != null) {
         const ft = heightFeet || 0
@@ -249,25 +275,29 @@ export function OnboardingDialog({
       }
     }
     
-    return { weightKg, heightCm }
+    return { weightKg, targetWeightKg, heightCm }
   }
 
   // Calculate personalized targets when moving to step 3
   useEffect(() => {
-    if (step === 3 && age && goal && activityLevel && gender) {
-      const { weightKg, heightCm } = getMetricValues()
+    if (step === 3 && age && activeGoals.length > 0 && activityLevel && gender) {
+      const { weightKg, targetWeightKg, heightCm } = getMetricValues()
       if (!weightKg || !heightCm) return
       
       const isMale = gender === "male"
+      const currentTimeframeMonths = watch("timeframe_months")
       
+      // Use goals array (supports multi-selection)
       const targets = calculatePersonalizedTargets({
         weight: weightKg,
         height: heightCm,
         age,
-        goal,
+        goal: activeGoals, // Pass array of goals
         activityLevel,
         dietaryPreference,
         isMale,
+        targetWeight: targetWeightKg, // Optional target weight
+        timeframeMonths: currentTimeframeMonths, // Optional timeframe in months
       })
 
       // Pre-fill the target fields with calculated values
@@ -275,35 +305,65 @@ export function OnboardingDialog({
       setValue("target_protein", targets.protein_target)
       setValue("water_goal", targets.water_goal)
     }
-  }, [step, weight, weightLbs, height, heightFeet, heightInches, age, goal, activityLevel, dietaryPreference, gender, setValue, unitSystem])
+  }, [step, weight, weightLbs, targetWeightLbs, height, heightFeet, heightInches, age, activeGoals, activityLevel, dietaryPreference, gender, setValue, unitSystem, timeframeMonths])
 
   // Calculate personalized explanation for step 3
   const personalizedExplanation = useMemo(() => {
-    if (step === 3 && age && goal && activityLevel && gender) {
-      const { weightKg, heightCm } = getMetricValues()
-      if (!weightKg || !heightCm) return ""
-      
+    if (step !== 3) return ""
+    if (!age || activeGoals.length === 0 || !activityLevel || !gender) return ""
+    
+    const { weightKg, targetWeightKg, heightCm } = getMetricValues()
+    if (!weightKg || !heightCm) {
+      return ""
+    }
+    
+    try {
       const isMale = gender === "male"
+      const currentTimeframeMonths = watch("timeframe_months")
       const targets = calculatePersonalizedTargets({
         weight: weightKg,
         height: heightCm,
         age,
-        goal,
+        goal: activeGoals, // Pass array of goals
         activityLevel,
         dietaryPreference,
         isMale,
+        targetWeight: targetWeightKg, // Optional target weight
+        timeframeMonths: currentTimeframeMonths, // Optional timeframe in months
       })
-      return targets.explanation
+      return targets.explanation || ""
+    } catch (error) {
+      console.error('[Onboarding] Error calculating personalized explanation:', error)
+      return ""
     }
-    return ""
-  }, [step, weight, weightLbs, height, heightFeet, heightInches, age, goal, activityLevel, dietaryPreference, gender, unitSystem])
+  }, [step, weight, weightLbs, targetWeightLbs, height, heightFeet, heightInches, age, activeGoals, activityLevel, dietaryPreference, gender, unitSystem, timeframeMonths])
 
-  const goalIcons = {
+  const goalIcons: Record<UserGoalType, typeof TrendingDown> = {
     lose_weight: TrendingDown,
     gain_muscle: Dumbbell,
+    gain_weight: TrendingUp,
     maintain: Heart,
     improve_fitness: Activity,
+    build_endurance: Activity,
+    improve_health: Heart,
+    body_recomposition: Target,
+    increase_energy: EnergyIcon,
+    reduce_body_fat: TrendingDown,
   }
+  
+  // All available goals with labels and colors
+  const allGoals: Array<{ value: UserGoalType; label: string; icon: typeof TrendingDown; color: string; bgColor: string; description: string }> = [
+    { value: "lose_weight", label: "Lose Weight", icon: TrendingDown, color: "#10B981", bgColor: "rgba(16, 185, 129, 0.15)", description: "Reduce overall body weight" },
+    { value: "gain_muscle", label: "Gain Muscle", icon: Dumbbell, color: "#F59E0B", bgColor: "rgba(245, 158, 11, 0.15)", description: "Build lean muscle mass" },
+    { value: "gain_weight", label: "Gain Weight", icon: TrendingUp, color: "#F97316", bgColor: "rgba(249, 115, 22, 0.15)", description: "Increase overall body weight" },
+    { value: "maintain", label: "Maintain Weight", icon: Heart, color: "#EC4899", bgColor: "rgba(236, 72, 153, 0.15)", description: "Keep current weight" },
+    { value: "improve_fitness", label: "Improve Fitness", icon: Activity, color: "#3B82F6", bgColor: "rgba(59, 130, 246, 0.15)", description: "Enhance overall fitness" },
+    { value: "build_endurance", label: "Build Endurance", icon: Activity, color: "#06B6D4", bgColor: "rgba(6, 182, 212, 0.15)", description: "Improve stamina and endurance" },
+    { value: "improve_health", label: "Improve Health", icon: Heart, color: "#8B5CF6", bgColor: "rgba(139, 92, 246, 0.15)", description: "Focus on overall health" },
+    { value: "body_recomposition", label: "Body Recomposition", icon: Target, color: "#6366F1", bgColor: "rgba(99, 102, 241, 0.15)", description: "Lose fat, gain muscle" },
+    { value: "increase_energy", label: "Increase Energy", icon: EnergyIcon, color: "#FBBF24", bgColor: "rgba(251, 191, 36, 0.15)", description: "Boost daily energy levels" },
+    { value: "reduce_body_fat", label: "Reduce Body Fat", icon: TrendingDown, color: "#14B8A6", bgColor: "rgba(20, 184, 166, 0.15)", description: "Lower body fat percentage" },
+  ]
 
   const dietaryIcons = {
     vegetarian: Leaf,
@@ -621,23 +681,53 @@ export function OnboardingDialog({
             {step === 2 && (
               <div className="space-y-6">
                 <div>
-                  <Label className="text-sm font-medium text-text font-mono mb-3 block">
-                    What's your primary goal?
+                  <Label className="text-sm font-medium text-text font-mono mb-2 block">
+                    What are your goals? (Select one or more)
                   </Label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { value: "lose_weight", label: "Lose Weight", icon: TrendingDown, color: "#10B981", bgColor: "rgba(16, 185, 129, 0.15)" }, // emerald-500
-                      { value: "gain_muscle", label: "Gain Muscle", icon: Dumbbell, color: "#F59E0B", bgColor: "rgba(245, 158, 11, 0.15)" }, // amber-500
-                      { value: "maintain", label: "Maintain Weight", icon: Heart, color: "#EC4899", bgColor: "rgba(236, 72, 153, 0.15)" }, // pink-500
-                      { value: "improve_fitness", label: "Improve Fitness", icon: Activity, color: "#3B82F6", bgColor: "rgba(59, 130, 246, 0.15)" }, // blue-500
-                    ].map((option) => {
-                      const Icon = goalIcons[option.value as UserGoal]
-                      const isSelected = goal === option.value
+                  <p className="text-xs text-dim font-mono mb-3">
+                    You can select multiple goals. We'll personalize your targets based on your selections.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto scrollbar-hide">
+                    {allGoals.map((option) => {
+                      const Icon = goalIcons[option.value]
+                      const isSelected = goals.includes(option.value)
                       return (
                         <button
                           key={option.value}
                           type="button"
-                          onClick={() => setValue("goal", option.value as UserGoal)}
+                          onClick={() => {
+                            const currentGoals = goals || []
+                            if (isSelected) {
+                              // Remove if already selected
+                              setValue("goals", currentGoals.filter(g => g !== option.value) as UserGoals)
+                              // Also update single goal for backward compatibility
+                              const remainingGoals = currentGoals.filter(g => g !== option.value)
+                              if (remainingGoals.length === 0) {
+                                setValue("goal", undefined)
+                              } else {
+                                // Use first remaining goal, but only if it's in the old enum
+                                const firstRemaining = remainingGoals[0]
+                                const validOldGoals: UserGoal[] = ['lose_weight', 'gain_muscle', 'maintain', 'improve_fitness']
+                                if (validOldGoals.includes(firstRemaining as UserGoal)) {
+                                  setValue("goal", firstRemaining as UserGoal)
+                                } else {
+                                  setValue("goal", undefined)
+                                }
+                              }
+                            } else {
+                              // Add to selection
+                              const newGoals = [...currentGoals, option.value] as UserGoals
+                              setValue("goals", newGoals)
+                              // Also update single goal for backward compatibility (use first selected that's in old enum)
+                              // Find first goal that's a valid old goal type
+                              const firstValidGoal = newGoals.find(g => 
+                                g === 'lose_weight' || g === 'gain_muscle' || g === 'maintain' || g === 'improve_fitness'
+                              ) as UserGoal | undefined
+                              if (firstValidGoal) {
+                                setValue("goal", firstValidGoal)
+                              }
+                            }
+                          }}
                           className={`relative rounded-sm p-4 border-2 transition-all font-mono text-left ${
                             isSelected
                               ? "ring-2"
@@ -650,10 +740,13 @@ export function OnboardingDialog({
                           } : {}}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="flex w-10 h-10 rounded-sm items-center justify-center" style={{ backgroundColor: isSelected ? option.bgColor : `${option.color}1A` }}>
+                            <div className="flex w-10 h-10 rounded-sm items-center justify-center flex-shrink-0" style={{ backgroundColor: isSelected ? option.bgColor : `${option.color}1A` }}>
                               <Icon className="w-5 h-5" style={{ color: option.color }} />
                             </div>
-                            <span className="font-medium text-text">{option.label}</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="font-medium text-text block">{option.label}</span>
+                              <span className="text-[10px] text-dim mt-0.5 block">{option.description}</span>
+                            </div>
                           </div>
                           {isSelected && (
                             <div className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: '#0D9488' }}>
@@ -663,6 +756,106 @@ export function OnboardingDialog({
                         </button>
                       )
                     })}
+                  </div>
+                  {goals.length > 0 && (
+                    <p className="text-xs text-accent font-mono mt-3">
+                      {goals.length} goal{goals.length > 1 ? 's' : ''} selected: {goals.map(g => allGoals.find(ag => ag.value === g)?.label).join(', ')}
+                    </p>
+                  )}
+                </div>
+
+                {/* Target Weight and Timeframe Section */}
+                <div className="space-y-4 pt-4 border-t border-border/50">
+                  <div>
+                    <Label className="text-sm font-medium text-text font-mono mb-2 block">
+                      Target Weight & Timeframe (Optional)
+                    </Label>
+                    <p className="text-xs text-dim font-mono mb-3">
+                      Set your target weight and timeframe to get personalized calorie targets based on your goals.
+                    </p>
+                    
+                    {unitSystem === "metric" ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="target_weight" className="text-xs font-medium text-text font-mono mb-2 block">
+                            Target Weight (kg)
+                          </Label>
+                          <Input
+                            id="target_weight"
+                            type="number"
+                            step="0.1"
+                            {...register("target_weight", { valueAsNumber: true })}
+                            placeholder={weight ? `${weight}` : "e.g., 65"}
+                            className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="timeframe_months" className="text-xs font-medium text-text font-mono mb-2 block">
+                            Timeframe (months)
+                          </Label>
+                          <Input
+                            id="timeframe_months"
+                            type="number"
+                            min="1"
+                            max="24"
+                            {...register("timeframe_months", { valueAsNumber: true })}
+                            placeholder="e.g., 3"
+                            className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="target_weight_lbs" className="text-xs font-medium text-text font-mono mb-2 block">
+                            Target Weight (lbs)
+                          </Label>
+                          <Input
+                            id="target_weight_lbs"
+                            type="number"
+                            step="0.1"
+                            {...register("target_weight_lbs", { valueAsNumber: true })}
+                            placeholder={weightLbs ? `${weightLbs}` : "e.g., 143"}
+                            className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="timeframe_months" className="text-xs font-medium text-text font-mono mb-2 block">
+                            Timeframe (months)
+                          </Label>
+                          <Input
+                            id="timeframe_months"
+                            type="number"
+                            min="1"
+                            max="24"
+                            {...register("timeframe_months", { valueAsNumber: true })}
+                            placeholder="e.g., 3"
+                            className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    
+                    {(() => {
+                      const { weightKg, targetWeightKg } = getMetricValues()
+                      const months = timeframeMonths
+                      if (weightKg && targetWeightKg && months) {
+                        const weightDiff = targetWeightKg - weightKg
+                        const weeklyChange = weightDiff / (months * 4.33) // Average weeks per month
+                        const weeklyChangeLbs = weeklyChange * 2.20462
+                        return (
+                          <div className="mt-3 p-3 bg-accent-soft/50 border border-accent/30 rounded-sm">
+                            <p className="text-xs font-mono text-text">
+                              <strong>Projected:</strong> {weightDiff > 0 ? 'Gain' : 'Lose'} {Math.abs(weightDiff).toFixed(1)} kg ({Math.abs(weightDiff * 2.20462).toFixed(1)} lbs) over {months} month{months > 1 ? 's' : ''}
+                            </p>
+                            <p className="text-xs font-mono text-dim mt-1">
+                              Target: {Math.abs(weeklyChange).toFixed(2)} kg/week ({Math.abs(weeklyChangeLbs).toFixed(2)} lbs/week)
+                            </p>
+                          </div>
+                        )
+                      }
+                      return null
+                    })()}
                   </div>
                 </div>
 
@@ -765,24 +958,45 @@ export function OnboardingDialog({
                   <Button 
                     type="button" 
                     onClick={() => {
-                      // Calculate personalized targets before moving to step 3
-                      const currentWeight = watch("weight")
-                      const currentHeight = watch("height")
-                      const currentAge = watch("age")
+                      // Validate at least one goal is selected
+                      const currentGoals = watch("goals") || []
                       const currentGoal = watch("goal")
+                      if (currentGoals.length === 0 && !currentGoal) {
+                        toast({
+                          title: "Please select at least one goal",
+                          description: "Select one or more goals to continue.",
+                          variant: "destructive",
+                        })
+                        return
+                      }
+                      
+                      // Calculate personalized targets before moving to step 3
+                      const currentAge = watch("age")
                       const currentActivityLevel = watch("activity_level")
                       const currentGender = watch("gender")
+                      const currentDietaryPreference = watch("dietary_preference")
                       
-                      if (currentWeight && currentHeight && currentAge && currentGoal && currentActivityLevel && currentGender) {
+                      // Get metric values (handles unit conversion for imperial/metric)
+                      const { weightKg, targetWeightKg, heightCm } = getMetricValues()
+                      const currentTimeframeMonths = watch("timeframe_months")
+                      
+                      const validGoalTypes: UserGoalType[] = ['lose_weight', 'gain_muscle', 'gain_weight', 'maintain', 'improve_fitness', 'build_endurance', 'improve_health', 'body_recomposition', 'increase_energy', 'reduce_body_fat']
+                      const goalsToUse: UserGoals = (currentGoals && currentGoals.length > 0)
+                        ? currentGoals.filter((g): g is UserGoalType => validGoalTypes.includes(g as UserGoalType)) as UserGoals
+                        : (currentGoal && validGoalTypes.includes(currentGoal as UserGoalType) ? [currentGoal as UserGoalType] : ['maintain']) as UserGoals
+                      
+                      if (weightKg && heightCm && currentAge && goalsToUse.length > 0 && currentActivityLevel && currentGender) {
                         const isMale = currentGender === "male"
                         const targets = calculatePersonalizedTargets({
-                          weight: currentWeight,
-                          height: currentHeight,
+                          weight: weightKg,
+                          height: heightCm,
                           age: currentAge,
-                          goal: currentGoal,
+                          goal: goalsToUse, // Pass array of goals
                           activityLevel: currentActivityLevel,
-                          dietaryPreference: watch("dietary_preference"),
+                          dietaryPreference: currentDietaryPreference,
                           isMale,
+                          targetWeight: targetWeightKg, // Optional target weight
+                          timeframeMonths: currentTimeframeMonths, // Optional timeframe in months
                         })
                         
                         // Pre-fill targets

@@ -22,7 +22,12 @@ export async function chatWithAI(
   conversationSummary?: string
 ): Promise<{ message: string; action?: AIAction }> {
   // Use backend API proxy if available, otherwise fall back to direct OpenAI (dev only)
-  const useBackendProxy = import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
+  // In development, only use backend proxy if explicitly enabled (for Vercel dev testing)
+  // Otherwise, use direct OpenAI fallback
+  const isProduction = import.meta.env.PROD
+  const useBackendProxy = isProduction 
+    ? import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
+    : import.meta.env.VITE_USE_BACKEND_PROXY === 'true'
   
   // Limit message history: only send last N messages to reduce tokens
   // Keep system message if present, then last N-1 messages
@@ -467,8 +472,8 @@ export async function executeAction(
           name: mealName,
           calories: action.data.calories || 0,
           protein: action.data.protein || 0,
-          carbs: action.data.carbs,
-          fats: action.data.fats,
+          carbs: action.data.carbs ?? 0, // Default to 0 if not provided
+          fats: action.data.fats ?? 0, // Default to 0 if not provided
           food_items: action.data.food_items || [],
         })
         return { 
@@ -593,7 +598,35 @@ export async function executeAction(
           return { success: false, message: 'Recipe name is missing. Please try generating the recipe again.' }
         }
         
-        const recipe = await createRecipe(action.data.recipe)
+        // Ensure instructions exist - normalize to string if needed
+        if (!action.data.recipe.instructions) {
+          logger.error('Recipe instructions are missing:', action.data.recipe)
+          return { success: false, message: 'Recipe instructions are missing. Please try generating the recipe again.' }
+        }
+        
+        // Normalize instructions to string if it's an array
+        let instructionsStr = ''
+        if (typeof action.data.recipe.instructions === 'string') {
+          instructionsStr = action.data.recipe.instructions
+        } else if (Array.isArray(action.data.recipe.instructions)) {
+          instructionsStr = (action.data.recipe.instructions as string[]).join('\n')
+        } else {
+          instructionsStr = String(action.data.recipe.instructions || '')
+        }
+        
+        const normalizedRecipe = {
+          ...action.data.recipe,
+          instructions: instructionsStr,
+          servings: action.data.recipe.servings || 4,
+          nutrition_per_serving: action.data.recipe.nutrition_per_serving || {
+            calories: 0,
+            protein: 0,
+            carbs: 0,
+            fats: 0,
+          },
+        }
+        
+        const recipe = await createRecipe(normalizedRecipe)
         return { success: true, message: `Recipe "${recipe.name}" saved successfully!`, data: recipe }
 
       case 'add_to_meal_plan':

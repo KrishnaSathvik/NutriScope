@@ -89,7 +89,23 @@ export interface DailyLog {
   water_logs: WaterLog[]
 }
 
-export type UserGoal = 'lose_weight' | 'gain_muscle' | 'maintain' | 'improve_fitness'
+// Individual goal types - users can select multiple
+export type UserGoalType = 
+  | 'lose_weight' 
+  | 'gain_muscle' 
+  | 'gain_weight'
+  | 'maintain' 
+  | 'improve_fitness'
+  | 'build_endurance'
+  | 'improve_health'
+  | 'body_recomposition'
+  | 'increase_energy'
+  | 'reduce_body_fat'
+
+// For backward compatibility, keep UserGoal as single goal
+// But also support UserGoals as array for multi-selection
+export type UserGoal = UserGoalType
+export type UserGoals = UserGoalType[]
 export type DietaryPreference = 'vegetarian' | 'vegan' | 'non_vegetarian' | 'flexitarian'
 export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active'
 
@@ -148,7 +164,8 @@ export interface UserProfile {
   weight?: number
   height?: number
   gender?: 'male' | 'female'
-  goal: UserGoal
+  goal: UserGoal // Single goal for backward compatibility
+  goals?: UserGoals // Array of goals for multi-selection (new)
   activity_level: ActivityLevel
   dietary_preference: DietaryPreference
   calorie_target?: number

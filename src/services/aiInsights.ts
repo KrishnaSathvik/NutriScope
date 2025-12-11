@@ -13,8 +13,12 @@ export async function generateQuickTip(
   userId?: string
 ): Promise<string> {
   // Use backend proxy if available (same logic as chat)
-  const useBackendProxy = import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
   const isProduction = import.meta.env.PROD
+  // In development, only use backend proxy if explicitly enabled (for Vercel dev testing)
+  // Otherwise, use direct OpenAI fallback
+  const useBackendProxy = isProduction 
+    ? import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
+    : import.meta.env.VITE_USE_BACKEND_PROXY === 'true'
   
   // Debug logging
   console.log('[Coach Tip] useBackendProxy:', useBackendProxy, 'isProduction:', isProduction, 'userId:', userId)
@@ -32,8 +36,23 @@ export async function generateQuickTip(
         : profile?.goal === 'improve_fitness' ? 'improving fitness'
         : 'your goals'
       
+      // Determine time of day with more precision
       const hour = new Date().getHours()
-      const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+      let timeOfDay: string
+      let greeting: string
+      if (hour >= 5 && hour < 12) {
+        timeOfDay = 'morning'
+        greeting = 'Good morning'
+      } else if (hour >= 12 && hour < 17) {
+        timeOfDay = 'afternoon'
+        greeting = 'Good afternoon'
+      } else if (hour >= 17 && hour < 22) {
+        timeOfDay = 'evening'
+        greeting = 'Good evening'
+      } else {
+        timeOfDay = 'night'
+        greeting = 'Good night'
+      }
 
       const tipThemes = [
         'motivation and encouragement',
@@ -46,8 +65,19 @@ export async function generateQuickTip(
 **Context:**
 - User's name: ${userName}
 - Their goal: ${goalDescription}
-- Time of day: ${timeOfDay}
+- Current time: ${hour}:00 (${timeOfDay})
+- Appropriate greeting: ${greeting}
 - Theme focus: ${tipThemes[tipIndex % tipThemes.length]}
+
+**CRITICAL TIME-AWARENESS RULES:**
+1. Current time is ${hour}:00, which is ${timeOfDay}
+2. You MUST use time-appropriate language:
+   - If it's ${timeOfDay}, NEVER say "good morning", "good afternoon", or "good evening" unless it matches the current time
+   - If it's night (after 22:00 or before 5:00), use evening/night appropriate language
+   - If it's morning (5:00-11:59), you can use morning greetings
+   - If it's afternoon (12:00-16:59), use afternoon-appropriate language
+   - If it's evening (17:00-21:59), use evening-appropriate language
+3. DO NOT use greetings that don't match the time of day
 
 **Guidelines:**
 1. Keep it SHORT (1-2 sentences maximum)
@@ -58,6 +88,7 @@ export async function generateQuickTip(
 6. Use ${userName}'s name naturally
 7. Make it feel personal and encouraging
 8. Vary the message style based on tipIndex (${tipIndex})
+9. Be time-aware: Since it's ${timeOfDay}, use appropriate language for this time
 
 Generate an inspirational, motivational message now:`
 
@@ -71,7 +102,7 @@ Generate an inspirational, motivational message now:`
           messages: [
             {
               role: 'system',
-              content: `You are a motivational fitness and wellness coach. You provide brief, inspirational messages (1-2 sentences max) that encourage and uplift users. Focus on mindset, motivation, and positivity. Do NOT mention specific nutrition data, calories, macros, meals, or workouts.`,
+              content: `You are a motivational fitness and wellness coach. You provide brief, inspirational messages (1-2 sentences max) that encourage and uplift users. Focus on mindset, motivation, and positivity. Do NOT mention specific nutrition data, calories, macros, meals, or workouts. CRITICAL: Always use time-appropriate greetings and language based on the current time of day provided in the user's message. Never say "good morning" at night or "good evening" in the morning.`,
             },
             {
               role: 'user',
@@ -132,9 +163,23 @@ Generate an inspirational, motivational message now:`
       : profile?.goal === 'improve_fitness' ? 'improving fitness'
       : 'your goals'
     
-    // Get time of day for context
+    // Determine time of day with more precision
     const hour = new Date().getHours()
-    const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+    let timeOfDay: string
+    let greeting: string
+    if (hour >= 5 && hour < 12) {
+      timeOfDay = 'morning'
+      greeting = 'Good morning'
+    } else if (hour >= 12 && hour < 17) {
+      timeOfDay = 'afternoon'
+      greeting = 'Good afternoon'
+    } else if (hour >= 17 && hour < 22) {
+      timeOfDay = 'evening'
+      greeting = 'Good evening'
+    } else {
+      timeOfDay = 'night'
+      greeting = 'Good night'
+    }
 
     const tipThemes = [
       'motivation and encouragement',
@@ -147,8 +192,19 @@ Generate an inspirational, motivational message now:`
 **Context:**
 - User's name: ${userName}
 - Their goal: ${goalDescription}
-- Time of day: ${timeOfDay}
+- Current time: ${hour}:00 (${timeOfDay})
+- Appropriate greeting: ${greeting}
 - Theme focus: ${tipThemes[tipIndex % tipThemes.length]}
+
+**CRITICAL TIME-AWARENESS RULES:**
+1. Current time is ${hour}:00, which is ${timeOfDay}
+2. You MUST use time-appropriate language:
+   - If it's ${timeOfDay}, NEVER say "good morning", "good afternoon", or "good evening" unless it matches the current time
+   - If it's night (after 22:00 or before 5:00), use evening/night appropriate language
+   - If it's morning (5:00-11:59), you can use morning greetings
+   - If it's afternoon (12:00-16:59), use afternoon-appropriate language
+   - If it's evening (17:00-21:59), use evening-appropriate language
+3. DO NOT use greetings that don't match the time of day
 
 **Guidelines:**
 1. Keep it SHORT (1-2 sentences maximum)
@@ -159,16 +215,18 @@ Generate an inspirational, motivational message now:`
 6. Use ${userName}'s name naturally
 7. Make it feel personal and encouraging
 8. Vary the message style based on tipIndex (${tipIndex})
+9. Be time-aware: Since it's ${timeOfDay}, use appropriate language for this time
 
-**Examples of good inspirational tips:**
-- "${userName}, every small step you take today brings you closer to your goals. Trust the process and believe in yourself."
-- "Progress isn't always linear, but your commitment to showing up every day is what truly matters. Keep going!"
-- "Remember why you started this journey. You're stronger than you think, and every day is a new opportunity to grow."
+**Examples of good inspirational tips (time-appropriate):**
+- Morning: "${userName}, every small step you take today brings you closer to your goals. Trust the process and believe in yourself."
+- Afternoon: "Progress isn't always linear, but your commitment to showing up every day is what truly matters. Keep going!"
+- Evening/Night: "Remember why you started this journey. You're stronger than you think, and every day is a new opportunity to grow."
 
 **What NOT to do:**
 - Don't say: "You're at 45% of your protein target, add more protein"
 - Don't say: "You've logged 2 meals, log more meals"
 - Don't mention calories, macros, meals, workouts, or specific numbers
+- Don't say "good morning" at night or "good evening" in the morning
 
 Generate an inspirational, motivational message now:`
 
@@ -177,7 +235,7 @@ Generate an inspirational, motivational message now:`
       messages: [
         {
           role: 'system',
-          content: `You are a motivational fitness and wellness coach. You provide brief, inspirational messages (1-2 sentences max) that encourage and uplift users. Focus on mindset, motivation, and positivity. Do NOT mention specific nutrition data, calories, macros, meals, or workouts.`,
+          content: `You are a motivational fitness and wellness coach. You provide brief, inspirational messages (1-2 sentences max) that encourage and uplift users. Focus on mindset, motivation, and positivity. Do NOT mention specific nutrition data, calories, macros, meals, or workouts. CRITICAL: Always use time-appropriate greetings and language based on the current time of day provided in the user's message. Never say "good morning" at night or "good evening" in the morning.`,
         },
         {
           role: 'user',
@@ -204,8 +262,12 @@ export async function generateDailyInsights(
   userId?: string
 ): Promise<string> {
   // Use backend proxy if available (same logic as chat and coach tip)
-  const useBackendProxy = import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
   const isProduction = import.meta.env.PROD
+  // In development, only use backend proxy if explicitly enabled (for Vercel dev testing)
+  // Otherwise, use direct OpenAI fallback
+  const useBackendProxy = isProduction 
+    ? import.meta.env.VITE_USE_BACKEND_PROXY !== 'false'
+    : import.meta.env.VITE_USE_BACKEND_PROXY === 'true'
   
   // Use backend proxy if enabled (works in both dev and prod)
   if (useBackendProxy) {

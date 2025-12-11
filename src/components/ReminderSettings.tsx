@@ -67,6 +67,7 @@ export function ReminderSettingsSection() {
   const updateMutation = useMutation({
     mutationFn: async (data: { reminder_settings: ReminderSettings }) => {
       if (!user) throw new Error('Not authenticated')
+      if (!supabase) throw new Error('Supabase client not available')
       const { error } = await supabase
         .from('user_profiles')
         .update(data)

@@ -20,23 +20,28 @@ export async function getMealPlan(weekStartDate: string): Promise<MealPlan | nul
     .select('*')
     .eq('user_id', user.id)
     .eq('week_start_date', weekStartDate)
-    .single()
+    .maybeSingle() // Use maybeSingle instead of single to avoid errors when not found
 
   if (error) {
-    if (error.code === 'PGRST116') return null // Not found
-    // Handle 406 Not Acceptable - table might not exist
-    // Check multiple possible error indicators
+    // Handle 406 Not Acceptable - table might not exist or RLS issue
+    // Check error message for 406 status code
     const isTableNotFound = 
       error.code === 'PGRST301' || 
-      error.status === 406 || 
       error.message?.includes('406') ||
       error.message?.includes('Not Acceptable') ||
-      error.message?.includes('meal_plans') && error.message?.includes('not found')
+      (error.message?.includes('meal_plans') && error.message?.includes('not found'))
     
     if (isTableNotFound) {
-      console.warn('meal_plans table may not exist. Please run add_meal_plans_schema.sql in Supabase SQL Editor.')
+      // Silently return null - table doesn't exist or RLS is blocking
+      // Don't log to console to avoid noise
       return null
     }
+    
+    // For "not found" errors, return null instead of throwing
+    if (error.code === 'PGRST116') {
+      return null
+    }
+    
     console.error('Error fetching meal plan:', error)
     throw new Error('Failed to fetch meal plan')
   }
@@ -86,7 +91,6 @@ export async function createMealPlan(weekStartDate: string): Promise<MealPlan> {
     // Handle 406 Not Acceptable - table might not exist
     const isTableNotFound = 
       error.code === 'PGRST301' || 
-      error.status === 406 || 
       error.message?.includes('406') ||
       error.message?.includes('Not Acceptable') ||
       error.message?.includes('meal_plans') && error.message?.includes('not found')
@@ -130,7 +134,6 @@ export async function updateMealPlan(
     // Handle 406 Not Acceptable - table might not exist
     const isTableNotFound = 
       error.code === 'PGRST301' || 
-      error.status === 406 || 
       error.message?.includes('406') ||
       error.message?.includes('Not Acceptable') ||
       error.message?.includes('meal_plans') && error.message?.includes('not found')
@@ -219,7 +222,6 @@ async function getMealPlanById(planId: string): Promise<MealPlan | null> {
     // Handle 406 Not Acceptable - table might not exist
     const isTableNotFound = 
       error.code === 'PGRST301' || 
-      error.status === 406 || 
       error.message?.includes('406') ||
       error.message?.includes('Not Acceptable') ||
       error.message?.includes('meal_plans') && error.message?.includes('not found')

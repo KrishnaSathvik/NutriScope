@@ -40,6 +40,7 @@ interface ChatRequest {
     protein_target?: number
     water_goal?: number
     goal?: string
+    goals?: string[] // Array of goals for multi-selection
     activity_level?: string
     dietary_preference?: string
     restrictions?: string[]
@@ -150,7 +151,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: validation.error })
     }
 
-    const { messages, conversationSummary, profile, dailyLog, imageUrl }: ChatRequest = req.body
+    const { messages, profile, dailyLog, imageUrl }: ChatRequest = req.body
+    // conversationSummary is available but not currently used in the system prompt
 
     // Get OpenAI API key from environment
     const apiKey = process.env.OPENAI_API_KEY
@@ -257,7 +259,8 @@ PERSONALIZATION RULES
 1. Always think in terms of THIS specific user:
    - Use their name if available: "${profile?.name || ''}"
    - Sex: ${profile?.gender || 'not specified'} (used for BMR calculation and personalized recommendations)
-   - Goals: "${profile?.goal || 'general health'}"
+   - Goals: ${(profile as any)?.goals && (profile as any).goals.length > 0 ? JSON.stringify((profile as any).goals) : `"${profile?.goal || 'general health'}"`}
+   - Primary Goal (backward compatibility): "${profile?.goal || 'general health'}"
    - Calorie target: ${profile?.calorie_target || 2000}
    - Protein target: ${profile?.protein_target || 150}
    - Optional carb/fat targets if present: carbs=${'target_carbs' in (profile || {}) ? profile?.target_carbs : 'n/a'}, fats=${'target_fats' in (profile || {}) ? profile?.target_fats : 'n/a'}
@@ -367,13 +370,16 @@ You can help users with:
        - **CRITICAL: You MUST always include meal_description in action.data - it is REQUIRED, not optional**
      • calories,
      • protein,
-     • optionally carbs and fats,
+     • carbs (ALWAYS include - estimate if not provided, use 0 for pure protein foods),
+     • fats (ALWAYS include - estimate if not provided),
      • food_items: array of { name, calories, protein, carbs, fats, quantity, unit }.
    - **CRITICAL RULE: meal_description is MANDATORY** - Always generate and include a meal_description in action.data when logging meals. Never omit it.
-   - If the user gives explicit calories/protein, **always use those** instead of generic estimates.
-   - Use action type: "log_meal_with_confirmation" with requires_confirmation: true.
+   - **CRITICAL RULE: Always calculate carbs and fats** - Even if user doesn't mention them, estimate based on food type. Use 0 for pure protein foods (chicken, fish), estimate carbs for grains/vegetables, estimate fats for nuts/oils.
+   - If the user gives explicit calories/protein, **always use those** and estimate carbs/fats based on the food type.
+   - **Direct Logging**: If user explicitly says "log this", "add this meal", "save this meal", "log it", "I ate [food] for [meal]", or uses direct commands, set requires_confirmation: false and log immediately
+   - Otherwise, use action type: "log_meal_with_confirmation" with requires_confirmation: true.
    - In the message, show a clear summary + day totals and then ask:
-     "Do you want me to log this meal?"
+     "Do you want me to log this meal?" (only if requires_confirmation: true)
 
 2. **Food Questions ("Can I eat this?", "Is this okay?"):**
    - Analyze the food in context of their goals and remaining macros.
@@ -484,16 +490,35 @@ Be conversational, helpful, and always tie your advice back to the user's **curr
 
     // Prepare messages
     const openaiMessages: any[] = [systemMessage]
+    let imageAdded = false
     for (const msg of messages) {
-      if (msg.role === 'user' && imageContent.length > 0) {
-        openaiMessages.push({
-          role: 'user',
-          content: [
-            { type: 'text', text: typeof msg.content === 'string' ? msg.content : '' },
-            ...imageContent,
-          ],
-        })
-        imageContent = [] // Only add image to first user message
+      if (msg.role === 'user') {
+        // Check if message already has image content
+        const hasImageInContent = Array.isArray(msg.content) && msg.content.some((item: any) => item.type === 'image_url')
+        
+        if (imageContent.length > 0 && !imageAdded && !hasImageInContent) {
+          // Add image to first user message that doesn't already have one
+          let textContent = ''
+          if (typeof msg.content === 'string') {
+            textContent = msg.content
+          } else if (Array.isArray(msg.content)) {
+            const textItem = msg.content.find((item: any) => item.type === 'text')
+            textContent = (textItem && 'text' in textItem) ? String(textItem.text) : ''
+          }
+          
+          openaiMessages.push({
+            role: 'user',
+            content: [
+              { type: 'text', text: textContent },
+              ...imageContent,
+            ],
+          })
+          imageContent = [] // Only add image to first user message
+          imageAdded = true
+        } else {
+          // Message already has image or we've already added image
+          openaiMessages.push(msg)
+        }
       } else {
         openaiMessages.push(msg)
       }
