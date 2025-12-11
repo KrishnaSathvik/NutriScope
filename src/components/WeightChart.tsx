@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { format, subDays, subMonths } from 'date-fns'
 import { getWeightLogs, calculateBMI, getBMICategoryInfo } from '@/services/weightTracking'
 import { useAuth } from '@/contexts/AuthContext'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ComposedChart } from 'recharts'
 import { Scale, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 interface WeightChartProps {
@@ -150,52 +150,120 @@ export function WeightChart({ days = 30, showBMI = false, showGoal = false, show
           )}
         </div>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={chartData}>
+          <ComposedChart data={chartData}>
             <XAxis
               dataKey="date"
-              stroke="#888"
-              style={{ fontSize: '10px', fontFamily: 'monospace' }}
+              stroke="#525252"
+              tick={{ fill: '#525252', fontSize: 11, fontFamily: 'JetBrains Mono' }}
+              axisLine={{ stroke: '#222' }}
               interval="preserveStartEnd"
             />
             <YAxis
-              stroke="#888"
-              style={{ fontSize: '10px', fontFamily: 'monospace' }}
+              yAxisId="weight"
+              stroke="#525252"
+              tick={{ fill: '#525252', fontSize: 11, fontFamily: 'JetBrains Mono' }}
+              axisLine={{ stroke: '#222' }}
               domain={['dataMin - 2', 'dataMax + 2']}
+              label={{ value: 'Weight (kg)', angle: -90, position: 'insideLeft', fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
             />
+            {showBMI && chartData.some(d => d.bmi !== null) && (
+              <YAxis
+                yAxisId="bmi"
+                orientation="right"
+                stroke="#525252"
+                tick={{ fill: '#525252', fontSize: 11, fontFamily: 'JetBrains Mono' }}
+                axisLine={{ stroke: '#222' }}
+                domain={[15, 35]}
+                label={{ value: 'BMI', angle: 90, position: 'insideRight', fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
+              />
+            )}
             <Tooltip
               contentStyle={{
-                backgroundColor: '#1a1a1a',
-                border: '1px solid #333',
+                backgroundColor: '#111',
+                border: '1px solid #222',
                 borderRadius: '4px',
-                color: '#fff',
-                fontFamily: 'monospace',
-                fontSize: '12px',
+                color: '#e5e5e5',
+                fontFamily: 'JetBrains Mono',
+                fontSize: '11px',
               }}
               formatter={(value: number, name: string, props: any) => {
-                const change = props.payload.change
-                const changeText = change !== null 
-                  ? ` (${change > 0 ? '+' : ''}${change.toFixed(1)}kg)`
-                  : ''
-                return [`${value.toFixed(1)}kg${changeText}`, 'Weight']
+                if (name === 'Weight') {
+                  const change = props.payload.change
+                  const changeText = change !== null 
+                    ? ` (${change > 0 ? '+' : ''}${change.toFixed(1)}kg)`
+                    : ''
+                  return [`${value.toFixed(1)}kg${changeText}`, 'Weight']
+                } else if (name === 'BMI') {
+                  const bmiValue = value || props.payload.bmi
+                  const bmiCategory = bmiValue ? getBMICategoryInfo(bmiValue).label : ''
+                  return [`${bmiValue.toFixed(1)} ${bmiCategory ? `(${bmiCategory})` : ''}`, 'BMI']
+                }
+                return [value, name]
               }}
             />
             {showGoal && targetWeight && (
               <ReferenceLine
+                yAxisId="weight"
                 y={targetWeight}
-                stroke="#22c55e"
+                stroke="#525252"
+                strokeWidth={1}
                 strokeDasharray="5 5"
-                label={{ value: 'Goal', position: 'right', fill: '#22c55e' }}
+                label={{ value: 'Goal', position: 'right', fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
               />
             )}
+            {showBMI && (
+              <>
+                {/* BMI category reference lines */}
+                <ReferenceLine
+                  yAxisId="bmi"
+                  y={18.5}
+                  stroke="#525252"
+                  strokeWidth={0.5}
+                  strokeDasharray="2 2"
+                  strokeOpacity={0.3}
+                />
+                <ReferenceLine
+                  yAxisId="bmi"
+                  y={25}
+                  stroke="#525252"
+                  strokeWidth={0.5}
+                  strokeDasharray="2 2"
+                  strokeOpacity={0.3}
+                />
+                <ReferenceLine
+                  yAxisId="bmi"
+                  y={30}
+                  stroke="#525252"
+                  strokeWidth={0.5}
+                  strokeDasharray="2 2"
+                  strokeOpacity={0.3}
+                />
+              </>
+            )}
             <Line
+              yAxisId="weight"
               type="monotone"
               dataKey="weight"
-              stroke="#22c55e"
+              stroke="var(--color-success)"
               strokeWidth={2}
-              dot={{ fill: '#22c55e', r: 4 }}
+              dot={{ fill: 'var(--color-success)', r: 4 }}
               activeDot={{ r: 6 }}
+              name="Weight"
             />
-          </LineChart>
+            {showBMI && (
+              <Line
+                yAxisId="bmi"
+                type="monotone"
+                dataKey="bmi"
+                stroke="var(--color-acid)"
+                strokeWidth={2}
+                strokeDasharray="3 3"
+                dot={{ fill: 'var(--color-acid)', r: 3 }}
+                activeDot={{ r: 5 }}
+                name="BMI"
+              />
+            )}
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
     </div>

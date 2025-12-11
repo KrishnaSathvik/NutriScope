@@ -93,28 +93,55 @@ export async function getWeightCaloriesCorrelation(days: number = 30): Promise<{
   const endDate = new Date()
   const startDate = subDays(endDate, days)
   
+  // Get weight logs from a wider range to find most recent weight for each day
   const weightLogs = await getWeightLogs(
-    format(startDate, 'yyyy-MM-dd'),
+    format(subDays(startDate, 7), 'yyyy-MM-dd'), // Get weights from 7 days before start to handle gaps
     format(endDate, 'yyyy-MM-dd')
   )
+
+  // Sort weight logs by date (oldest first) to find most recent weight for each day
+  const sortedWeightLogs = [...weightLogs].sort((a, b) => {
+    const dateA = new Date(a.date + 'T00:00:00').getTime()
+    const dateB = new Date(b.date + 'T00:00:00').getTime()
+    return dateA - dateB
+  })
 
   const correlationData: CorrelationData[] = []
   const calories: number[] = []
   const weights: number[] = []
 
-  for (let i = 0; i < days; i++) {
-    const date = format(subDays(endDate, days - 1 - i), 'yyyy-MM-dd')
+  // Iterate through days from oldest to newest (forward in time)
+  for (let i = days - 1; i >= 0; i--) {
+    const date = format(subDays(endDate, i), 'yyyy-MM-dd')
     const dailyLog = await getDailyLog(date)
-    const weightLog = weightLogs.find(w => w.date === date)
-
-    if (weightLog && dailyLog.calories_consumed > 0) {
+    
+    // Skip if no meals logged
+    if (dailyLog.calories_consumed === 0) continue
+    
+    // Find the most recent weight log on or before this date
+    const currentDate = new Date(date + 'T00:00:00').getTime()
+    let mostRecentWeight: number | null = null
+    
+    // Search backwards through sorted weight logs to find the most recent one <= current date
+    for (let j = sortedWeightLogs.length - 1; j >= 0; j--) {
+      const weightLogDateStr = sortedWeightLogs[j].date
+      if (!weightLogDateStr) continue
+      const weightLogDate = new Date(weightLogDateStr + 'T00:00:00').getTime()
+      if (!isNaN(weightLogDate) && weightLogDate <= currentDate) {
+        mostRecentWeight = sortedWeightLogs[j].weight
+        break
+      }
+    }
+    
+    // Use most recent weight if available (even if weight wasn't logged on this exact day)
+    if (mostRecentWeight !== null && mostRecentWeight > 0) {
       correlationData.push({
         x: dailyLog.calories_consumed,
-        y: weightLog.weight,
+        y: mostRecentWeight,
         date,
       })
       calories.push(dailyLog.calories_consumed)
-      weights.push(weightLog.weight)
+      weights.push(mostRecentWeight)
     }
   }
 
@@ -137,45 +164,184 @@ export async function getWeightCaloriesCorrelation(days: number = 30): Promise<{
 }
 
 /**
- * Get protein vs workouts correlation
+ * Get goal achievement insights from pre-fetched daily logs data
  */
-export async function getProteinWorkoutsCorrelation(days: number = 30): Promise<{
-  correlation: number
-  data: CorrelationData[]
-  insight: string
-}> {
-  const endDate = new Date()
-  const correlationData: CorrelationData[] = []
-  const proteins: number[] = []
-  const workoutCounts: number[] = []
+export function getGoalAchievementInsightsFromData(
+  dailyLogs: Array<{ calories: number; protein: number; water: number; fullDate: string }>,
+  calorieTarget: number = 2000,
+  proteinTarget: number = 150,
+  waterGoal: number = 2000
+): {
+  calorieGoalDays: number
+  proteinGoalDays: number
+  waterGoalDays: number
+  totalDays: number
+  calorieAchievementRate: number
+  proteinAchievementRate: number
+  waterAchievementRate: number
+  insights: string[]
+} {
+  let calorieGoalDays = 0
+  let proteinGoalDays = 0
+  let waterGoalDays = 0
+  let totalDays = 0
+  const insights: string[] = []
 
-  for (let i = 0; i < days; i++) {
-    const date = format(subDays(endDate, days - 1 - i), 'yyyy-MM-dd')
-    const dailyLog = await getDailyLog(date)
-
-    if (dailyLog.protein > 0) {
-      correlationData.push({
-        x: dailyLog.protein,
-        y: dailyLog.exercises.length,
-        date,
-      })
-      proteins.push(dailyLog.protein)
-      workoutCounts.push(dailyLog.exercises.length)
+  for (const log of dailyLogs) {
+    // Only count days with actual data
+    if (log.calories > 0 || log.protein > 0 || log.water > 0) {
+      totalDays++
+      
+      // Calories: Count if >= 80% of target OR >= 1500 cal (reasonable minimum for active tracking)
+      if (calorieTarget > 0) {
+        const calorieThreshold = Math.max(calorieTarget * 0.8, 1500)
+        if (log.calories >= calorieThreshold) calorieGoalDays++
+      }
+      
+      // Protein: Count if >= 90% of target (protein is more critical)
+      if (proteinTarget > 0 && log.protein >= proteinTarget * 0.9) {
+        proteinGoalDays++
+      }
+      
+      // Water: Count if >= 80% of target OR >= 1500ml (reasonable minimum)
+      if (waterGoal > 0) {
+        const waterThreshold = Math.max(waterGoal * 0.8, 1500)
+        if (log.water >= waterThreshold) waterGoalDays++
+      }
     }
   }
 
-  const correlation = calculateCorrelation(proteins, workoutCounts)
-  
-  let insight = ''
-  if (correlation > 0.5) {
-    insight = 'Strong correlation: Higher protein days correlate with more workouts.'
-  } else if (correlation > 0.2) {
-    insight = 'Moderate correlation: Protein intake may influence workout frequency.'
-  } else {
-    insight = 'Weak correlation: Protein and workouts show little direct relationship.'
+  const calorieAchievementRate = totalDays > 0 ? (calorieGoalDays / totalDays) * 100 : 0
+  const proteinAchievementRate = totalDays > 0 ? (proteinGoalDays / totalDays) * 100 : 0
+  const waterAchievementRate = totalDays > 0 ? (waterGoalDays / totalDays) * 100 : 0
+
+  // Generate insights
+  if (calorieAchievementRate >= 80) {
+    insights.push('Excellent calorie consistency! You\'re hitting your target most days.')
+  } else if (calorieAchievementRate >= 60) {
+    insights.push('Good calorie tracking. Try to hit your target more consistently.')
+  } else if (calorieAchievementRate > 0) {
+    insights.push('Focus on meeting your calorie target more often for better results.')
   }
 
-  return { correlation, data: correlationData, insight }
+  if (proteinAchievementRate >= 80) {
+    insights.push('Great protein intake! You\'re consistently meeting your protein goals.')
+  } else if (proteinAchievementRate >= 60) {
+    insights.push('Good protein tracking. Aim to hit your target more consistently.')
+  }
+
+  if (waterAchievementRate >= 80) {
+    insights.push('Excellent hydration! You\'re staying well-hydrated.')
+  } else if (waterAchievementRate < 50) {
+    insights.push('Try to drink more water throughout the day.')
+  }
+
+  return {
+    calorieGoalDays,
+    proteinGoalDays,
+    waterGoalDays,
+    totalDays,
+    calorieAchievementRate: Math.round(calorieAchievementRate),
+    proteinAchievementRate: Math.round(proteinAchievementRate),
+    waterAchievementRate: Math.round(waterAchievementRate),
+    insights,
+  }
+}
+
+/**
+ * Get weekly patterns and insights from pre-fetched daily logs data
+ */
+export function getWeeklyPatternsFromData(
+  dailyLogs: Array<{ calories: number; protein: number; workouts: number; fullDate: string }>
+): {
+  bestDay: { date: string; calories: number; protein: number } | null
+  worstDay: { date: string; calories: number; protein: number } | null
+  workoutDays: number
+  restDays: number
+  averageWorkoutsPerWeek: number
+  insights: string[]
+} {
+  const dailyStats: Array<{ date: string; calories: number; protein: number; workouts: number }> = []
+
+  for (const log of dailyLogs) {
+    if (log.calories > 0 || log.protein > 0) {
+      dailyStats.push({
+        date: log.fullDate,
+        calories: log.calories,
+        protein: log.protein,
+        workouts: log.workouts,
+      })
+    }
+  }
+
+  if (dailyStats.length === 0) {
+    return {
+      bestDay: null,
+      worstDay: null,
+      workoutDays: 0,
+      restDays: 0,
+      averageWorkoutsPerWeek: 0,
+      insights: [],
+    }
+  }
+
+  // Find best and worst days (based on overall nutrition completeness)
+  const bestDay = dailyStats.reduce((best, current) => {
+    const bestScore = best.calories + best.protein * 4 // Weight protein more
+    const currentScore = current.calories + current.protein * 4
+    return currentScore > bestScore ? current : best
+  })
+
+  const worstDay = dailyStats.reduce((worst, current) => {
+    const worstScore = worst.calories + worst.protein * 4
+    const currentScore = current.calories + current.protein * 4
+    return currentScore < worstScore ? current : worst
+  })
+
+  const workoutDays = dailyStats.filter(d => d.workouts > 0).length
+  const restDays = dailyStats.length - workoutDays
+  const weeks = Math.max(1, Math.ceil(dailyStats.length / 7))
+  const averageWorkoutsPerWeek = workoutDays / weeks
+
+  const insights: string[] = []
+
+  if (averageWorkoutsPerWeek >= 4) {
+    insights.push(`You're working out ${averageWorkoutsPerWeek.toFixed(1)} times per week - excellent consistency!`)
+  } else if (averageWorkoutsPerWeek >= 2) {
+    insights.push(`You're averaging ${averageWorkoutsPerWeek.toFixed(1)} workouts per week. Great start!`)
+  } else {
+    insights.push(`Try to add more workouts - aim for at least 3-4 per week for best results.`)
+  }
+
+  if (workoutDays > 0 && dailyStats.length > 0) {
+    const avgProteinOnWorkoutDays = dailyStats
+      .filter(d => d.workouts > 0)
+      .reduce((sum, d) => sum + d.protein, 0) / workoutDays
+    const avgProteinOnRestDays = dailyStats
+      .filter(d => d.workouts === 0)
+      .reduce((sum, d) => sum + d.protein, 0) / Math.max(1, restDays)
+
+    if (avgProteinOnWorkoutDays > avgProteinOnRestDays * 1.2) {
+      insights.push('You\'re eating more protein on workout days - smart strategy!')
+    }
+  }
+
+  return {
+    bestDay: {
+      date: bestDay.date,
+      calories: bestDay.calories,
+      protein: bestDay.protein,
+    },
+    worstDay: {
+      date: worstDay.date,
+      calories: worstDay.calories,
+      protein: worstDay.protein,
+    },
+    workoutDays,
+    restDays,
+    averageWorkoutsPerWeek: Math.round(averageWorkoutsPerWeek * 10) / 10,
+    insights,
+  }
 }
 
 /**

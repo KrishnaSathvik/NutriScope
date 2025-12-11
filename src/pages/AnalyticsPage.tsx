@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format, subDays, subMonths, differenceInDays } from 'date-fns'
 import { getDailyLog } from '@/services/dailyLogs'
 import { useAuth } from '@/contexts/AuthContext'
-import { XAxis, YAxis, Tooltip, ResponsiveContainer, Line, LineChart, AreaChart, Area, ComposedChart, Legend, Scatter, Cell, ReferenceLine } from 'recharts'
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, Line, AreaChart, Area, ComposedChart, Legend, ReferenceLine, BarChart, Bar } from 'recharts'
 import { Flame, Target, Activity, Droplet, TrendingUp, TrendingDown, Minus, Cookie, Calendar, BarChart3, Scale, TrendingUp as TrendingUpIcon, Lightbulb, Beef } from 'lucide-react'
 import { StatCardSkeleton, ChartSkeleton } from '@/components/LoadingSkeleton'
 import { WeightChart } from '@/components/WeightChart'
-import { getWeightCaloriesCorrelation, getProteinWorkoutsCorrelation, predictWeight, calculateTrendLine, CorrelationData } from '@/services/analytics'
+import { getGoalAchievementInsightsFromData, getWeeklyPatternsFromData, predictWeight } from '@/services/analytics'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
 type TimeRange = '7d' | '30d' | '3m' | '1y' | 'custom'
@@ -189,23 +189,44 @@ export default function AnalyticsPage() {
   const proteinTarget = profile?.protein_target || 150
   const waterGoal = profile?.water_goal || 2000
 
-  // Advanced Analytics Queries (after logsArray is defined)
-  const { data: weightCaloriesCorrelation } = useQuery({
-    queryKey: ['correlations', 'weight-calories', timeRange],
-    queryFn: () => getWeightCaloriesCorrelation(timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90),
-    enabled: !!user && daysWithData.length >= 2,
-  })
+  // Calculate insights directly from cached dailyLogs data (instant, no API calls)
+  const goalAchievements = useMemo(() => {
+    if (!dailyLogs || dailyLogs.length === 0) return null
+    return getGoalAchievementInsightsFromData(
+      dailyLogs.map(log => ({
+        calories: log.calories,
+        protein: log.protein,
+        water: log.water,
+        fullDate: log.fullDate,
+      })),
+      calorieTarget,
+      proteinTarget,
+      waterGoal
+    )
+  }, [dailyLogs, calorieTarget, proteinTarget, waterGoal])
 
-  const { data: proteinWorkoutsCorrelation } = useQuery({
-    queryKey: ['correlations', 'protein-workouts', timeRange],
-    queryFn: () => getProteinWorkoutsCorrelation(timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90),
-    enabled: !!user && daysWithData.length >= 2,
-  })
+  const weeklyPatterns = useMemo(() => {
+    if (!dailyLogs || dailyLogs.length === 0) return null
+    return getWeeklyPatternsFromData(
+      dailyLogs.map(log => ({
+        calories: log.calories,
+        protein: log.protein,
+        workouts: log.workouts,
+        fullDate: log.fullDate,
+      }))
+    )
+  }, [dailyLogs])
 
   const { data: weightPrediction } = useQuery({
     queryKey: ['predictions', 'weight', profile?.weight],
     queryFn: () => predictWeight(profile?.weight || 0, 30),
     enabled: !!user && !!profile?.weight && logsArray.length >= 2,
+    staleTime: 1000 * 60 * 5, // Consider data stale after 5 minutes
+    gcTime: 1000 * 60 * 60 * 24, // Keep in cache for 24 hours
+    refetchOnMount: true, // Refetch when component mounts to ensure fresh data
+    refetchOnWindowFocus: false, // Don't refetch on window focus (too expensive)
+    refetchOnReconnect: true, // Refetch on reconnect
+    retry: 1,
   })
 
   return (
@@ -517,11 +538,11 @@ export default function AnalyticsPage() {
               </div>
             </div>
             <ResponsiveContainer width="100%" height={240} className="md:h-[350px]">
-              <AreaChart data={logsArray}>
+              <BarChart data={logsArray}>
                 <defs>
-                  <linearGradient id="proteinGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#00cc66" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#00cc66" stopOpacity={0} />
+                  <linearGradient id="proteinBarGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#00cc66" stopOpacity={0.9} />
+                    <stop offset="100%" stopColor="#00cc66" stopOpacity={0.6} />
                   </linearGradient>
                 </defs>
                 <XAxis 
@@ -545,12 +566,11 @@ export default function AnalyticsPage() {
                     fontSize: '11px',
                   }}
                 />
-                <Area 
-                  type="monotone" 
+                <Bar 
                   dataKey="protein" 
-                  fill="url(#proteinGradient)" 
-                  stroke="#00cc66" 
-                  strokeWidth={3}
+                  fill="url(#proteinBarGradient)" 
+                  radius={[4, 4, 0, 0]}
+                  name="Protein (g)"
                 />
                 <ReferenceLine 
                   y={proteinTarget} 
@@ -559,7 +579,7 @@ export default function AnalyticsPage() {
                   strokeDasharray="5 5"
                   label={{ value: "Target", position: "right", fill: "#525252", fontSize: 10, fontFamily: 'JetBrains Mono' }}
                 />
-              </AreaChart>
+              </BarChart>
             </ResponsiveContainer>
           </div>
 
@@ -654,7 +674,7 @@ export default function AnalyticsPage() {
                 <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Water Intake</h2>
               </div>
               <ResponsiveContainer width="100%" height={180} className="md:h-[250px]">
-                <LineChart data={logsArray}>
+                <BarChart data={logsArray}>
                   <XAxis 
                     dataKey="date" 
                     stroke="#525252" 
@@ -676,15 +696,13 @@ export default function AnalyticsPage() {
                       fontSize: '11px',
                     }}
                   />
-                  <Line 
-                    type="monotone" 
+                  <Bar 
                     dataKey="water" 
-                    stroke="var(--color-acid)" 
-                    strokeWidth={2}
-                    dot={{ fill: 'var(--color-acid)', r: 3 }}
+                    fill="var(--color-acid)" 
+                    radius={[4, 4, 0, 0]}
                     name="Water (ml)"
                   />
-                </LineChart>
+                </BarChart>
               </ResponsiveContainer>
             </div>
 
@@ -697,7 +715,7 @@ export default function AnalyticsPage() {
                 <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Workouts</h2>
               </div>
               <ResponsiveContainer width="100%" height={180} className="md:h-[250px]">
-                <LineChart data={logsArray}>
+                <BarChart data={logsArray}>
                   <XAxis 
                     dataKey="date" 
                     stroke="#525252" 
@@ -719,26 +737,117 @@ export default function AnalyticsPage() {
                       fontSize: '11px',
                     }}
                   />
-                  <Line 
-                    type="monotone" 
+                  <Bar 
                     dataKey="workouts" 
-                    stroke="#ffaa00" 
-                    strokeWidth={2}
-                    dot={{ fill: '#ffaa00', r: 3 }}
+                    fill="#ffaa00" 
+                    radius={[4, 4, 0, 0]}
                     name="Workouts"
                   />
-                </LineChart>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          {/* Advanced Analytics - Correlations & Insights */}
-          {(weightCaloriesCorrelation || proteinWorkoutsCorrelation || weightPrediction) && (
+          {/* Advanced Analytics - Insights */}
+          {(goalAchievements || weeklyPatterns || weightPrediction) && (
             <div className="space-y-4 md:space-y-6">
               <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono flex items-center gap-2">
                 <Lightbulb className="w-4 h-4 text-acid" />
-                Advanced Insights
+                Insights & Patterns
               </h2>
+
+              {/* Goal Achievement */}
+              {goalAchievements && goalAchievements.totalDays > 0 && (
+                <div className="card-modern border-acid/30 p-4 md:p-6">
+                  <div className="flex items-center gap-2 md:gap-3 mb-4">
+                    <Target className="w-4 h-4 md:w-5 md:h-5 text-acid" />
+                    <h3 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
+                      Goal Achievement Rate
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-2">Calories</div>
+                      <div className="text-2xl md:text-3xl font-bold text-text font-mono mb-1">
+                        {goalAchievements.calorieAchievementRate}%
+                      </div>
+                      <div className="text-[10px] text-dim font-mono">
+                        {goalAchievements.calorieGoalDays} of {goalAchievements.totalDays} days
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-2">Protein</div>
+                      <div className="text-2xl md:text-3xl font-bold text-success font-mono mb-1">
+                        {goalAchievements.proteinAchievementRate}%
+                      </div>
+                      <div className="text-[10px] text-dim font-mono">
+                        {goalAchievements.proteinGoalDays} of {goalAchievements.totalDays} days
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-2">Water</div>
+                      <div className="text-2xl md:text-3xl font-bold text-sky-400 font-mono mb-1">
+                        {goalAchievements.waterAchievementRate}%
+                      </div>
+                      <div className="text-[10px] text-dim font-mono">
+                        {goalAchievements.waterGoalDays} of {goalAchievements.totalDays} days
+                      </div>
+                    </div>
+                  </div>
+                  {goalAchievements.insights.length > 0 && (
+                    <div className="space-y-2 pt-4 border-t border-border/50">
+                      {goalAchievements.insights.map((insight, idx) => (
+                        <div key={idx} className="text-xs md:text-sm text-text font-mono flex items-start gap-2">
+                          <span className="text-acid mt-0.5">•</span>
+                          <span>{insight}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Weekly Patterns */}
+              {weeklyPatterns && weeklyPatterns.bestDay && (
+                <div className="card-modern border-acid/30 p-4 md:p-6">
+                  <div className="flex items-center gap-2 md:gap-3 mb-4">
+                    <TrendingUpIcon className="w-4 h-4 md:w-5 md:h-5 text-acid" />
+                    <h3 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
+                      Weekly Patterns
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-2">Best Day</div>
+                      <div className="text-sm font-mono text-text mb-1">
+                        {format(new Date(weeklyPatterns.bestDay.date), 'MMM d, yyyy')}
+                      </div>
+                      <div className="text-xs text-dim font-mono">
+                        {weeklyPatterns.bestDay.calories} cal • {weeklyPatterns.bestDay.protein}g protein
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-2">Workout Frequency</div>
+                      <div className="text-lg font-bold text-acid font-mono mb-1">
+                        {weeklyPatterns.averageWorkoutsPerWeek} per week
+                      </div>
+                      <div className="text-xs text-dim font-mono">
+                        {weeklyPatterns.workoutDays} workout days • {weeklyPatterns.restDays} rest days
+                      </div>
+                    </div>
+                  </div>
+                  {weeklyPatterns.insights.length > 0 && (
+                    <div className="space-y-2 pt-4 border-t border-border/50">
+                      {weeklyPatterns.insights.map((insight, idx) => (
+                        <div key={idx} className="text-xs md:text-sm text-text font-mono flex items-start gap-2">
+                          <span className="text-acid mt-0.5">•</span>
+                          <span>{insight}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Weight Prediction */}
               {weightPrediction && (
@@ -776,187 +885,6 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
               )}
-
-              {/* Correlations */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                {/* Weight vs Calories Correlation */}
-                {weightCaloriesCorrelation && weightCaloriesCorrelation.data.length > 0 && (
-                  <div className="card-modern border-acid/30 p-4 md:p-6">
-                    <div className="flex items-center gap-2 md:gap-3 mb-4">
-                      <Scale className="w-4 h-4 md:w-5 md:h-5 text-acid" />
-                      <h3 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
-                        Weight vs Calories
-                      </h3>
-                    </div>
-                    <div className="mb-4">
-                      <div className="text-xs font-mono text-dim mb-2">
-                        Correlation: <span className={`font-bold ${
-                          Math.abs(weightCaloriesCorrelation.correlation) > 0.5 ? 'text-acid' : 
-                          Math.abs(weightCaloriesCorrelation.correlation) > 0.2 ? 'text-success' : 'text-dim'
-                        }`}>
-                          {weightCaloriesCorrelation.correlation.toFixed(2)}
-                        </span>
-                        {weightCaloriesCorrelation.data.length < 5 && (
-                          <span className="text-[10px] text-dim ml-2">({weightCaloriesCorrelation.data.length} data points - need more for accurate correlation)</span>
-                        )}
-                      </div>
-                      <div className="text-[10px] md:text-xs text-dim font-mono italic">
-                        {weightCaloriesCorrelation.insight}
-                      </div>
-                    </div>
-                    {weightCaloriesCorrelation.data.length < 3 ? (
-                      <div className="text-center py-8 text-dim font-mono text-xs">
-                        <p className="mb-2">Need at least 3 data points to show correlation</p>
-                        <p className="text-[10px]">Log more meals and weight entries to see patterns</p>
-                      </div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height={200}>
-                        <ComposedChart data={weightCaloriesCorrelation.data}>
-                          <XAxis 
-                            dataKey="x" 
-                            name="Calories"
-                            stroke="#525252"
-                            tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-                          />
-                          <YAxis 
-                            dataKey="y" 
-                            name="Weight (kg)"
-                            stroke="#525252"
-                            tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-                          />
-                          <Tooltip
-                            content={({ active, payload }) => {
-                              if (active && payload && payload[0]) {
-                                const data = payload[0].payload as CorrelationData
-                                return (
-                                  <div className="bg-surface border border-border rounded p-2 text-xs font-mono">
-                                    <p className="text-text">Date: {format(new Date(data.date), 'MMM d')}</p>
-                                    <p className="text-accent">Calories: {data.x.toFixed(0)}</p>
-                                    <p className="text-accent">Weight: {data.y.toFixed(1)} kg</p>
-                                  </div>
-                                )
-                              }
-                              return null
-                            }}
-                          />
-                          {/* Trend line */}
-                          {weightCaloriesCorrelation.data.length >= 3 && (() => {
-                            const trendLine = calculateTrendLine(weightCaloriesCorrelation.data)
-                            return (
-                              <Line
-                                type="linear"
-                                dataKey="y"
-                                data={trendLine}
-                                stroke="#ffaa00"
-                                strokeWidth={2}
-                                strokeDasharray="5 5"
-                                dot={false}
-                                activeDot={false}
-                                isAnimationActive={false}
-                                connectNulls={true}
-                              />
-                            )
-                          })()}
-                          <Scatter name="Weight vs Calories" dataKey="y" fill="#ffaa00">
-                            {weightCaloriesCorrelation.data.map((_: any, index: number) => (
-                              <Cell key={`cell-${index}`} fill="#ffaa00" r={6} />
-                            ))}
-                          </Scatter>
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                )}
-
-                {/* Protein vs Workouts Correlation */}
-                {proteinWorkoutsCorrelation && proteinWorkoutsCorrelation.data.length > 0 && (
-                  <div className="card-modern border-acid/30 p-4 md:p-6">
-                    <div className="flex items-center gap-2 md:gap-3 mb-4">
-                      <Target className="w-4 h-4 md:w-5 md:h-5 text-acid" />
-                      <h3 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
-                        Protein vs Workouts
-                      </h3>
-                    </div>
-                    <div className="mb-4">
-                      <div className="text-xs font-mono text-dim mb-2">
-                        Correlation: <span className={`font-bold ${
-                          Math.abs(proteinWorkoutsCorrelation.correlation) > 0.5 ? 'text-acid' : 
-                          Math.abs(proteinWorkoutsCorrelation.correlation) > 0.2 ? 'text-success' : 'text-dim'
-                        }`}>
-                          {proteinWorkoutsCorrelation.correlation.toFixed(2)}
-                        </span>
-                        {proteinWorkoutsCorrelation.data.length < 5 && (
-                          <span className="text-[10px] text-dim ml-2">({proteinWorkoutsCorrelation.data.length} data points - need more for accurate correlation)</span>
-                        )}
-                      </div>
-                      <div className="text-[10px] md:text-xs text-dim font-mono italic">
-                        {proteinWorkoutsCorrelation.insight}
-                      </div>
-                    </div>
-                    {proteinWorkoutsCorrelation.data.length < 3 ? (
-                      <div className="text-center py-8 text-dim font-mono text-xs">
-                        <p className="mb-2">Need at least 3 data points to show correlation</p>
-                        <p className="text-[10px]">Log more protein intake and workouts to see patterns</p>
-                      </div>
-                    ) : (
-                      <ResponsiveContainer width="100%" height={200}>
-                        <ComposedChart data={proteinWorkoutsCorrelation.data}>
-                          <XAxis 
-                            dataKey="x" 
-                            name="Protein (g)"
-                            stroke="#525252"
-                            tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-                          />
-                          <YAxis 
-                            dataKey="y" 
-                            name="Workouts"
-                            stroke="#525252"
-                            tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-                          />
-                          <Tooltip
-                            content={({ active, payload }) => {
-                              if (active && payload && payload[0]) {
-                                const data = payload[0].payload as CorrelationData
-                                return (
-                                  <div className="bg-surface border border-border rounded p-2 text-xs font-mono">
-                                    <p className="text-text">Date: {format(new Date(data.date), 'MMM d')}</p>
-                                    <p className="text-accent">Protein: {data.x.toFixed(0)}g</p>
-                                    <p className="text-accent">Workouts: {data.y}</p>
-                                  </div>
-                                )
-                              }
-                              return null
-                            }}
-                          />
-                          {/* Trend line */}
-                          {proteinWorkoutsCorrelation.data.length >= 3 && (() => {
-                            const trendLine = calculateTrendLine(proteinWorkoutsCorrelation.data)
-                            return (
-                              <Line
-                                type="linear"
-                                dataKey="y"
-                                data={trendLine}
-                                stroke="#00ff88"
-                                strokeWidth={2}
-                                strokeDasharray="5 5"
-                                dot={false}
-                                activeDot={false}
-                                isAnimationActive={false}
-                                connectNulls={true}
-                              />
-                            )
-                          })()}
-                          <Scatter name="Protein vs Workouts" dataKey="y" fill="#00ff88">
-                            {proteinWorkoutsCorrelation.data.map((_: any, index: number) => (
-                              <Cell key={`cell-${index}`} fill="#00ff88" r={6} />
-                            ))}
-                          </Scatter>
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                )}
-              </div>
             </div>
           )}
 
