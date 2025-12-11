@@ -1,5 +1,5 @@
 import { Achievement } from '@/types'
-import { Trophy, Award, Target, Star, Flame, UtensilsCrossed, Dumbbell, Calendar, Zap, CheckCircle2 } from 'lucide-react'
+import { Trophy, Award, Target, Star, Flame, UtensilsCrossed, Dumbbell, Calendar, Zap, Check } from 'lucide-react'
 
 interface AchievementBadgeProps {
   achievement: Achievement
@@ -100,8 +100,8 @@ export default function AchievementBadge({
         {/* Unlocked indicator - Visible tick icon or dot */}
         {(achievement.progress === 100 || (achievement.unlocked_at && achievement.unlocked_at.trim() !== '')) && (
           <div className="absolute top-1 right-1 z-20">
-            <div className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-success dark:bg-success flex items-center justify-center shadow-md">
-              <CheckCircle2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-white fill-white" />
+            <div className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-white dark:bg-surface border-2 border-[#22c55e] dark:border-[#22c55e] flex items-center justify-center shadow-md">
+              <Check className="w-3 h-3 md:w-3.5 md:h-3.5 text-[#22c55e] dark:text-[#22c55e] stroke-[3]" />
             </div>
           </div>
         )}

@@ -309,11 +309,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsGuest(false)
   }
 
-  const completeOnboarding = () => {
+  const completeOnboarding = async () => {
     setShowOnboarding(false)
     // Reload profile if authenticated
+    // Add a small delay to ensure database replication before reloading
     if (user) {
-      loadProfile(user.id)
+      // Wait a bit for database to sync
+      await new Promise(resolve => setTimeout(resolve, 500))
+      await loadProfile(user.id)
     }
     // Show notification dialog after onboarding (if not already dismissed)
     // Check will happen in loadProfile after preferences are loaded

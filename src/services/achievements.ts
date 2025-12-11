@@ -4,6 +4,8 @@ import { calculateLoggingStreak } from './streak'
 import { getDailyLog } from './dailyLogs'
 import { getMeals } from './meals'
 import { getExercises } from './workouts'
+import { getRecipes } from './recipes'
+import { getWeightLogs } from './weightTracking'
 import { format, subDays } from 'date-fns'
 
 /**
@@ -42,6 +44,21 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     },
   },
   {
+    key: 'streak_14',
+    type: 'streak',
+    title: 'Two Week Warrior',
+    description: 'Logged data for 14 consecutive days',
+    icon: null,
+    condition: async (userData) => {
+      const streak = await calculateLoggingStreak()
+      return streak.currentStreak >= 14
+    },
+    progress: async (userData) => {
+      const streak = await calculateLoggingStreak()
+      return Math.min((streak.currentStreak / 14) * 100, 100)
+    },
+  },
+  {
     key: 'streak_100',
     type: 'streak',
     title: 'Century Streak',
@@ -54,6 +71,36 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     progress: async (userData) => {
       const streak = await calculateLoggingStreak()
       return Math.min((streak.currentStreak / 100) * 100, 100)
+    },
+  },
+  {
+    key: 'streak_60',
+    type: 'streak',
+    title: 'Two Month Master',
+    description: 'Logged data for 60 consecutive days',
+    icon: null,
+    condition: async (userData) => {
+      const streak = await calculateLoggingStreak()
+      return streak.currentStreak >= 60
+    },
+    progress: async (userData) => {
+      const streak = await calculateLoggingStreak()
+      return Math.min((streak.currentStreak / 60) * 100, 100)
+    },
+  },
+  {
+    key: 'streak_365',
+    type: 'streak',
+    title: 'Year Champion',
+    description: 'Logged data for 365 consecutive days',
+    icon: null,
+    condition: async (userData) => {
+      const streak = await calculateLoggingStreak()
+      return streak.currentStreak >= 365
+    },
+    progress: async (userData) => {
+      const streak = await calculateLoggingStreak()
+      return Math.min((streak.currentStreak / 365) * 100, 100)
     },
   },
   // Goal achievements
@@ -101,6 +148,58 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
         }
       }
       return consecutiveDays >= 7
+    },
+  },
+  {
+    key: 'goal_water_7',
+    type: 'goal',
+    title: 'Hydration Hero',
+    description: 'Met water goal 7 days in a row',
+    icon: null,
+    condition: async (userData) => {
+      const { profile } = userData
+      const waterGoal = profile?.water_goal || 2000
+      
+      let consecutiveDays = 0
+      for (let i = 0; i < 7; i++) {
+        const date = format(subDays(new Date(), i), 'yyyy-MM-dd')
+        const dailyLog = await getDailyLog(date)
+        if ((dailyLog.water_intake_ml || 0) >= waterGoal) {
+          consecutiveDays++
+        } else {
+          break
+        }
+      }
+      return consecutiveDays >= 7
+    },
+  },
+  {
+    key: 'goal_all_macros_3',
+    type: 'goal',
+    title: 'Macro Master',
+    description: 'Met calorie, protein, and water goals 3 days in a row',
+    icon: null,
+    condition: async (userData) => {
+      const { profile } = userData
+      const calorieTarget = profile?.calorie_target || 2000
+      const proteinTarget = profile?.protein_target || 150
+      const waterGoal = profile?.water_goal || 2000
+      
+      let consecutiveDays = 0
+      for (let i = 0; i < 3; i++) {
+        const date = format(subDays(new Date(), i), 'yyyy-MM-dd')
+        const dailyLog = await getDailyLog(date)
+        if (
+          dailyLog.calories_consumed >= calorieTarget &&
+          dailyLog.protein >= proteinTarget &&
+          (dailyLog.water_intake_ml || 0) >= waterGoal
+        ) {
+          consecutiveDays++
+        } else {
+          break
+        }
+      }
+      return consecutiveDays >= 3
     },
   },
   // Milestone achievements
@@ -191,6 +290,149 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
       }
     },
   },
+  {
+    key: 'milestone_50_meals',
+    type: 'milestone',
+    title: 'Meal Enthusiast',
+    description: 'Logged 50 meals',
+    icon: null,
+    condition: async (userData) => {
+      const meals = await getMeals()
+      return meals.length >= 50
+    },
+    progress: async (userData) => {
+      const meals = await getMeals()
+      return Math.min((meals.length / 50) * 100, 100)
+    },
+  },
+  {
+    key: 'milestone_100_meals',
+    type: 'milestone',
+    title: 'Meal Master',
+    description: 'Logged 100 meals',
+    icon: null,
+    condition: async (userData) => {
+      const meals = await getMeals()
+      return meals.length >= 100
+    },
+    progress: async (userData) => {
+      const meals = await getMeals()
+      return Math.min((meals.length / 100) * 100, 100)
+    },
+  },
+  {
+    key: 'milestone_500_meals',
+    type: 'milestone',
+    title: 'Meal Legend',
+    description: 'Logged 500 meals',
+    icon: null,
+    condition: async (userData) => {
+      const meals = await getMeals()
+      return meals.length >= 500
+    },
+    progress: async (userData) => {
+      const meals = await getMeals()
+      return Math.min((meals.length / 500) * 100, 100)
+    },
+  },
+  {
+    key: 'milestone_50_workouts',
+    type: 'milestone',
+    title: 'Fitness Enthusiast',
+    description: 'Logged 50 workouts',
+    icon: null,
+    condition: async (userData) => {
+      const exercises = await getExercises()
+      return exercises.length >= 50
+    },
+    progress: async (userData) => {
+      const exercises = await getExercises()
+      return Math.min((exercises.length / 50) * 100, 100)
+    },
+  },
+  {
+    key: 'milestone_100_workouts',
+    type: 'milestone',
+    title: 'Fitness Master',
+    description: 'Logged 100 workouts',
+    icon: null,
+    condition: async (userData) => {
+      const exercises = await getExercises()
+      return exercises.length >= 100
+    },
+    progress: async (userData) => {
+      const exercises = await getExercises()
+      return Math.min((exercises.length / 100) * 100, 100)
+    },
+  },
+  {
+    key: 'milestone_500_workouts',
+    type: 'milestone',
+    title: 'Fitness Legend',
+    description: 'Logged 500 workouts',
+    icon: null,
+    condition: async (userData) => {
+      const exercises = await getExercises()
+      return exercises.length >= 500
+    },
+    progress: async (userData) => {
+      const exercises = await getExercises()
+      return Math.min((exercises.length / 500) * 100, 100)
+    },
+  },
+  {
+    key: 'milestone_first_weight',
+    type: 'milestone',
+    title: 'Weight Watcher',
+    description: 'Logged your first weight entry',
+    icon: null,
+    condition: async (userData) => {
+      try {
+        const weightLogs = await getWeightLogs()
+        return weightLogs.length > 0
+      } catch {
+        return false
+      }
+    },
+  },
+  {
+    key: 'milestone_first_recipe',
+    type: 'milestone',
+    title: 'Recipe Creator',
+    description: 'Created your first recipe',
+    icon: null,
+    condition: async (userData) => {
+      try {
+        const recipes = await getRecipes()
+        return recipes.length > 0
+      } catch {
+        return false
+      }
+    },
+  },
+  {
+    key: 'milestone_10_recipes',
+    type: 'milestone',
+    title: 'Recipe Collector',
+    description: 'Created 10 recipes',
+    icon: null,
+    condition: async (userData) => {
+      try {
+        const recipes = await getRecipes()
+        return recipes.length >= 10
+      } catch {
+        return false
+      }
+    },
+    progress: async (userData) => {
+      try {
+        const recipes = await getRecipes()
+        return Math.min((recipes.length / 10) * 100, 100)
+      } catch {
+        return 0
+      }
+    },
+  },
   // Special achievements
   {
     key: 'special_perfect_week',
@@ -219,6 +461,154 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
         }
       }
       return (perfectDays / 7) * 100
+    },
+  },
+  {
+    key: 'special_high_protein_day',
+    type: 'special',
+    title: 'Protein Powerhouse',
+    description: 'Consumed 200g+ protein in a single day',
+    icon: null,
+    condition: async (userData) => {
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const dailyLog = await getDailyLog(today)
+      return dailyLog.protein >= 200
+    },
+  },
+  {
+    key: 'special_calorie_burn_500',
+    type: 'special',
+    title: 'Calorie Torch',
+    description: 'Burned 500+ calories in a single workout',
+    icon: null,
+    condition: async (userData) => {
+      const exercises = await getExercises()
+      return exercises.some(e => e.calories_burned >= 500)
+    },
+  },
+  {
+    key: 'special_calorie_burn_1000',
+    type: 'special',
+    title: 'Calorie Inferno',
+    description: 'Burned 1000+ calories in a single workout',
+    icon: null,
+    condition: async (userData) => {
+      const exercises = await getExercises()
+      return exercises.some(e => e.calories_burned >= 1000)
+    },
+  },
+  {
+    key: 'special_total_calories_burned_10k',
+    type: 'special',
+    title: '10K Burner',
+    description: 'Burned 10,000 total calories from workouts',
+    icon: null,
+    condition: async (userData) => {
+      const exercises = await getExercises()
+      const totalBurned = exercises.reduce((sum, e) => sum + (e.calories_burned || 0), 0)
+      return totalBurned >= 10000
+    },
+    progress: async (userData) => {
+      const exercises = await getExercises()
+      const totalBurned = exercises.reduce((sum, e) => sum + (e.calories_burned || 0), 0)
+      return Math.min((totalBurned / 10000) * 100, 100)
+    },
+  },
+  {
+    key: 'special_total_calories_burned_50k',
+    type: 'special',
+    title: '50K Burner',
+    description: 'Burned 50,000 total calories from workouts',
+    icon: null,
+    condition: async (userData) => {
+      const exercises = await getExercises()
+      const totalBurned = exercises.reduce((sum, e) => sum + (e.calories_burned || 0), 0)
+      return totalBurned >= 50000
+    },
+    progress: async (userData) => {
+      const exercises = await getExercises()
+      const totalBurned = exercises.reduce((sum, e) => sum + (e.calories_burned || 0), 0)
+      return Math.min((totalBurned / 50000) * 100, 100)
+    },
+  },
+  {
+    key: 'special_water_3l',
+    type: 'special',
+    title: 'Hydration Champion',
+    description: 'Drank 3L+ water in a single day',
+    icon: null,
+    condition: async (userData) => {
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const dailyLog = await getDailyLog(today)
+      return (dailyLog.water_intake_ml || 0) >= 3000
+    },
+  },
+  {
+    key: 'special_weight_loss_5kg',
+    type: 'special',
+    title: 'Weight Loss Warrior',
+    description: 'Lost 5kg from your starting weight',
+    icon: null,
+    condition: async (userData) => {
+      try {
+        const weightLogs = await getWeightLogs()
+        if (weightLogs.length < 2) return false
+        const sorted = weightLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        const firstWeight = sorted[0].weight
+        const latestWeight = sorted[sorted.length - 1].weight
+        return (firstWeight - latestWeight) >= 5
+      } catch {
+        return false
+      }
+    },
+  },
+  {
+    key: 'special_weight_gain_5kg',
+    type: 'special',
+    title: 'Muscle Builder',
+    description: 'Gained 5kg from your starting weight',
+    icon: null,
+    condition: async (userData) => {
+      try {
+        const weightLogs = await getWeightLogs()
+        if (weightLogs.length < 2) return false
+        const sorted = weightLogs.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+        const firstWeight = sorted[0].weight
+        const latestWeight = sorted[sorted.length - 1].weight
+        return (latestWeight - firstWeight) >= 5
+      } catch {
+        return false
+      }
+    },
+  },
+  {
+    key: 'special_balanced_macros_week',
+    type: 'special',
+    title: 'Macro Balancer',
+    description: 'Met all macro goals (calories, protein, carbs, fats) for 7 days',
+    icon: null,
+    condition: async (userData) => {
+      const { profile } = userData
+      const calorieTarget = profile?.calorie_target || 2000
+      const proteinTarget = profile?.protein_target || 150
+      
+      let balancedDays = 0
+      for (let i = 0; i < 7; i++) {
+        const date = format(subDays(new Date(), i), 'yyyy-MM-dd')
+        const dailyLog = await getDailyLog(date)
+        // Check if calories and protein are within 10% of target
+        const caloriesMet = Math.abs(dailyLog.calories_consumed - calorieTarget) <= (calorieTarget * 0.1)
+        const proteinMet = dailyLog.protein >= proteinTarget * 0.9
+        const hasCarbs = dailyLog.carbs > 0
+        const hasFats = dailyLog.fats > 0
+        
+        if (caloriesMet && proteinMet && hasCarbs && hasFats) {
+          balancedDays++
+        } else {
+          break
+        }
+      }
+      return balancedDays >= 7
     },
   },
 ]
@@ -374,10 +764,16 @@ export async function getAchievementsWithProgress(userData: { profile: any }): P
               // Use cached streak data
               if (definition.key === 'streak_7') {
                 progress = Math.min((streakData.currentStreak / 7) * 100, 100)
+              } else if (definition.key === 'streak_14') {
+                progress = Math.min((streakData.currentStreak / 14) * 100, 100)
               } else if (definition.key === 'streak_30') {
                 progress = Math.min((streakData.currentStreak / 30) * 100, 100)
+              } else if (definition.key === 'streak_60') {
+                progress = Math.min((streakData.currentStreak / 60) * 100, 100)
               } else if (definition.key === 'streak_100') {
                 progress = Math.min((streakData.currentStreak / 100) * 100, 100)
+              } else if (definition.key === 'streak_365') {
+                progress = Math.min((streakData.currentStreak / 365) * 100, 100)
               }
             } else {
               // For other achievements, call progress function with timeout

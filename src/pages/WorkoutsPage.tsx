@@ -2,21 +2,25 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO, subDays, addDays } from 'date-fns'
 import { getExercises, createExercise, updateExercise, deleteExercise } from '@/services/workouts'
+import { checkAndUnlockAchievements } from '@/services/achievements'
 import { useAuth } from '@/contexts/AuthContext'
 import { ExerciseSelector } from '@/components/ExerciseSelector'
-import { ExerciseLibraryItem } from '@/services/exerciseLibrary'
+import { ExerciseLibraryItem, calculateCaloriesBurned } from '@/services/exerciseLibrary'
 import { Plus, Trash2, X, Activity, Flame, Clock, Dumbbell, Heart, Zap, Target, TrendingUp, Search, Edit, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Exercise } from '@/types'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
 export default function WorkoutsPage() {
-  const { user, isGuest } = useAuth()
+  const { user, isGuest, profile } = useAuth()
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null)
   const [showExerciseSelector, setShowExerciseSelector] = useState(false)
   const [formDuration, setFormDuration] = useState<number | string>(30)
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'))
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseLibraryItem | null>(null) // Track selected exercise with MET value
+  const [calculatedCalories, setCalculatedCalories] = useState<number | null>(null) // Auto-calculated calories
+  const [manualCalories, setManualCalories] = useState<number | null>(null) // User-overridden calories
   const formRef = useRef<HTMLFormElement>(null)
   const today = format(new Date(), 'yyyy-MM-dd')
   const queryClient = useQueryClient()
@@ -32,7 +36,7 @@ export default function WorkoutsPage() {
 
   const createMutation = useMutation({
     mutationFn: createExercise,
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       const workoutDate = variables.date
       // Invalidate all exercises queries (for any date)
       queryClient.invalidateQueries({ queryKey: ['exercises'] })
@@ -48,6 +52,18 @@ export default function WorkoutsPage() {
       queryClient.invalidateQueries({ queryKey: ['weekLogs'] })
       // Update streak when workout is logged
       queryClient.invalidateQueries({ queryKey: ['streak'] })
+      // Check for new achievements
+      if (profile) {
+        try {
+          const newAchievements = await checkAndUnlockAchievements({ profile })
+          if (newAchievements.length > 0) {
+            queryClient.invalidateQueries({ queryKey: ['achievements'] })
+            queryClient.invalidateQueries({ queryKey: ['achievementsWithProgress'] })
+          }
+        } catch (error) {
+          console.error('Error checking achievements:', error)
+        }
+      }
       setShowAddForm(false)
       setEditingExerciseId(null)
     },
@@ -118,12 +134,19 @@ export default function WorkoutsPage() {
     setShowAddForm(true)
     // Initialize form duration with exercise duration or default to 30
     setFormDuration(exercise.duration || 30)
+    // Clear selected exercise when editing (user can select new one if needed)
+    setSelectedExercise(null)
+    setCalculatedCalories(null)
+    setManualCalories(null)
   }
 
   const handleCancel = () => {
     setShowAddForm(false)
     setEditingExerciseId(null)
     setFormDuration(30) // Reset to default
+    setSelectedExercise(null) // Clear selected exercise
+    setCalculatedCalories(null) // Clear calculated calories
+    setManualCalories(null) // Clear manual override
   }
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -172,6 +195,9 @@ export default function WorkoutsPage() {
   const handleExerciseSelect = (exercise: ExerciseLibraryItem, calories: number) => {
     if (!formRef.current) return
     
+    // Store selected exercise with MET value for auto-calculation
+    setSelectedExercise(exercise)
+    
     // Populate form fields
     const nameInput = formRef.current.querySelector<HTMLInputElement>('input[name="name"]')
     const typeSelect = formRef.current.querySelector<HTMLSelectElement>('select[name="type"]')
@@ -184,6 +210,11 @@ export default function WorkoutsPage() {
       durationInput.value = formDuration.toString()
       setFormDuration(formDuration)
     }
+    
+    // Set calculated calories (will be recalculated when duration changes)
+    setCalculatedCalories(calories)
+    setManualCalories(null) // Reset manual override
+    
     if (caloriesInput) caloriesInput.value = calories.toString()
     
     // Show form if not already visible
@@ -191,6 +222,27 @@ export default function WorkoutsPage() {
       setShowAddForm(true)
     }
   }
+
+  // Auto-calculate calories when duration or selected exercise changes
+  useEffect(() => {
+    if (selectedExercise && typeof formDuration === 'number' && formDuration > 0 && profile?.weight) {
+      const weightKg = profile.weight
+      const calculated = calculateCaloriesBurned(
+        selectedExercise.met_value,
+        weightKg,
+        formDuration
+      )
+      setCalculatedCalories(calculated)
+      
+      // Update calories input field if not manually overridden
+      if (formRef.current && manualCalories === null) {
+        const caloriesInput = formRef.current.querySelector<HTMLInputElement>('input[name="calories_burned"]')
+        if (caloriesInput) {
+          caloriesInput.value = calculated.toString()
+        }
+      }
+    }
+  }, [formDuration, selectedExercise, profile?.weight, manualCalories])
 
   // Calculate totals
   const totalCalories = exercises?.reduce((sum, ex) => sum + (ex.calories_burned || 0), 0) || 0
@@ -312,7 +364,7 @@ export default function WorkoutsPage() {
                 setEditingExerciseId(null)
                 setShowAddForm(!showAddForm)
               }}
-              className="btn-primary gap-1.5 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-2"
+              className="btn-secondary gap-1.5 md:gap-2 text-xs md:text-sm px-3 md:px-4 py-2"
             >
               <Plus className="w-3.5 h-3.5 md:w-4 md:h-4" />
               <span>Log Workout</span>
@@ -482,6 +534,9 @@ export default function WorkoutsPage() {
                 <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2 flex items-center gap-1.5 md:gap-2">
                   <Flame className="w-3 h-3 flex-shrink-0" />
                   Calories Burned
+                  {calculatedCalories !== null && manualCalories === null && (
+                    <span className="text-[9px] text-accent ml-1">(auto-calculated)</span>
+                  )}
                 </label>
                 <input
                   type="number"
@@ -491,7 +546,24 @@ export default function WorkoutsPage() {
                   className="input-modern text-sm md:text-base"
                   placeholder="e.g., 300"
                   defaultValue={editingExercise?.calories_burned || ''}
+                  value={manualCalories !== null ? manualCalories : (calculatedCalories !== null ? calculatedCalories : (editingExercise?.calories_burned || ''))}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === '') {
+                      setManualCalories(null)
+                    } else {
+                      const numValue = Number(value)
+                      if (!isNaN(numValue) && numValue > 0) {
+                        setManualCalories(numValue)
+                      }
+                    }
+                  }}
                 />
+                {calculatedCalories !== null && manualCalories !== null && manualCalories !== calculatedCalories && (
+                  <p className="text-[9px] text-dim font-mono mt-1">
+                    Calculated: {calculatedCalories} cal (click to use)
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 md:gap-4">
@@ -523,7 +595,7 @@ export default function WorkoutsPage() {
         open={showExerciseSelector}
         onClose={() => setShowExerciseSelector(false)}
         onSelect={handleExerciseSelect}
-        durationMinutes={formDuration}
+        durationMinutes={typeof formDuration === 'number' ? formDuration : Number(formDuration) || 30}
       />
 
       {isLoading ? (

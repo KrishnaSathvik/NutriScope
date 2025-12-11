@@ -22,8 +22,14 @@ import { ArrowRight, User, TrendingDown, Dumbbell, Activity, Heart, UtensilsCros
 const onboardingSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   age: z.number().min(13).max(120).optional(),
-  weight: z.number().min(30).max(300).optional(),
-  height: z.number().min(100).max(250).optional(),
+  // Metric fields
+  weight: z.number().min(30).max(300).optional(),   // kg
+  height: z.number().min(100).max(250).optional(),  // cm
+  // Unit system and imperial fields
+  unit_system: z.enum(["metric", "imperial"]),
+  weight_lbs: z.number().min(66).max(660).optional(), // ~30–300 kg
+  height_feet: z.number().min(3).max(8).optional(),
+  height_inches: z.number().min(0).max(11).optional(),
   goal: z.enum(["lose_weight", "gain_muscle", "maintain", "improve_fitness"]),
   dietary_preference: z.enum(["vegetarian", "non_vegetarian", "vegan", "flexitarian"]),
   activity_level: z.enum(["sedentary", "light", "moderate", "active", "very_active"]),
@@ -66,8 +72,14 @@ export function OnboardingDialog({
       dietary_preference: "flexitarian",
       activity_level: "moderate",
       gender: "male",
+      unit_system: "metric",
     },
   })
+
+  const unitSystem = watch("unit_system")
+  const weightLbs = watch("weight_lbs")
+  const heightFeet = watch("height_feet")
+  const heightInches = watch("height_inches")
 
   const totalSteps = 3
   const progress = (step / totalSteps) * 100
@@ -107,17 +119,35 @@ export function OnboardingDialog({
         return
       }
 
+      // Convert to metric for storage
+      let weightKg: number | null = null
+      let heightCm: number | null = null
+      
+      if (data.unit_system === "metric") {
+        weightKg = data.weight ?? null
+        heightCm = data.height ?? null
+      } else {
+        if (data.weight_lbs) {
+          weightKg = data.weight_lbs * 0.453592
+        }
+        const ft = data.height_feet ?? 0
+        const inch = data.height_inches ?? 0
+        if (ft || inch) {
+          heightCm = ft * 30.48 + inch * 2.54
+        }
+      }
+
       // Use target_calories/target_protein from form, convert to calorie_target/protein_target
       const calorieTarget = data.target_calories || 2000
       const proteinTarget = data.target_protein || 150
 
-      // Build profile data - use only calorie_target and protein_target (these definitely exist)
+      // Build profile data - use only columns that exist in the database
       const profileData: Record<string, any> = {
         id: userId,
         name: data.name || null,
         age: data.age || null,
-        weight: data.weight || null,
-        height: data.height || null,
+        weight: weightKg,
+        height: heightCm,
         goal: data.goal,
         dietary_preference: data.dietary_preference,
         activity_level: data.activity_level,
@@ -125,6 +155,7 @@ export function OnboardingDialog({
         calorie_target: calorieTarget,
         protein_target: proteinTarget,
         water_goal: data.water_goal || 2000,
+        unit_system: data.unit_system || 'metric', // Save user's unit preference
       }
 
       // Add email if user has one (not for anonymous/guest users)
@@ -149,10 +180,35 @@ export function OnboardingDialog({
         throw new Error(error.message || `Failed to create profile: ${JSON.stringify(error)}`)
       }
 
+      // Verify profile was created (with retry for eventual consistency)
+      let profileVerified = false
+      for (let i = 0; i < 3; i++) {
+        const { data: verifyData } = await supabase
+          .from("user_profiles")
+          .select("id")
+          .eq("id", userId)
+          .maybeSingle()
+        
+        if (verifyData) {
+          profileVerified = true
+          break
+        }
+        
+        // Wait before retry
+        if (i < 2) {
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
+      }
+
+      if (!profileVerified) {
+        console.warn("Profile verification failed, but continuing anyway")
+      }
+
       toast({
         title: "Profile created!",
         description: "Welcome to NutriScope!",
       })
+      
       onComplete()
       onOpenChange(false)
     } catch (error: unknown) {
@@ -173,14 +229,40 @@ export function OnboardingDialog({
   const height = watch("height")
   const gender = watch("gender")
 
+  // Helper function to get metric values from either unit system
+  function getMetricValues() {
+    const unit = unitSystem
+    let weightKg: number | undefined
+    let heightCm: number | undefined
+    
+    if (unit === "metric") {
+      weightKg = weight
+      heightCm = height
+    } else {
+      if (weightLbs) {
+        weightKg = weightLbs * 0.453592
+      }
+      if (heightFeet != null || heightInches != null) {
+        const ft = heightFeet || 0
+        const inch = heightInches || 0
+        heightCm = ft * 30.48 + inch * 2.54
+      }
+    }
+    
+    return { weightKg, heightCm }
+  }
+
   // Calculate personalized targets when moving to step 3
   useEffect(() => {
-    if (step === 3 && weight && height && age && goal && activityLevel && gender) {
+    if (step === 3 && age && goal && activityLevel && gender) {
+      const { weightKg, heightCm } = getMetricValues()
+      if (!weightKg || !heightCm) return
+      
       const isMale = gender === "male"
       
       const targets = calculatePersonalizedTargets({
-        weight,
-        height,
+        weight: weightKg,
+        height: heightCm,
         age,
         goal,
         activityLevel,
@@ -193,15 +275,18 @@ export function OnboardingDialog({
       setValue("target_protein", targets.protein_target)
       setValue("water_goal", targets.water_goal)
     }
-  }, [step, weight, height, age, goal, activityLevel, dietaryPreference, gender, setValue])
+  }, [step, weight, weightLbs, height, heightFeet, heightInches, age, goal, activityLevel, dietaryPreference, gender, setValue, unitSystem])
 
   // Calculate personalized explanation for step 3
   const personalizedExplanation = useMemo(() => {
-    if (step === 3 && weight && height && age && goal && activityLevel && gender) {
+    if (step === 3 && age && goal && activityLevel && gender) {
+      const { weightKg, heightCm } = getMetricValues()
+      if (!weightKg || !heightCm) return ""
+      
       const isMale = gender === "male"
       const targets = calculatePersonalizedTargets({
-        weight,
-        height,
+        weight: weightKg,
+        height: heightCm,
         age,
         goal,
         activityLevel,
@@ -211,7 +296,7 @@ export function OnboardingDialog({
       return targets.explanation
     }
     return ""
-  }, [step, weight, height, age, goal, activityLevel, dietaryPreference, gender])
+  }, [step, weight, weightLbs, height, heightFeet, heightInches, age, goal, activityLevel, dietaryPreference, gender, unitSystem])
 
   const goalIcons = {
     lose_weight: TrendingDown,
@@ -376,8 +461,7 @@ export function OnboardingDialog({
                           }
                         >
                           <span
-                            className="text-xs block font-medium"
-                            style={{ color: isSelected ? "#111827" : "#6B7280" }}
+                            className={`text-xs block font-medium ${isSelected ? "text-text" : "text-dim"}`}
                           >
                             {option.label}
                           </span>
@@ -400,44 +484,125 @@ export function OnboardingDialog({
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Age - Separate */}
+                <div>
+                  <Label htmlFor="age" className="text-sm font-medium text-text font-mono mb-2 block">
+                    Age (optional)
+                  </Label>
+                  <Input
+                    id="age"
+                    type="number"
+                    {...register("age", { valueAsNumber: true })}
+                    placeholder="25"
+                    className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
+                  />
+                </div>
+
+                {/* Weight & Height with Unit Toggle */}
+                <div className="space-y-4">
+                  {/* Unit System Toggle */}
                   <div>
-                    <Label htmlFor="age" className="text-sm font-medium text-text font-mono mb-2 block">
-                      Age (optional)
+                    <Label className="text-sm font-medium text-text font-mono mb-2 block">
+                      Units for Weight & Height
                     </Label>
-                    <Input
-                      id="age"
-                      type="number"
-                      {...register("age", { valueAsNumber: true })}
-                      placeholder="25"
-                      className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
-                    />
+                    <div className="inline-flex rounded-md border border-border/70 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setValue("unit_system", "metric")}
+                        className={`px-3 py-1.5 text-xs font-mono transition-colors ${
+                          unitSystem === "metric"
+                            ? "bg-accent text-white"
+                            : "bg-panel text-dim hover:bg-panel/80"
+                        }`}
+                      >
+                        Metric (kg / cm)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setValue("unit_system", "imperial")}
+                        className={`px-3 py-1.5 text-xs font-mono transition-colors ${
+                          unitSystem === "imperial"
+                            ? "bg-accent text-white"
+                            : "bg-panel text-dim hover:bg-panel/80"
+                        }`}
+                      >
+                        Imperial (lbs / ft+in)
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="weight" className="text-sm font-medium text-text font-mono mb-2 block">
-                      Weight (kg, optional)
-                    </Label>
-                    <Input
-                      id="weight"
-                      type="number"
-                      step="0.1"
-                      {...register("weight", { valueAsNumber: true })}
-                      placeholder="70"
-                      className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="height" className="text-sm font-medium text-text font-mono mb-2 block">
-                      Height (cm, optional)
-                    </Label>
-                    <Input
-                      id="height"
-                      type="number"
-                      {...register("height", { valueAsNumber: true })}
-                      placeholder="175"
-                      className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
-                    />
-                  </div>
+
+                  {/* Weight & Height Inputs */}
+                  {unitSystem === "metric" ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="weight" className="text-sm font-medium text-text font-mono mb-2 block">
+                          Weight (kg, optional)
+                        </Label>
+                        <Input
+                          id="weight"
+                          type="number"
+                          step="0.1"
+                          {...register("weight", { valueAsNumber: true })}
+                          placeholder="70"
+                          className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="height" className="text-sm font-medium text-text font-mono mb-2 block">
+                          Height (cm, optional)
+                        </Label>
+                        <Input
+                          id="height"
+                          type="number"
+                          {...register("height", { valueAsNumber: true })}
+                          placeholder="175"
+                          className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="weight_lbs" className="text-sm font-medium text-text font-mono mb-2 block">
+                          Weight (lbs, optional)
+                        </Label>
+                        <Input
+                          id="weight_lbs"
+                          type="number"
+                          step="0.1"
+                          {...register("weight_lbs", { valueAsNumber: true })}
+                          placeholder="154"
+                          className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label htmlFor="height_feet" className="text-sm font-medium text-text font-mono mb-2 block">
+                            Height (ft)
+                          </Label>
+                          <Input
+                            id="height_feet"
+                            type="number"
+                            {...register("height_feet", { valueAsNumber: true })}
+                            placeholder="5"
+                            className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="height_inches" className="text-sm font-medium text-text font-mono mb-2 block">
+                            Height (in)
+                          </Label>
+                          <Input
+                            id="height_inches"
+                            type="number"
+                            {...register("height_inches", { valueAsNumber: true })}
+                            placeholder="8"
+                            className="bg-panel/60 border-border/70 focus:border-accent focus:ring-1 focus:ring-accent/60"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end pt-4">
@@ -529,8 +694,8 @@ export function OnboardingDialog({
                             boxShadow: '0 0 0 2px rgba(13, 148, 136, 0.2)'
                           } : {}}
                         >
-                          <Icon className="w-5 h-5 mx-auto mb-1" style={{ color: isSelected ? '#0D9488' : '#6B7280' }} />
-                          <span className={`text-xs block font-medium`} style={{ color: isSelected ? '#111827' : '#6B7280' }}>
+                          <Icon className={`w-5 h-5 mx-auto mb-1 ${isSelected ? 'text-accent' : 'text-dim'}`} />
+                          <span className={`text-xs block font-medium ${isSelected ? 'text-text' : 'text-dim'}`}>
                             {option.label}
                           </span>
                           {isSelected && (
@@ -573,8 +738,8 @@ export function OnboardingDialog({
                             boxShadow: '0 0 0 2px rgba(13, 148, 136, 0.2)'
                           } : {}}
                         >
-                          <Icon className="w-5 h-5 mx-auto mb-1" style={{ color: isSelected ? '#0D9488' : '#6B7280' }} />
-                          <span className={`text-xs block font-medium`} style={{ color: isSelected ? '#111827' : '#6B7280' }}>
+                          <Icon className={`w-5 h-5 mx-auto mb-1 ${isSelected ? 'text-accent' : 'text-dim'}`} />
+                          <span className={`text-xs block font-medium ${isSelected ? 'text-text' : 'text-dim'}`}>
                             {option.label}
                           </span>
                           {isSelected && (

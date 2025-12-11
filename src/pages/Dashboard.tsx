@@ -376,92 +376,184 @@ export default function Dashboard() {
       </div>
 
 
-      {/* Net Calories - Detailed */}
+      {/* Calorie Balance - Clear Summary */}
       {dailyLog && (
         <div className="card-modern p-4 md:p-6">
           <h2 className="text-sm md:text-base font-semibold text-text uppercase tracking-wider font-mono mb-4 md:mb-6">Calorie Balance</h2>
           
           <div className="grid md:grid-cols-3 gap-4 md:gap-6 mb-4 md:mb-6">
-            {/* Calories Consumed */}
+            {/* Total Calories Consumed */}
             <div className="border-b md:border-b-0 md:border-r border-border pb-3 md:pb-0 md:pr-6">
-              <div className="text-xs md:text-sm text-dim font-medium font-mono uppercase tracking-wider mb-1 md:mb-2">Consumed</div>
+              <div className="text-xs md:text-sm text-dim font-medium font-mono uppercase tracking-wider mb-1 md:mb-2">Total Calories</div>
               <div className="text-3xl md:text-4xl font-bold text-text font-mono mb-1">
                 {dailyLog.calories_consumed}
               </div>
               <div className="text-xs md:text-sm text-dim font-medium font-mono">
-                from {dailyLog.meals.length} meal{dailyLog.meals.length !== 1 ? 's' : ''}
+                consumed today
               </div>
             </div>
 
-            {/* Calories Burned */}
+            {/* Total Calories Burned */}
             <div className="border-b md:border-b-0 md:border-r border-border pb-3 md:pb-0 md:pr-6">
-              <div className="text-xs md:text-sm text-dim font-medium font-mono uppercase tracking-wider mb-1 md:mb-2">Burned</div>
+              <div className="text-xs md:text-sm text-dim font-medium font-mono uppercase tracking-wider mb-1 md:mb-2">Total Burned</div>
               <div className="text-3xl md:text-4xl font-bold text-text font-mono mb-1">
                 {dailyLog.calories_burned}
               </div>
               <div className="text-xs md:text-sm text-dim font-medium font-mono">
-                from {dailyLog.exercises.length} workout{dailyLog.exercises.length !== 1 ? 's' : ''}
+                burned today
               </div>
             </div>
 
-            {/* Net Calories */}
-            <div className="pt-3 md:pt-0">
-              <div className="text-xs md:text-sm text-dim font-medium font-mono uppercase tracking-wider mb-1 md:mb-2">Net</div>
-              <div className={`text-3xl md:text-4xl font-bold font-mono mb-1 ${
-                dailyLog.net_calories > 0 
-                  ? 'text-success' 
-                  : dailyLog.net_calories < 0 
-                  ? 'text-error' 
-                  : 'text-text'
-              }`}>
-                {dailyLog.net_calories > 0 ? '+' : ''}
-                {dailyLog.net_calories}
-              </div>
-              <div className="text-xs md:text-sm text-dim font-medium font-mono">
-                {dailyLog.net_calories > 0 
-                  ? 'Surplus' 
-                  : dailyLog.net_calories < 0 
-                  ? 'Deficit' 
-                  : 'Balanced'}
-              </div>
-            </div>
+            {/* Calorie Deficit/Surplus */}
+            {(() => {
+              const calorieTarget = profile?.calorie_target || 2000
+              const netCalories = dailyLog.calories_consumed - dailyLog.calories_burned
+              const deficit = calorieTarget - netCalories // Positive = deficit (under target), Negative = surplus (over target)
+              const isDeficit = deficit > 0
+              const isSurplus = deficit < 0
+              
+              return (
+                <div className="pt-3 md:pt-0">
+                  <div className="text-xs md:text-sm text-dim font-medium font-mono uppercase tracking-wider mb-1 md:mb-2">Deficit Total</div>
+                  <div className={`text-3xl md:text-4xl font-bold font-mono mb-1 ${
+                    isSurplus
+                      ? 'text-success' 
+                      : isDeficit
+                      ? 'text-error' 
+                      : 'text-text'
+                  }`}>
+                    {isSurplus ? '+' : ''}
+                    {Math.abs(deficit)}
+                  </div>
+                  <div className="text-xs md:text-sm text-dim font-medium font-mono">
+                    {isSurplus 
+                      ? 'cal surplus' 
+                      : isDeficit
+                      ? 'cal deficit' 
+                      : 'balanced'}
+                  </div>
+                </div>
+              )
+            })()}
           </div>
 
-          {/* Visual Breakdown */}
+          {/* Visual Breakdown - All 3 Metrics */}
           <div className="pt-4 border-t border-border">
-            <div className="flex items-center justify-between text-xs md:text-sm font-medium font-mono mb-2">
+            <div className="flex items-center justify-between text-xs md:text-sm font-medium font-mono mb-3">
               <span className="text-text">Balance Breakdown</span>
               <span className="text-dim">
                 Target: {profile?.calorie_target || 2000} cal
               </span>
             </div>
-            <div className="relative w-full bg-border h-2 rounded-full overflow-hidden">
-              <div
-                className="absolute top-0 left-0 h-full bg-orange-500 dark:bg-orange-500 transition-all duration-1000 ease-out"
-                style={{ width: `${Math.min(Math.max((dailyLog.calories_consumed / (profile?.calorie_target || 2000)) * 100, 0), 100)}%` }}
-              />
-              {dailyLog.calories_burned > 0 && (
-                <div
-                  className="absolute top-0 h-full bg-purple-500/70 dark:bg-error/50 transition-all duration-1000 ease-out"
-                  style={{ 
-                    left: `${Math.min(Math.max((dailyLog.calories_consumed / (profile?.calorie_target || 2000)) * 100, 0), 100)}%`,
-                    width: `${Math.min((dailyLog.calories_burned / (profile?.calorie_target || 2000)) * 100, 100)}%`
-                  }}
-                />
-              )}
-            </div>
-            <div className="flex items-center justify-between mt-2 text-xs md:text-sm font-medium font-mono">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-orange-500 dark:bg-orange-500 rounded-full"></div>
-                <span className="text-text">Consumed</span>
-              </div>
-              {dailyLog.calories_burned > 0 && (
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-purple-500/70 dark:bg-error/50 rounded-full"></div>
-                  <span className="text-text">Burned</span>
-                </div>
-              )}
-            </div>
+            
+            {/* Progress Bar Showing All 3 Metrics */}
+            {(() => {
+              const calorieTarget = profile?.calorie_target || 2000
+              const consumedPercent = Math.min((dailyLog.calories_consumed / calorieTarget) * 100, 100)
+              const burnedPercent = Math.min((dailyLog.calories_burned / calorieTarget) * 100, 100)
+              const netCalories = dailyLog.calories_consumed - dailyLog.calories_burned
+              const deficit = calorieTarget - netCalories
+              const deficitPercent = Math.min((Math.abs(deficit) / calorieTarget) * 100, 100)
+              
+              return (
+                <>
+                  <div className="relative w-full bg-border h-3 rounded-full overflow-hidden mb-3">
+                    {/* Consumed (Orange) */}
+                    <div
+                      className="absolute top-0 left-0 h-full bg-orange-500 dark:bg-orange-500 transition-all duration-1000 ease-out"
+                      style={{ width: `${consumedPercent}%` }}
+                      title={`Consumed: ${dailyLog.calories_consumed} cal`}
+                    />
+                    
+                    {/* Burned (Purple) - starts after consumed */}
+                    {dailyLog.calories_burned > 0 && (
+                      <div
+                        className="absolute top-0 h-full bg-purple-500 dark:bg-purple-500 transition-all duration-1000 ease-out"
+                        style={{ 
+                          left: `${consumedPercent}%`,
+                          width: `${burnedPercent}%`
+                        }}
+                        title={`Burned: ${dailyLog.calories_burned} cal`}
+                      />
+                    )}
+                    
+                    {/* Deficit/Surplus Indicator (Green/Red) */}
+                    {deficit !== 0 && (
+                      <div
+                        className={`absolute top-0 h-full border-2 border-dashed transition-all duration-1000 ease-out ${
+                          deficit < 0 
+                            ? 'border-success bg-success/20' 
+                            : 'border-error bg-error/20'
+                        }`}
+                        style={{ 
+                          left: `${consumedPercent + burnedPercent}%`,
+                          width: `${Math.min(deficitPercent, 100 - consumedPercent - burnedPercent)}%`
+                        }}
+                        title={`${deficit < 0 ? 'Surplus' : 'Deficit'}: ${Math.abs(deficit)} cal`}
+                      />
+                    )}
+                    
+                    {/* Target Line Marker */}
+                    <div
+                      className="absolute top-0 h-full w-0.5 bg-text/50 dark:bg-text/30 transition-all duration-1000 ease-out"
+                      style={{ left: '100%' }}
+                    />
+                  </div>
+                  
+                  {/* Legend - All 3 Metrics */}
+                  <div className="grid grid-cols-3 gap-2 md:gap-4 text-xs md:text-sm font-medium font-mono">
+                    {/* Consumed */}
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 bg-orange-500 dark:bg-orange-500 rounded-full flex-shrink-0"></div>
+                      <div className="flex flex-col">
+                        <span className="text-text">Consumed</span>
+                        <span className="text-dim text-[10px]">{dailyLog.calories_consumed} cal</span>
+                      </div>
+                    </div>
+                    
+                    {/* Burned */}
+                    {dailyLog.calories_burned > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 bg-purple-500 dark:bg-purple-500 rounded-full flex-shrink-0"></div>
+                        <div className="flex flex-col">
+                          <span className="text-text">Burned</span>
+                          <span className="text-dim text-[10px]">{dailyLog.calories_burned} cal</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 bg-border rounded-full flex-shrink-0"></div>
+                        <div className="flex flex-col">
+                          <span className="text-dim">Burned</span>
+                          <span className="text-dim text-[10px]">0 cal</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Deficit/Surplus */}
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 border-2 border-dashed ${
+                        deficit < 0 
+                          ? 'bg-success/20 border-success' 
+                          : deficit > 0
+                          ? 'bg-error/20 border-error'
+                          : 'bg-border border-border'
+                      }`}></div>
+                      <div className="flex flex-col">
+                        <span className={`${
+                          deficit < 0 ? 'text-success' : deficit > 0 ? 'text-error' : 'text-dim'
+                        }`}>
+                          {deficit < 0 ? 'Surplus' : deficit > 0 ? 'Deficit' : 'Balanced'}
+                        </span>
+                        <span className="text-dim text-[10px]">
+                          {deficit !== 0 ? `${Math.abs(deficit)} cal` : 'On target'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )
+            })()}
           </div>
         </div>
       )}

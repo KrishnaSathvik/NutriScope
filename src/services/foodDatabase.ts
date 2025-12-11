@@ -90,13 +90,60 @@ export async function searchFoods(
     const data = await response.json()
 
     // Transform API response to our FoodItem format
-    const foods: FoodItem[] = (data.foods || []).map((food: any) => {
+    let debugLogged = false
+    const foods: FoodItem[] = (data.foods || []).map((food: any, index: number) => {
       // Extract nutrients from foodNutrients array
       const nutrients = food.foodNutrients || []
       
+      // Debug: Log first food's nutrients structure
+      if (!debugLogged && index === 0 && nutrients.length > 0) {
+        console.log('🔍 Sample food structure:', {
+          fdcId: food.fdcId,
+          description: food.description,
+          nutrientCount: nutrients.length,
+          firstNutrient: nutrients[0],
+          allNutrientIds: nutrients.map((n: any) => ({
+            nutrientId: n.nutrientId,
+            nutrientNumber: n.nutrient?.number,
+            nutrientIdAlt: n.nutrient?.id,
+            value: n.value,
+            amount: n.amount
+          }))
+        })
+        debugLogged = true
+      }
+      
       const getNutrient = (nutrientId: number): number => {
-        const nutrient = nutrients.find((n: any) => n.nutrientId === nutrientId)
-        return nutrient?.value || 0
+        // USDA API structure: nutrients have nutrientId and value directly
+        const nutrient = nutrients.find((n: any) => {
+          // Check direct nutrientId field
+          if (n.nutrientId === nutrientId) return true
+          // Check nested nutrient.number (for some API versions)
+          if (n.nutrient?.number === nutrientId) return true
+          // Check nested nutrient.id (alternative structure)
+          if (n.nutrient?.id === nutrientId) return true
+          return false
+        })
+        
+        if (!nutrient) {
+          return 0
+        }
+        
+        // Extract value - try direct value first, then nested
+        let value = nutrient.value
+        if (value === undefined || value === null) {
+          value = nutrient.amount
+        }
+        if (value === undefined || value === null) {
+          value = nutrient.nutrient?.value
+        }
+        if (value === undefined || value === null) {
+          value = nutrient.nutrient?.amount
+        }
+        
+        // Convert to number and validate
+        const numValue = typeof value === 'number' ? value : parseFloat(value)
+        return !isNaN(numValue) && isFinite(numValue) ? numValue : 0
       }
 
       // USDA Nutrient IDs:
@@ -116,7 +163,22 @@ export async function searchFoods(
       const sugar = getNutrient(2000)
       const sodium = getNutrient(1093)
 
-      return {
+      // Debug: Log if calories are 0 (only for first food to avoid spam)
+      if (index === 0 && calories === 0 && nutrients.length > 0) {
+        console.warn('⚠️ Calories are 0 for first food:', food.description)
+        console.log('Available nutrients (first 10):', nutrients.slice(0, 10).map((n: any) => ({
+          nutrientId: n.nutrientId,
+          nutrientNumber: n.nutrient?.number,
+          nutrientName: n.nutrient?.name,
+          value: n.value,
+          amount: n.amount,
+          nutrientValue: n.nutrient?.value
+        })))
+      }
+
+      // If calories are 0 but we have nutrients, the search endpoint might have returned abridged data
+      // We'll return the food item, but note that full details might be needed
+      const foodItem: FoodItem = {
         fdcId: food.fdcId,
         description: food.description || food.lowercaseDescription || 'Unknown food',
         brandOwner: food.brandOwner,
@@ -132,10 +194,36 @@ export async function searchFoods(
         sugar: sugar > 0 ? Math.round(sugar * 10) / 10 : undefined,
         sodium: sodium > 0 ? Math.round(sodium) : undefined,
       }
+
+      return foodItem
     })
 
+    // According to USDA API guide, search endpoint may return abridged data
+    // Fetch full details for foods with 0 calories (limit to first 10 to avoid rate limits)
+    const foodsWithDetails = await Promise.all(
+      foods.slice(0, 10).map(async (food) => {
+        // Only fetch details if calories are 0 and we have an fdcId
+        if (food.calories === 0 && food.fdcId) {
+          try {
+            const fullDetails = await getFoodDetails(food.fdcId)
+            if (fullDetails && fullDetails.calories > 0) {
+              console.log(`✅ Fetched full details for "${food.description}": ${fullDetails.calories} cal`)
+              return fullDetails
+            }
+          } catch (error) {
+            // Silently fail - we'll use the search result data
+            console.warn(`⚠️ Failed to fetch details for ${food.fdcId}`)
+          }
+        }
+        return food
+      })
+    )
+
+    // Combine foods with details and remaining foods
+    const allFoods = [...foodsWithDetails, ...foods.slice(10)]
+
     return {
-      foods,
+      foods: allFoods,
       totalHits: data.totalHits || 0,
       currentPage: data.currentPage || pageNumber,
       totalPages: Math.ceil((data.totalHits || 0) / pageSize),
@@ -169,8 +257,33 @@ export async function getFoodDetails(fdcId: number): Promise<FoodItem | null> {
     const nutrients = food.foodNutrients || []
     
     const getNutrient = (nutrientId: number): number => {
-      const nutrient = nutrients.find((n: any) => n.nutrientId === nutrientId)
-      return nutrient?.value || 0
+      // Try different possible field names for nutrient ID
+      const nutrient = nutrients.find((n: any) => {
+        if (n.nutrientId === nutrientId) return true
+        if (n.nutrient?.number === nutrientId) return true
+        if (n.nutrient?.id === nutrientId) return true
+        return false
+      })
+      
+      if (!nutrient) {
+        return 0
+      }
+      
+      // Extract value - try direct value first, then nested
+      let value = nutrient.value
+      if (value === undefined || value === null) {
+        value = nutrient.amount
+      }
+      if (value === undefined || value === null) {
+        value = nutrient.nutrient?.value
+      }
+      if (value === undefined || value === null) {
+        value = nutrient.nutrient?.amount
+      }
+      
+      // Convert to number and validate
+      const numValue = typeof value === 'number' ? value : parseFloat(value)
+      return !isNaN(numValue) && isFinite(numValue) ? numValue : 0
     }
 
     const calories = getNutrient(1008)

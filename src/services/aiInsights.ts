@@ -109,15 +109,13 @@ Generate an inspirational, motivational message now:`
       if (isProduction) {
         return 'Unable to generate tip. Please try again later.'
       }
-      // In development, fall back to direct OpenAI if available
-      if (!openai) {
-        return 'AI tips are not available. Please configure your OpenAI API key.'
-      }
+      // In development, continue to fallback below
+      console.log('[Coach Tip] Backend proxy failed in dev, falling back to direct OpenAI')
     }
   }
   
-  // Fallback: use direct OpenAI if backend proxy is disabled (dev only)
-  console.log('[Coach Tip] Backend proxy disabled or failed, checking OpenAI client')
+  // Fallback: use direct OpenAI if backend proxy is disabled or failed (dev only)
+  console.log('[Coach Tip] Using direct OpenAI fallback')
   if (!openai) {
     console.log('[Coach Tip] OpenAI client not available')
     if (isProduction) {
@@ -125,7 +123,6 @@ Generate an inspirational, motivational message now:`
     }
     return 'AI tips are not available. Please configure your OpenAI API key.'
   }
-  console.log('[Coach Tip] Using direct OpenAI')
 
   try {
     const userName = profile?.name || 'you'
@@ -307,14 +304,13 @@ Provide your personalized insight now:`
       if (isProduction) {
         return 'Unable to generate insights. Please try again later.'
       }
-      // In development, fall back to direct OpenAI if available
-      if (!openai) {
-        return 'AI insights are not available. Please configure your OpenAI API key.'
-      }
+      // In development, continue to fallback below
+      console.log('[Daily Insights] Backend proxy failed in dev, falling back to direct OpenAI')
     }
   }
   
-  // Fallback: use direct OpenAI if backend proxy is disabled (dev only)
+  // Fallback: use direct OpenAI if backend proxy is disabled or failed (dev only)
+  console.log('[Daily Insights] Using direct OpenAI fallback')
   if (!openai) {
     if (isProduction) {
       return 'AI insights are temporarily unavailable. Please try again later.'

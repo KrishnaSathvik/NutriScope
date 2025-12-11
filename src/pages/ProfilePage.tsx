@@ -9,7 +9,7 @@ import AchievementWidget from '@/components/AchievementWidget'
 import { GenderSelectionDialog } from '@/components/GenderSelectionDialog'
 import { UpdateTargetsDialog } from '@/components/UpdateTargetsDialog'
 import { calculatePersonalizedTargets } from '@/services/personalizedTargets'
-import { Edit, X, User, Target, Activity, UtensilsCrossed, Flame, Droplet, Mail, CheckCircle2, Scale, UserCircle, Calendar, Weight, Beef } from 'lucide-react'
+import { Edit, X, User, Target, Activity, UtensilsCrossed, Flame, Droplet, Mail, CheckCircle2, Scale, UserCircle, Calendar, Weight, Beef, TrendingDown, TrendingUp } from 'lucide-react'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { useToast } from '@/hooks/use-toast'
 
@@ -548,32 +548,107 @@ export default function ProfilePage() {
                 </div>
                 <h3 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Daily Targets</h3>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
-                <div className="p-3 md:p-4 border border-orange-500/30 dark:border-acid/30 rounded-sm bg-orange-500/5 dark:bg-acid/5">
-                  <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
-                    <Flame className="w-3.5 h-3.5 md:w-4 md:h-4 text-orange-500 fill-orange-500 dark:text-orange-500 dark:fill-orange-500 flex-shrink-0" />
-                    <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Calorie Target</span>
-                  </div>
-                  <div className="font-bold text-orange-500 dark:text-acid font-mono text-xl md:text-2xl">{profile?.calorie_target || 2000}</div>
-                  <div className="text-[10px] md:text-xs text-dim font-mono mt-1">calories per day</div>
-                </div>
-                <div className="p-3 md:p-4 border border-emerald-500/30 dark:border-acid/30 rounded-sm bg-emerald-500/5 dark:bg-acid/5">
-                  <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
-                    <Beef className="w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-500 fill-emerald-500 dark:text-emerald-500 dark:fill-emerald-500 flex-shrink-0" />
-                    <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Protein Target</span>
-                  </div>
-                  <div className="font-bold text-emerald-500 dark:text-text font-mono text-xl md:text-2xl">{profile?.protein_target || 150}g</div>
-                  <div className="text-[10px] md:text-xs text-dim font-mono mt-1">grams per day</div>
-                </div>
-                <div className="p-3 md:p-4 border border-blue-500/30 dark:border-acid/30 rounded-sm bg-blue-500/5 dark:bg-acid/5">
-                  <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
-                    <Droplet className="w-3.5 h-3.5 md:w-4 md:h-4 text-blue-500 fill-blue-500 dark:text-blue-500 dark:fill-blue-500 flex-shrink-0" />
-                    <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Water Goal</span>
-                  </div>
-                  <div className="font-bold text-blue-500 dark:text-text font-mono text-xl md:text-2xl">{profile?.water_goal || 2000}ml</div>
-                  <div className="text-[10px] md:text-xs text-dim font-mono mt-1">milliliters per day</div>
-                </div>
-              </div>
+              {/* Calculate TDEE and deficit if we have required data */}
+              {(() => {
+                const hasRequiredData = profile?.weight && profile?.height && profile?.age && profile?.goal && profile?.activity_level && profile?.gender
+                let tdee: number | null = null
+                let deficit: number | null = null
+                
+                if (hasRequiredData) {
+                  const targets = calculatePersonalizedTargets({
+                    weight: profile.weight!,
+                    height: profile.height!,
+                    age: profile.age!,
+                    goal: profile.goal!,
+                    activityLevel: profile.activity_level!,
+                    dietaryPreference: profile.dietary_preference,
+                    isMale: profile.gender === 'male',
+                  })
+                  tdee = targets.tdee
+                  deficit = targets.calorie_deficit
+                }
+                
+                return (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-4 md:mb-6">
+                      <div className="p-3 md:p-4 border border-orange-500/30 dark:border-acid/30 rounded-sm bg-orange-500/5 dark:bg-acid/5">
+                        <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
+                          <Flame className="w-3.5 h-3.5 md:w-4 md:h-4 text-orange-500 fill-orange-500 dark:text-orange-500 dark:fill-orange-500 flex-shrink-0" />
+                          <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Calorie Target</span>
+                        </div>
+                        <div className="font-bold text-orange-500 dark:text-acid font-mono text-xl md:text-2xl">{profile?.calorie_target || 2000}</div>
+                        <div className="text-[10px] md:text-xs text-dim font-mono mt-1">calories per day</div>
+                      </div>
+                      {tdee !== null && (
+                        <div className="p-3 md:p-4 border border-purple-500/30 dark:border-purple-500/30 rounded-sm bg-purple-500/5 dark:bg-purple-500/5">
+                          <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
+                            <Activity className="w-3.5 h-3.5 md:w-4 md:h-4 text-purple-500 fill-purple-500 dark:text-purple-500 dark:fill-purple-500 flex-shrink-0" />
+                            <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Daily Burn (TDEE)</span>
+                          </div>
+                          <div className="font-bold text-purple-500 dark:text-purple-500 font-mono text-xl md:text-2xl">{tdee}</div>
+                          <div className="text-[10px] md:text-xs text-dim font-mono mt-1">calories burned/day</div>
+                        </div>
+                      )}
+                      {deficit !== null && (
+                        <div className={`p-3 md:p-4 border rounded-sm ${
+                          deficit < 0 
+                            ? 'border-red-500/30 dark:border-red-500/30 bg-red-500/5 dark:bg-red-500/5' 
+                            : deficit > 0
+                            ? 'border-green-500/30 dark:border-green-500/30 bg-green-500/5 dark:bg-green-500/5'
+                            : 'border-gray-500/30 dark:border-gray-500/30 bg-gray-500/5 dark:bg-gray-500/5'
+                        }`}>
+                          <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
+                            {deficit < 0 ? (
+                              <TrendingDown className="w-3.5 h-3.5 md:w-4 md:h-4 text-red-500 fill-red-500 dark:text-red-500 dark:fill-red-500 flex-shrink-0" />
+                            ) : deficit > 0 ? (
+                              <TrendingUp className="w-3.5 h-3.5 md:w-4 md:h-4 text-green-500 fill-green-500 dark:text-green-500 dark:fill-green-500 flex-shrink-0" />
+                            ) : (
+                              <Target className="w-3.5 h-3.5 md:w-4 md:h-4 text-gray-500 fill-gray-500 dark:text-gray-500 dark:fill-gray-500 flex-shrink-0" />
+                            )}
+                            <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">
+                              {deficit < 0 ? 'Calorie Deficit' : deficit > 0 ? 'Calorie Surplus' : 'Balanced'}
+                            </span>
+                          </div>
+                          <div className={`font-bold font-mono text-xl md:text-2xl ${
+                            deficit < 0 
+                              ? 'text-red-500 dark:text-red-500' 
+                              : deficit > 0
+                              ? 'text-green-500 dark:text-green-500'
+                              : 'text-gray-500 dark:text-gray-500'
+                          }`}>
+                            {deficit < 0 ? '-' : deficit > 0 ? '+' : ''}{Math.abs(deficit)}
+                          </div>
+                          <div className="text-[10px] md:text-xs text-dim font-mono mt-1">
+                            {deficit < 0 
+                              ? `burn ${Math.abs(deficit)} more than you eat` 
+                              : deficit > 0
+                              ? `eat ${deficit} more than you burn`
+                              : 'maintain weight'}
+                          </div>
+                        </div>
+                      )}
+                      <div className="p-3 md:p-4 border border-emerald-500/30 dark:border-acid/30 rounded-sm bg-emerald-500/5 dark:bg-acid/5">
+                        <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
+                          <Beef className="w-3.5 h-3.5 md:w-4 md:h-4 text-emerald-500 fill-emerald-500 dark:text-emerald-500 dark:fill-emerald-500 flex-shrink-0" />
+                          <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Protein Target</span>
+                        </div>
+                        <div className="font-bold text-emerald-500 dark:text-text font-mono text-xl md:text-2xl">{profile?.protein_target || 150}g</div>
+                        <div className="text-[10px] md:text-xs text-dim font-mono mt-1">grams per day</div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6">
+                      <div className="p-3 md:p-4 border border-blue-500/30 dark:border-acid/30 rounded-sm bg-blue-500/5 dark:bg-acid/5">
+                        <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
+                          <Droplet className="w-3.5 h-3.5 md:w-4 md:h-4 text-blue-500 fill-blue-500 dark:text-blue-500 dark:fill-blue-500 flex-shrink-0" />
+                          <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Water Goal</span>
+                        </div>
+                        <div className="font-bold text-blue-500 dark:text-text font-mono text-xl md:text-2xl">{profile?.water_goal || 2000}ml</div>
+                        <div className="text-[10px] md:text-xs text-dim font-mono mt-1">milliliters per day</div>
+                      </div>
+                    </div>
+                  </>
+                )
+              })()}
             </div>
           </div>
         )}

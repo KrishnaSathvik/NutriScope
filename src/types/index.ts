@@ -220,6 +220,23 @@ export interface Recipe {
   updated_at: string
 }
 
+export interface RecipeLibraryItem {
+  id: string
+  name: string
+  description?: string
+  goal_type: 'lose_weight' | 'gain_muscle' | 'gain_weight' | 'improve_fitness' | 'maintain'
+  cuisine: 'indian' | 'italian' | 'american' | 'mexican' | 'mediterranean' | 'asian' | 'other'
+  servings: number
+  prep_time?: number
+  cook_time?: number
+  instructions: string
+  nutrition_per_serving: RecipeNutrition
+  ingredients?: RecipeIngredient[]
+  image_url?: string
+  tags: string[]
+  created_at: string
+}
+
 // ============================================================================
 // MEAL PLANNING
 // ============================================================================

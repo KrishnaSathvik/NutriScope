@@ -111,7 +111,7 @@ export function ChatInput({
           <button
             type="submit"
             disabled={loading || (!input.trim() && !selectedImage) || isRecording || isTranscribing || uploadingImage}
-            className="btn-primary gap-1 md:gap-2 px-3 md:px-4 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+            className="btn-secondary gap-1 md:gap-2 px-3 md:px-4 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
             aria-label="Send message"
           >
             <Send className="w-3.5 h-3.5 md:w-4 md:h-4" />

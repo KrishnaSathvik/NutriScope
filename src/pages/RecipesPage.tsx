@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 import { getRecipes, createRecipe, updateRecipe, deleteRecipe } from '@/services/recipes'
+import { getRecipesByGoalAndCuisine, convertLibraryRecipeToUserRecipe, RecipeLibraryItem } from '@/services/recipeLibrary'
 import { createMealTemplate } from '@/services/mealTemplates'
-import { Recipe, RecipeIngredient, MealType } from '@/types'
+import { Recipe, MealType } from '@/types'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
-import { Plus, Trash2, X, Edit, ChefHat, Clock, Users, Save, Star, StarOff, Flame, Beef, Eye } from 'lucide-react'
+import { Plus, Trash2, X, Edit, ChefHat, Clock, Users, Save, Star, StarOff, Flame, Eye, Filter } from 'lucide-react'
 import { format } from 'date-fns'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
@@ -17,17 +18,33 @@ export default function RecipesPage() {
   const [recipeToSaveAsTemplate, setRecipeToSaveAsTemplate] = useState<Recipe | null>(null)
   const [templateMealType, setTemplateMealType] = useState<MealType>('lunch')
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null)
+  const [selectedLibraryRecipe, setSelectedLibraryRecipe] = useState<RecipeLibraryItem | null>(null)
+  const [showMyRecipes, setShowMyRecipes] = useState(false) // Show user's own recipes instead of library
+  const [selectedGoalType, setSelectedGoalType] = useState<'lose_weight' | 'gain_muscle' | 'gain_weight' | 'improve_fitness' | 'maintain' | 'all'>('all')
+  const [selectedCuisine, setSelectedCuisine] = useState<'indian' | 'italian' | 'american' | 'mexican' | 'mediterranean' | 'asian' | 'other' | 'all'>('all')
   const queryClient = useQueryClient()
 
   // Set up realtime subscription for recipes
   useUserRealtimeSubscription('recipes', ['recipes'], user?.id)
 
-  const { data: recipes = [], isLoading, refetch } = useQuery({
+  const { data: recipes = [], isLoading } = useQuery({
     queryKey: ['recipes'],
     queryFn: getRecipes,
-    enabled: !!user,
+    enabled: !!user && showMyRecipes, // Only fetch user recipes when showing "My Recipes"
     refetchOnWindowFocus: true,
     refetchOnMount: true,
+  })
+
+  // Fetch library recipes based on filters (shown by default)
+  const { data: libraryRecipes = [], isLoading: isLoadingLibrary } = useQuery({
+    queryKey: ['recipeLibrary', selectedGoalType, selectedCuisine],
+    queryFn: () => {
+      const goalType = selectedGoalType === 'all' ? undefined : selectedGoalType
+      const cuisine = selectedCuisine === 'all' ? undefined : selectedCuisine
+      return getRecipesByGoalAndCuisine(goalType, cuisine)
+    },
+    enabled: !showMyRecipes, // Show library when not showing user recipes
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   })
 
   const createMutation = useMutation({
@@ -67,10 +84,6 @@ export default function RecipesPage() {
   })
 
   const editingRecipe = editingRecipeId ? recipes.find(r => r.id === editingRecipeId) : null
-
-  const handleRefresh = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['recipes'] })
-  }
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -139,21 +152,76 @@ export default function RecipesPage() {
                 {format(new Date(), 'EEEE, MMMM d, yyyy').toUpperCase()}
               </span>
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-text tracking-tighter mt-2 md:mt-4">
                 Recipes
               </h1>
-              <button
-                onClick={() => {
-                  setEditingRecipeId(null)
-                  setShowAddForm(true)
-                }}
-                className="btn-secondary gap-2 text-xs md:text-sm px-3 md:px-4 py-2"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">New Recipe</span>
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowMyRecipes(!showMyRecipes)}
+                  className={`btn-secondary gap-2 text-xs md:text-sm px-3 md:px-4 py-2 ${
+                    showMyRecipes ? 'bg-accent/20 border-accent/50 text-accent' : ''
+                  }`}
+                >
+                  <ChefHat className="w-4 h-4" />
+                  <span className="hidden sm:inline">{showMyRecipes ? 'Recipe Library' : 'My Recipes'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingRecipeId(null)
+                    setShowAddForm(true)
+                  }}
+                  className="btn-secondary gap-2 text-xs md:text-sm px-3 md:px-4 py-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">New Recipe</span>
+                </button>
+              </div>
             </div>
+
+            {/* Recipe Library Filters - Always visible when showing library */}
+            {!showMyRecipes && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mt-4">
+                <div>
+                  <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2 flex items-center gap-2">
+                    <Filter className="w-3 h-3" />
+                    Goal Type
+                  </label>
+                  <select
+                    value={selectedGoalType}
+                    onChange={(e) => setSelectedGoalType(e.target.value as typeof selectedGoalType)}
+                    className="input-modern text-sm md:text-base w-full"
+                  >
+                    <option value="all">All Goals</option>
+                    <option value="lose_weight">Lose Weight</option>
+                    <option value="gain_muscle">Gain Muscle</option>
+                    <option value="gain_weight">Gain Weight</option>
+                    <option value="improve_fitness">Improve Fitness</option>
+                    <option value="maintain">Maintain Weight</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2 flex items-center gap-2">
+                    <ChefHat className="w-3 h-3" />
+                    Cuisine
+                  </label>
+                  <select
+                    value={selectedCuisine}
+                    onChange={(e) => setSelectedCuisine(e.target.value as typeof selectedCuisine)}
+                    className="input-modern text-sm md:text-base w-full"
+                  >
+                    <option value="all">All Cuisines</option>
+                    <option value="indian">Indian</option>
+                    <option value="italian">Italian</option>
+                    <option value="american">American</option>
+                    <option value="mexican">Mexican</option>
+                    <option value="mediterranean">Mediterranean</option>
+                    <option value="asian">Asian</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -342,13 +410,13 @@ export default function RecipesPage() {
                 <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">
                   Tags (comma-separated)
                 </label>
-                <input
-                  type="text"
-                  name="tags"
-                  className="input-modern"
-                  defaultValue={editingRecipe?.tags.join(', ') || ''}
-                  placeholder="e.g., dinner, healthy, quick"
-                />
+                  <input
+                    type="text"
+                    name="tags"
+                    className="input-modern"
+                    defaultValue={editingRecipe?.tags && Array.isArray(editingRecipe.tags) ? editingRecipe.tags.join(', ') : ''}
+                    placeholder="e.g., dinner, healthy, quick"
+                  />
               </div>
 
               <div className="flex gap-4">
@@ -377,113 +445,218 @@ export default function RecipesPage() {
         </Dialog>
 
         {/* Recipes List */}
-        {isLoading ? (
-          <div className="text-center py-12 text-dim font-mono text-xs">Loading recipes...</div>
-        ) : recipes.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {recipes.map((recipe) => (
-              <div 
-                key={recipe.id} 
-                className="card-modern group hover:border-acid/50 transition-all p-4 md:p-6 cursor-pointer"
-                onClick={() => setSelectedRecipe(recipe)}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <ChefHat className="w-4 h-4 text-acid flex-shrink-0" />
-                      <h3 className="text-base md:text-lg font-bold text-text font-mono uppercase truncate">
-                        {recipe.name}
-                      </h3>
+        {showMyRecipes ? (
+          // User's Own Recipes View
+          isLoading ? (
+            <div className="text-center py-12 text-dim font-mono text-xs">Loading recipes...</div>
+          ) : recipes.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recipes.map((recipe) => (
+                <div 
+                  key={recipe.id} 
+                  className="card-modern group hover:border-accent/50 transition-all p-4 md:p-6 cursor-pointer"
+                  onClick={() => setSelectedRecipe(recipe)}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <ChefHat className="w-4 h-4 text-accent flex-shrink-0" />
+                        <h3 className="text-base md:text-lg font-bold text-text font-mono uppercase truncate">
+                          {recipe.name}
+                        </h3>
+                      </div>
+                      {recipe.description && (
+                        <p className="text-xs text-dim font-mono line-clamp-2 mb-2">
+                          {recipe.description}
+                        </p>
+                      )}
                     </div>
-                    {recipe.description && (
-                      <p className="text-xs text-dim font-mono line-clamp-2 mb-2">
-                        {recipe.description}
-                      </p>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleFavoriteMutation.mutate({
+                          id: recipe.id,
+                          isFavorite: recipe.is_favorite,
+                        })
+                      }}
+                      className="text-dim hover:text-accent transition-colors flex-shrink-0 ml-2"
+                    >
+                      {recipe.is_favorite ? (
+                        <Star className="w-5 h-5 fill-accent text-accent" />
+                      ) : (
+                        <StarOff className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 mb-3 text-xs font-mono">
+                    <div className="flex items-center gap-1">
+                      <Users className="w-3 h-3 text-dim" />
+                      <span className="text-dim">{recipe.servings} servings</span>
+                    </div>
+                    {(recipe.prep_time || recipe.cook_time) && (
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-dim" />
+                        <span className="text-dim">
+                          {((recipe.prep_time || 0) + (recipe.cook_time || 0))} min
+                        </span>
+                      </div>
                     )}
                   </div>
+
+                  <div className="grid grid-cols-4 gap-2 mb-4 p-2 bg-panel rounded-sm">
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-orange-500 dark:text-accent font-mono">
+                        {recipe.nutrition_per_serving.calories}
+                      </div>
+                      <div className="text-[10px] text-dim font-mono">cal</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-success font-mono">
+                        {recipe.nutrition_per_serving.protein}g
+                      </div>
+                      <div className="text-[10px] text-dim font-mono">protein</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-yellow-500 dark:text-text font-mono">
+                        {recipe.nutrition_per_serving.carbs}g
+                      </div>
+                      <div className="text-[10px] text-dim font-mono">carbs</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-amber-500 dark:text-text font-mono">
+                        {recipe.nutrition_per_serving.fats}g
+                      </div>
+                      <div className="text-[10px] text-dim font-mono">fats</div>
+                    </div>
+                  </div>
+
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      toggleFavoriteMutation.mutate({
-                        id: recipe.id,
-                        isFavorite: recipe.is_favorite,
-                      })
+                      setSelectedRecipe(recipe)
                     }}
-                    className="text-dim hover:text-acid transition-colors flex-shrink-0 ml-2"
+                    className="btn-secondary w-full text-xs py-2.5 flex items-center justify-center gap-1.5 hover:bg-accent/10 hover:text-accent transition-colors"
                   >
-                    {recipe.is_favorite ? (
-                      <Star className="w-5 h-5 fill-acid text-acid" />
-                    ) : (
-                      <StarOff className="w-5 h-5" />
-                    )}
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>View</span>
                   </button>
                 </div>
-
-                <div className="grid grid-cols-2 gap-2 mb-3 text-xs font-mono">
-                  <div className="flex items-center gap-1">
-                    <Users className="w-3 h-3 text-dim" />
-                    <span className="text-dim">{recipe.servings} servings</span>
-                  </div>
-                  {(recipe.prep_time || recipe.cook_time) && (
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-dim" />
-                      <span className="text-dim">
-                        {((recipe.prep_time || 0) + (recipe.cook_time || 0))} min
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-4 gap-2 mb-4 p-2 bg-panel rounded-sm">
-                  <div className="text-center">
-                    <div className="text-xs font-bold text-orange-500 dark:text-acid font-mono">
-                      {recipe.nutrition_per_serving.calories}
-                    </div>
-                    <div className="text-[10px] text-dim font-mono">cal</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs font-bold text-success font-mono">
-                      {recipe.nutrition_per_serving.protein}g
-                    </div>
-                    <div className="text-[10px] text-dim font-mono">protein</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs font-bold text-yellow-500 dark:text-text font-mono">
-                      {recipe.nutrition_per_serving.carbs}g
-                    </div>
-                    <div className="text-[10px] text-dim font-mono">carbs</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs font-bold text-amber-500 dark:text-text font-mono">
-                      {recipe.nutrition_per_serving.fats}g
-                    </div>
-                    <div className="text-[10px] text-dim font-mono">fats</div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setSelectedRecipe(recipe)
-                  }}
-                  className="btn-secondary w-full text-xs py-2.5 flex items-center justify-center gap-1.5 hover:bg-acid/10 hover:text-acid transition-colors"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>View</span>
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="card-modern text-center border-dashed py-12 md:py-16 px-4">
-            <div className="w-16 h-16 md:w-20 md:h-20 rounded-sm bg-acid/10 border border-acid/20 flex items-center justify-center mx-auto mb-6 md:mb-8">
-              <ChefHat className="w-8 h-8 md:w-10 md:h-10 text-acid/60" />
+              ))}
             </div>
-            <h3 className="text-text font-mono font-bold text-lg md:text-xl mb-3 md:mb-4">No recipes yet</h3>
-            <p className="text-dim font-mono text-sm md:text-base mb-6 md:mb-8 max-w-md mx-auto leading-relaxed">
-              Create your first recipe to save time and track nutrition accurately
-            </p>
-          </div>
+          ) : (
+            <div className="card-modern text-center border-dashed py-12 md:py-16 px-4">
+              <div className="w-16 h-16 md:w-20 md:h-20 rounded-sm bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-6 md:mb-8">
+                <ChefHat className="w-8 h-8 md:w-10 md:h-10 text-accent/60" />
+              </div>
+              <h3 className="text-text font-mono font-bold text-lg md:text-xl mb-3 md:mb-4">No recipes yet</h3>
+              <p className="text-dim font-mono text-sm md:text-base mb-6 md:mb-8 max-w-md mx-auto leading-relaxed">
+                Create your first recipe to save time and track nutrition accurately
+              </p>
+            </div>
+          )
+        ) : (
+          // Recipe Library View (shown by default)
+          isLoadingLibrary ? (
+            <div className="text-center py-12 text-dim font-mono text-xs">Loading recipe library...</div>
+          ) : libraryRecipes.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {libraryRecipes.map((recipe) => (
+                <div 
+                  key={recipe.id} 
+                  className="card-modern group hover:border-accent/50 transition-all p-4 md:p-6 cursor-pointer"
+                  onClick={() => setSelectedLibraryRecipe(recipe)}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <ChefHat className="w-4 h-4 text-accent flex-shrink-0" />
+                        <h3 className="text-base md:text-lg font-bold text-text font-mono uppercase truncate">
+                          {recipe.name}
+                        </h3>
+                      </div>
+                      {recipe.description && (
+                        <p className="text-xs text-dim font-mono line-clamp-2 mb-2">
+                          {recipe.description}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        <span className="text-[9px] text-dim font-mono px-1.5 py-0.5 bg-border rounded">
+                          {recipe.goal_type.replace('_', ' ')}
+                        </span>
+                        <span className="text-[9px] text-dim font-mono px-1.5 py-0.5 bg-border rounded">
+                          {recipe.cuisine}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 mb-3 text-xs font-mono">
+                    <div className="flex items-center gap-1">
+                      <Users className="w-3 h-3 text-dim" />
+                      <span className="text-dim">{recipe.servings} servings</span>
+                    </div>
+                    {(recipe.prep_time || recipe.cook_time) && (
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-dim" />
+                        <span className="text-dim">
+                          {((recipe.prep_time || 0) + (recipe.cook_time || 0))} min
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-2 mb-4 p-2 bg-panel rounded-sm">
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-orange-500 dark:text-accent font-mono">
+                        {recipe.nutrition_per_serving.calories}
+                      </div>
+                      <div className="text-[10px] text-dim font-mono">cal</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-success font-mono">
+                        {recipe.nutrition_per_serving.protein}g
+                      </div>
+                      <div className="text-[10px] text-dim font-mono">protein</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-yellow-500 dark:text-text font-mono">
+                        {recipe.nutrition_per_serving.carbs}g
+                      </div>
+                      <div className="text-[10px] text-dim font-mono">carbs</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xs font-bold text-amber-500 dark:text-text font-mono">
+                        {recipe.nutrition_per_serving.fats}g
+                      </div>
+                      <div className="text-[10px] text-dim font-mono">fats</div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setSelectedLibraryRecipe(recipe)
+                    }}
+                    className="btn-secondary w-full text-xs py-2.5 flex items-center justify-center gap-1.5 hover:bg-accent/10 hover:text-accent transition-colors"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>View Recipe</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="card-modern text-center border-dashed py-12 md:py-16 px-4">
+              <div className="w-16 h-16 md:w-20 md:h-20 rounded-sm bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto mb-6 md:mb-8">
+                <ChefHat className="w-8 h-8 md:w-10 md:h-10 text-accent/60" />
+              </div>
+              <h3 className="text-text font-mono font-bold text-lg md:text-xl mb-3 md:mb-4">No recipes found</h3>
+              <p className="text-dim font-mono text-sm md:text-base mb-6 md:mb-8 max-w-md mx-auto leading-relaxed">
+                Try adjusting your filters to see more recipes
+              </p>
+            </div>
+          )
         )}
 
         {/* Save to Template Dialog */}
@@ -706,7 +879,7 @@ export default function RecipesPage() {
                           if (typeof selectedRecipe.instructions === 'string') {
                             instructionsText = selectedRecipe.instructions
                           } else if (Array.isArray(selectedRecipe.instructions)) {
-                            instructionsText = selectedRecipe.instructions.join('\n')
+                            instructionsText = (selectedRecipe.instructions as string[]).join('\n')
                           } else {
                             instructionsText = String(selectedRecipe.instructions || '')
                           }
@@ -783,6 +956,212 @@ export default function RecipesPage() {
                     className="btn-secondary text-xs md:text-sm py-2.5 px-4 text-error hover:bg-error/10 hover:text-error"
                   >
                     <Trash2 className="w-4 h-4" />
+                  </button>
+                </DialogFooter>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Library Recipe Detail Dialog */}
+      <Dialog open={!!selectedLibraryRecipe} onOpenChange={(open) => !open && setSelectedLibraryRecipe(null)}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+          {selectedLibraryRecipe && (
+            <>
+              <DialogHeader>
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ChefHat className="w-5 h-5 text-accent" />
+                      <DialogTitle className="text-2xl md:text-3xl font-bold text-text font-mono uppercase">
+                        {selectedLibraryRecipe.name}
+                      </DialogTitle>
+                    </div>
+                    {selectedLibraryRecipe.description && (
+                      <DialogDescription className="text-sm text-dim font-mono mt-2">
+                        {selectedLibraryRecipe.description}
+                      </DialogDescription>
+                    )}
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <span className="text-xs text-dim font-mono px-2 py-1 bg-panel border border-border rounded">
+                        {selectedLibraryRecipe.goal_type.replace('_', ' ')}
+                      </span>
+                      <span className="text-xs text-dim font-mono px-2 py-1 bg-panel border border-border rounded">
+                        {selectedLibraryRecipe.cuisine}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="space-y-6">
+                {/* Recipe Image */}
+                {selectedLibraryRecipe.image_url && (
+                  <div className="w-full h-48 md:h-64 rounded-sm overflow-hidden border border-border">
+                    <img 
+                      src={selectedLibraryRecipe.image_url} 
+                      alt={selectedLibraryRecipe.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+
+                {/* Recipe Info */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-panel rounded-sm border border-border">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-accent" />
+                    <div>
+                      <div className="text-xs text-dim font-mono uppercase">Servings</div>
+                      <div className="text-sm font-bold text-text font-mono">{selectedLibraryRecipe.servings}</div>
+                    </div>
+                  </div>
+                  {selectedLibraryRecipe.prep_time && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-accent" />
+                      <div>
+                        <div className="text-xs text-dim font-mono uppercase">Prep Time</div>
+                        <div className="text-sm font-bold text-text font-mono">{selectedLibraryRecipe.prep_time} min</div>
+                      </div>
+                    </div>
+                  )}
+                  {selectedLibraryRecipe.cook_time && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-accent" />
+                      <div>
+                        <div className="text-xs text-dim font-mono uppercase">Cook Time</div>
+                        <div className="text-sm font-bold text-text font-mono">{selectedLibraryRecipe.cook_time} min</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Nutrition Information */}
+                <div className="p-4 bg-panel rounded-sm border border-border">
+                  <h3 className="text-sm font-bold text-text font-mono uppercase mb-3 flex items-center gap-2">
+                    <Flame className="w-4 h-4 text-accent" />
+                    Nutrition Per Serving
+                  </h3>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-orange-500 dark:text-accent font-mono">
+                        {selectedLibraryRecipe.nutrition_per_serving.calories}
+                      </div>
+                      <div className="text-xs text-dim font-mono uppercase">Calories</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-success font-mono">
+                        {selectedLibraryRecipe.nutrition_per_serving.protein}g
+                      </div>
+                      <div className="text-xs text-dim font-mono uppercase">Protein</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-yellow-500 dark:text-text font-mono">
+                        {selectedLibraryRecipe.nutrition_per_serving.carbs}g
+                      </div>
+                      <div className="text-xs text-dim font-mono uppercase">Carbs</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-amber-500 dark:text-text font-mono">
+                        {selectedLibraryRecipe.nutrition_per_serving.fats}g
+                      </div>
+                      <div className="text-xs text-dim font-mono uppercase">Fats</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ingredients */}
+                {selectedLibraryRecipe.ingredients && selectedLibraryRecipe.ingredients.length > 0 && (
+                  <div className="p-4 bg-panel rounded-sm border border-border">
+                    <h3 className="text-sm font-bold text-text font-mono uppercase mb-3 flex items-center gap-2">
+                      <ChefHat className="w-4 h-4 text-accent" />
+                      Ingredients
+                    </h3>
+                    <ul className="space-y-2">
+                      {selectedLibraryRecipe.ingredients.map((ingredient, index) => (
+                        <li key={index} className="text-sm text-text font-mono flex items-center gap-2">
+                          <span className="text-accent">•</span>
+                          <span>{ingredient.name}: {ingredient.quantity} {ingredient.unit}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Instructions */}
+                {selectedLibraryRecipe.instructions && (
+                  <div className="p-4 bg-panel rounded-sm border border-border">
+                    <h3 className="text-sm font-bold text-text font-mono uppercase mb-3 flex items-center gap-2">
+                      <ChefHat className="w-4 h-4 text-accent" />
+                      Instructions
+                    </h3>
+                    <div className="prose prose-sm max-w-none">
+                      <div className="text-sm text-text font-mono whitespace-pre-wrap leading-relaxed">
+                        {selectedLibraryRecipe.instructions.split('\n').map((step, index) => {
+                          const isNumbered = /^\d+[\.\)]\s/.test(step.trim())
+                          if (isNumbered || step.trim()) {
+                            return (
+                              <div key={index} className="mb-3 flex gap-3">
+                                {isNumbered ? (
+                                  <>
+                                    <span className="text-accent font-bold flex-shrink-0">{step.match(/^\d+[\.\)]/)?.[0]}</span>
+                                    <span className="flex-1">{step.replace(/^\d+[\.\)]\s*/, '')}</span>
+                                  </>
+                                ) : (
+                                  <span className="flex-1">{step}</span>
+                                )}
+                              </div>
+                            )
+                          }
+                          return null
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tags */}
+                {selectedLibraryRecipe.tags && selectedLibraryRecipe.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedLibraryRecipe.tags.map((tag, index) => (
+                      <span
+                        key={index}
+                        className="px-3 py-1 text-xs font-mono uppercase bg-accent/10 text-accent border border-accent/30 rounded-sm"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <DialogFooter className="flex gap-2 sm:gap-3">
+                  <button
+                    onClick={() => {
+                      if (!user?.id) return
+                      const recipeData = convertLibraryRecipeToUserRecipe(selectedLibraryRecipe, user.id)
+                      createMutation.mutate(recipeData as any)
+                      setSelectedLibraryRecipe(null)
+                    }}
+                    className="btn-primary flex-1 text-xs md:text-sm py-2.5 flex items-center justify-center gap-2"
+                    disabled={createMutation.isPending}
+                  >
+                    <Save className="w-4 h-4" />
+                    {createMutation.isPending ? 'Saving...' : 'Save to My Recipes'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!user?.id || !selectedLibraryRecipe) return
+                      const recipeData = convertLibraryRecipeToUserRecipe(selectedLibraryRecipe, user.id)
+                      setRecipeToSaveAsTemplate(recipeData as any)
+                      setTemplateMealType('lunch')
+                      setSelectedLibraryRecipe(null)
+                      setShowSaveTemplateDialog(true)
+                    }}
+                    className="btn-secondary flex-1 text-xs md:text-sm py-2.5 flex items-center justify-center gap-2 hover:bg-accent/10 hover:text-accent"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Save as Template</span>
                   </button>
                 </DialogFooter>
               </div>

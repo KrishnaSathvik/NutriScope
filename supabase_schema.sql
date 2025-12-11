@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   target_carbs INTEGER,
   target_fats INTEGER,
   water_goal INTEGER DEFAULT 2000, -- in ml
+  unit_system TEXT CHECK (unit_system IN ('metric', 'imperial')) DEFAULT 'metric', -- User preferred unit system
   restrictions TEXT[], -- Array of dietary restrictions
   reminder_enabled BOOLEAN DEFAULT false,
   reminder_settings JSONB DEFAULT '{
@@ -148,6 +149,75 @@ CREATE TABLE IF NOT EXISTS meal_templates (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Meal Library Table
+-- Stores pre-defined meals from different cuisines for quick selection
+CREATE TABLE IF NOT EXISTS meal_library (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  cuisine TEXT NOT NULL CHECK (cuisine IN ('indian', 'mexican', 'american', 'mediterranean', 'italian', 'asian', 'other')),
+  meal_type TEXT NOT NULL CHECK (meal_type IN ('pre_breakfast', 'breakfast', 'morning_snack', 'lunch', 'evening_snack', 'dinner', 'post_dinner')),
+  description TEXT,
+  calories INTEGER NOT NULL DEFAULT 0,
+  protein INTEGER NOT NULL DEFAULT 0,
+  carbs INTEGER,
+  fats INTEGER,
+  serving_size TEXT DEFAULT '1 serving',
+  food_items JSONB DEFAULT '[]'::jsonb,
+  image_url TEXT,
+  instructions TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes for meal_library
+CREATE INDEX IF NOT EXISTS idx_meal_library_name ON meal_library(name);
+CREATE INDEX IF NOT EXISTS idx_meal_library_cuisine ON meal_library(cuisine);
+CREATE INDEX IF NOT EXISTS idx_meal_library_meal_type ON meal_library(meal_type);
+CREATE INDEX IF NOT EXISTS idx_meal_library_cuisine_meal_type ON meal_library(cuisine, meal_type);
+
+-- Enable RLS for meal_library
+ALTER TABLE meal_library ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for meal_library - Public read access
+CREATE POLICY IF NOT EXISTS "Anyone can view meal library"
+  ON meal_library FOR SELECT
+  USING (true);
+
+-- Only authenticated users can insert/update/delete (for admin/curation)
+CREATE POLICY IF NOT EXISTS "Authenticated users can insert meals"
+  ON meal_library FOR INSERT
+  WITH CHECK (auth.role() = 'authenticated');
+
+CREATE POLICY IF NOT EXISTS "Authenticated users can update meals"
+  ON meal_library FOR UPDATE
+  USING (auth.role() = 'authenticated');
+
+CREATE POLICY IF NOT EXISTS "Authenticated users can delete meals"
+  ON meal_library FOR DELETE
+  USING (auth.role() = 'authenticated');
+
+-- Achievements Table
+-- Stores user achievements and progress
+CREATE TABLE IF NOT EXISTS achievements (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  achievement_type TEXT NOT NULL CHECK (achievement_type IN ('streak', 'goal', 'milestone', 'special')),
+  achievement_key TEXT NOT NULL, -- Unique identifier for the achievement
+  title TEXT NOT NULL,
+  description TEXT,
+  icon TEXT, -- Icon name or emoji
+  unlocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  progress INTEGER DEFAULT 100 CHECK (progress >= 0 AND progress <= 100), -- 0-100, for progress tracking
+  metadata JSONB DEFAULT '{}'::jsonb, -- Additional data
+  UNIQUE (user_id, achievement_key)
+);
+
+-- Indexes for achievements
+CREATE INDEX IF NOT EXISTS idx_achievements_user_id ON achievements(user_id);
+CREATE INDEX IF NOT EXISTS idx_achievements_type ON achievements(achievement_type);
+CREATE INDEX IF NOT EXISTS idx_achievements_unlocked_at ON achievements(unlocked_at DESC);
+CREATE INDEX IF NOT EXISTS idx_achievements_user_key ON achievements(user_id, achievement_key);
+
 -- Chat Conversations Table
 -- Stores AI chat conversation history
 CREATE TABLE IF NOT EXISTS chat_conversations (
@@ -230,6 +300,11 @@ CREATE TRIGGER update_meal_templates_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_achievements_updated_at
+  BEFORE UPDATE ON achievements
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
 CREATE TRIGGER update_chat_conversations_updated_at
   BEFORE UPDATE ON chat_conversations
   FOR EACH ROW
@@ -245,6 +320,7 @@ ALTER TABLE meals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE exercises ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE meal_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE achievements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_conversations ENABLE ROW LEVEL SECURITY;
 
 -- User Profiles Policies
@@ -355,6 +431,28 @@ CREATE POLICY "Users can update own meal templates"
 -- Users can delete their own meal templates
 CREATE POLICY "Users can delete own meal templates"
   ON meal_templates FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Achievements Policies
+-- Users can view their own achievements
+CREATE POLICY "Users can view own achievements"
+  ON achievements FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- Users can insert their own achievements
+CREATE POLICY "Users can insert own achievements"
+  ON achievements FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Users can update their own achievements
+CREATE POLICY "Users can update own achievements"
+  ON achievements FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Users can delete their own achievements
+CREATE POLICY "Users can delete own achievements"
+  ON achievements FOR DELETE
   USING (auth.uid() = user_id);
 
 -- Chat Conversations Policies

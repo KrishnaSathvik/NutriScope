@@ -101,9 +101,12 @@ export function calculatePersonalizedTargets(params: {
   calorie_target: number
   protein_target: number
   water_goal: number
+  bmr: number
+  tdee: number
+  calorie_deficit: number // Negative for deficit, positive for surplus
   explanation: string
 } {
-  const { weight, height, age, goal, activityLevel, dietaryPreference, isMale = true } = params
+  const { weight, height, age, goal, activityLevel, isMale = true } = params
 
   // Calculate BMR
   const bmr = calculateBMR(weight, height, age, isMale)
@@ -113,6 +116,9 @@ export function calculatePersonalizedTargets(params: {
   
   // Calculate target calories
   const calorie_target = calculateTargetCalories(tdee, goal)
+  
+  // Calculate calorie deficit/surplus (negative = deficit, positive = surplus)
+  const calorie_deficit = calorie_target - tdee
   
   // Calculate target protein
   const protein_target = calculateTargetProtein(weight, goal, activityLevel)
@@ -140,7 +146,18 @@ export function calculatePersonalizedTargets(params: {
   explanation += `• Goal: ${goalNames[goal]}\n`
   explanation += `• Activity: ${activityNames[activityLevel]}\n`
   explanation += `• Weight: ${weight}kg, Height: ${height}cm, Age: ${age}\n\n`
-  explanation += `Your personalized targets:\n`
+  explanation += `Your daily energy:\n`
+  explanation += `• BMR (Base): ${bmr} cal/day\n`
+  explanation += `• TDEE (Total Burn): ${tdee} cal/day\n`
+  explanation += `• Target Intake: ${calorie_target} cal/day\n`
+  if (calorie_deficit < 0) {
+    explanation += `• Deficit: ${Math.abs(calorie_deficit)} cal/day (burn ${Math.abs(calorie_deficit)} more than you eat)\n`
+  } else if (calorie_deficit > 0) {
+    explanation += `• Surplus: ${calorie_deficit} cal/day (eat ${calorie_deficit} more than you burn)\n`
+  } else {
+    explanation += `• Balanced: Maintain current weight\n`
+  }
+  explanation += `\nYour personalized targets:\n`
   explanation += `• Calories: ${calorie_target} cal/day\n`
   explanation += `• Protein: ${protein_target}g/day\n`
   explanation += `• Water: ${water_goal}ml/day`
@@ -149,6 +166,9 @@ export function calculatePersonalizedTargets(params: {
     calorie_target,
     protein_target,
     water_goal,
+    bmr,
+    tdee,
+    calorie_deficit,
     explanation,
   }
 }

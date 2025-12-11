@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, subDays, parseISO, addDays } from 'date-fns'
 import { getMeals, createMeal, updateMeal, deleteMeal } from '@/services/meals'
 import { getMealTemplates, useMealTemplate, createMealTemplate, deleteMealTemplate } from '@/services/mealTemplates'
+import { checkAndUnlockAchievements } from '@/services/achievements'
 import { useAuth } from '@/contexts/AuthContext'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Plus, Trash2, X, Clock, UtensilsCrossed, Flame, Cookie, Circle, Sunrise, Moon, Coffee, Sun, BookOpen, Save, Edit, Copy, Lightbulb, Beef, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
@@ -55,7 +56,7 @@ export default function MealsPage() {
 
   const createMutation = useMutation({
     mutationFn: (mealData: { date: string; name?: string; meal_type: MealType; calories: number; protein: number; carbs?: number; fats?: number; food_items?: any[] }) => createMeal(mealData),
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       const mealDate = variables.date
       // Invalidate all meals queries (for any date)
       queryClient.invalidateQueries({ queryKey: ['meals'] })
@@ -71,6 +72,18 @@ export default function MealsPage() {
       queryClient.invalidateQueries({ queryKey: ['weekLogs'] })
       // Update streak when meal is logged
       queryClient.invalidateQueries({ queryKey: ['streak'] })
+      // Check for new achievements
+      if (profile) {
+        try {
+          const newAchievements = await checkAndUnlockAchievements({ profile })
+          if (newAchievements.length > 0) {
+            queryClient.invalidateQueries({ queryKey: ['achievements'] })
+            queryClient.invalidateQueries({ queryKey: ['achievementsWithProgress'] })
+          }
+        } catch (error) {
+          console.error('Error checking achievements:', error)
+        }
+      }
       setShowAddForm(false)
       setEditingMealId(null)
     },
@@ -523,7 +536,7 @@ export default function MealsPage() {
                   setEditingMealId(null)
                   setShowAddForm(!showAddForm)
                 }}
-                className="btn-primary gap-1.5 md:gap-2 text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap"
+                className="btn-secondary gap-1.5 md:gap-2 text-xs md:text-sm px-2 md:px-4 py-2 whitespace-nowrap"
               >
                 <Plus className="w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0" />
                 <span>Add Meal</span>

@@ -1,8 +1,10 @@
-import { useState } from 'react'
-import { Meal } from '@/types'
-import { UtensilsCrossed, Flame, Beef, Zap, Apple, X, Save } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Meal, MealType } from '@/types'
+import { UtensilsCrossed, Flame, Beef, Zap, Apple, X, Save, Search } from 'lucide-react'
 import { FoodItem } from '@/services/foodDatabase'
 import { FoodSearch } from './FoodSearch'
+import { MealSelector } from './MealSelector'
+import { MealLibraryItem, calculateMealNutrition } from '@/services/mealLibrary'
 import { validateNumber } from '@/utils/validation'
 
 interface MealFormProps {
@@ -11,7 +13,7 @@ interface MealFormProps {
   onCancel: () => void
   onSaveTemplate?: (mealData: { meal_type: string; calories: number; protein: number; carbs?: number; fats?: number }) => void
   isSubmitting: boolean
-  mealTypeLabels: Record<string, string>
+  mealTypeLabels?: Record<string, string> // Optional, kept for backward compatibility
 }
 
 export function MealForm({ 
@@ -20,9 +22,27 @@ export function MealForm({
   onCancel, 
   onSaveTemplate,
   isSubmitting,
-  mealTypeLabels 
+  mealTypeLabels: _mealTypeLabels // Kept for backward compatibility but not used in this component
 }: MealFormProps) {
   const [showFoodSearch, setShowFoodSearch] = useState(false)
+  const [showMealSelector, setShowMealSelector] = useState(false)
+  const [selectedMeal, setSelectedMeal] = useState<MealLibraryItem | null>(null)
+  const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null)
+  const [foodQuantity, setFoodQuantity] = useState<number | string>(1)
+  const [quantity, setQuantity] = useState<number | string>(1)
+  const [calculatedNutrition, setCalculatedNutrition] = useState<{
+    calories: number
+    protein: number
+    carbs: number
+    fats: number
+  } | null>(null)
+  const [manualNutrition, setManualNutrition] = useState<{
+    calories?: number
+    protein?: number
+    carbs?: number
+    fats?: number
+  }>({})
+  const formRef = useRef<HTMLFormElement>(null)
   const [validationErrors, setValidationErrors] = useState<{
     calories?: string
     protein?: string
@@ -31,34 +51,279 @@ export function MealForm({
   }>({})
 
   const handleFoodSelect = (food: FoodItem) => {
-    const form = document.getElementById('meal-form') as HTMLFormElement
-    if (form) {
-      const caloriesInput = document.getElementById('calories-input') as HTMLInputElement
-      const proteinInput = document.getElementById('protein-input') as HTMLInputElement
-      const carbsInput = document.getElementById('carbs-input') as HTMLInputElement
-      const fatsInput = document.getElementById('fats-input') as HTMLInputElement
-
-      if (caloriesInput) caloriesInput.value = food.calories.toString()
-      if (proteinInput) proteinInput.value = food.protein.toString()
-      if (carbsInput) carbsInput.value = food.carbs.toString()
-      if (fatsInput) fatsInput.value = food.fats.toString()
+    // Store selected food
+    setSelectedFood(food)
+    setFoodQuantity(1) // Reset quantity to 1
+    
+    // Update nutrition based on quantity (default 1)
+    setManualNutrition({
+      calories: food.calories,
+      protein: food.protein,
+      carbs: food.carbs,
+      fats: food.fats,
+    })
+    
+    // Populate meal name field (it's uncontrolled, so we can set value directly)
+    if (formRef.current) {
+      const nameInput = formRef.current.querySelector<HTMLInputElement>('input[name="name"]')
+      if (nameInput) {
+        nameInput.value = food.description
+        // Trigger change event to ensure form submission picks it up
+        nameInput.dispatchEvent(new Event('change', { bubbles: true }))
+      }
     }
+    
     setShowFoodSearch(false)
+    // Clear meal selection when using food search
+    setSelectedMeal(null)
+    setCalculatedNutrition(null)
   }
+
+  const handleMealSelect = (meal: MealLibraryItem, nutrition: { calories: number; protein: number; carbs: number; fats: number }) => {
+    setSelectedMeal(meal)
+    setCalculatedNutrition(nutrition)
+    setManualNutrition({}) // Reset manual override
+    
+    // Populate form fields
+    if (formRef.current) {
+      const nameInput = formRef.current.querySelector<HTMLInputElement>('input[name="name"]')
+      const mealTypeSelect = formRef.current.querySelector<HTMLSelectElement>('select[name="meal_type"]')
+      const caloriesInput = formRef.current.querySelector<HTMLInputElement>('input[name="calories"]')
+      const proteinInput = formRef.current.querySelector<HTMLInputElement>('input[name="protein"]')
+      const carbsInput = formRef.current.querySelector<HTMLInputElement>('input[name="carbs"]')
+      const fatsInput = formRef.current.querySelector<HTMLInputElement>('input[name="fats"]')
+      
+      if (nameInput) nameInput.value = meal.name
+      if (mealTypeSelect) mealTypeSelect.value = meal.meal_type
+      if (caloriesInput) caloriesInput.value = nutrition.calories.toString()
+      if (proteinInput) proteinInput.value = nutrition.protein.toString()
+      if (carbsInput) carbsInput.value = nutrition.carbs.toString()
+      if (fatsInput) fatsInput.value = nutrition.fats.toString()
+    }
+  }
+
+  // Auto-calculate nutrition when quantity or selected meal changes
+  useEffect(() => {
+    if (selectedMeal && typeof quantity === 'number' && quantity > 0) {
+      const calculated = calculateMealNutrition(selectedMeal, quantity)
+      setCalculatedNutrition(calculated)
+      
+      // Update form fields if not manually overridden
+      if (formRef.current && Object.keys(manualNutrition).length === 0) {
+        const caloriesInput = formRef.current.querySelector<HTMLInputElement>('input[name="calories"]')
+        const proteinInput = formRef.current.querySelector<HTMLInputElement>('input[name="protein"]')
+        const carbsInput = formRef.current.querySelector<HTMLInputElement>('input[name="carbs"]')
+        const fatsInput = formRef.current.querySelector<HTMLInputElement>('input[name="fats"]')
+        
+        if (caloriesInput) caloriesInput.value = calculated.calories.toString()
+        if (proteinInput) proteinInput.value = calculated.protein.toString()
+        if (carbsInput) carbsInput.value = calculated.carbs.toString()
+        if (fatsInput) fatsInput.value = calculated.fats.toString()
+      }
+    }
+  }, [quantity, selectedMeal, manualNutrition])
+
+  // Auto-calculate nutrition when food quantity changes
+  useEffect(() => {
+    if (selectedFood && typeof foodQuantity === 'number' && foodQuantity > 0) {
+      const calculated = {
+        calories: Math.round(selectedFood.calories * foodQuantity),
+        protein: Math.round(selectedFood.protein * foodQuantity * 10) / 10,
+        carbs: Math.round(selectedFood.carbs * foodQuantity * 10) / 10,
+        fats: Math.round(selectedFood.fats * foodQuantity * 10) / 10,
+      }
+      
+      // Update manual nutrition state (this will update the form fields automatically)
+      setManualNutrition(calculated)
+      
+      // Also update form fields directly for immediate visual feedback
+      if (formRef.current) {
+        const caloriesInput = formRef.current.querySelector<HTMLInputElement>('input[name="calories"]')
+        const proteinInput = formRef.current.querySelector<HTMLInputElement>('input[name="protein"]')
+        const carbsInput = formRef.current.querySelector<HTMLInputElement>('input[name="carbs"]')
+        const fatsInput = formRef.current.querySelector<HTMLInputElement>('input[name="fats"]')
+        
+        if (caloriesInput) caloriesInput.value = calculated.calories.toString()
+        if (proteinInput) proteinInput.value = calculated.protein.toString()
+        if (carbsInput) carbsInput.value = calculated.carbs.toString()
+        if (fatsInput) fatsInput.value = calculated.fats.toString()
+      }
+    }
+  }, [foodQuantity, selectedFood])
+
+  // Get current meal type from form
+  const currentMealType = formRef.current?.querySelector<HTMLSelectElement>('select[name="meal_type"]')?.value as MealType | undefined
 
   return (
     <>
-        <form onSubmit={onSubmit} className="space-y-4 md:space-y-6" id="meal-form">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs md:text-sm text-dim font-mono">Enter nutrition data manually or search our food database</p>
-            <button
-              type="button"
-              onClick={() => setShowFoodSearch(true)}
-              className="btn-secondary gap-2 text-xs md:text-sm px-3 md:px-4 py-2"
-            >
-              <span>Search Food</span>
-            </button>
+        <form ref={formRef} onSubmit={onSubmit} className="space-y-4 md:space-y-6" id="meal-form">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <p className="text-xs md:text-sm text-dim font-mono">Enter manually, search food database, or browse meal library</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowMealSelector(true)}
+                className="btn-secondary gap-2 text-xs md:text-sm px-3 md:px-4 py-2"
+              >
+                <Search className="w-3.5 h-3.5" />
+                <span>Browse Meals</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFoodSearch(true)}
+                className="btn-secondary gap-2 text-xs md:text-sm px-3 md:px-4 py-2"
+              >
+                <span>Search Food</span>
+              </button>
+            </div>
           </div>
+
+          {/* Quantity Input (shown when meal is selected) */}
+          {selectedMeal && (
+            <div className="p-3 bg-accent/10 border border-accent/30 rounded-sm mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <UtensilsCrossed className="w-4 h-4 text-accent" />
+                  <span className="text-xs font-mono text-text font-semibold">{selectedMeal.name}</span>
+                  <span className="text-[10px] text-dim font-mono px-1.5 py-0.5 bg-border rounded">
+                    {selectedMeal.cuisine}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedMeal(null)
+                    setCalculatedNutrition(null)
+                    setManualNutrition({})
+                    setQuantity(1)
+                  }}
+                  className="text-dim hover:text-text"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim">
+                  Quantity:
+                </label>
+                <input
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  value={quantity}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === '') {
+                      setQuantity('')
+                    } else {
+                      const numValue = Number(value)
+                      if (!isNaN(numValue) && numValue > 0) {
+                        setQuantity(numValue)
+                      }
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const numValue = Number(e.target.value)
+                    if (isNaN(numValue) || numValue <= 0) {
+                      setQuantity(1)
+                    } else {
+                      setQuantity(numValue)
+                    }
+                  }}
+                  className="input-modern w-20 text-sm"
+                />
+                <span className="text-[10px] text-dim font-mono">
+                  x {selectedMeal.serving_size}
+                </span>
+                {calculatedNutrition && Object.keys(manualNutrition).length === 0 && (
+                  <span className="text-[10px] text-accent font-mono ml-auto">
+                    (auto-calculated)
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Selected USDA Food Card */}
+          {selectedFood && (
+            <div className="p-3 bg-accent/10 border border-accent/30 rounded-sm mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <UtensilsCrossed className="w-4 h-4 text-accent" />
+                  <span className="text-xs font-mono text-text font-semibold">{selectedFood.description}</span>
+                  {selectedFood.brandName && (
+                    <span className="text-[10px] text-dim font-mono px-1.5 py-0.5 bg-border rounded">
+                      {selectedFood.brandName}
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedFood(null)
+                    setFoodQuantity(1)
+                    setManualNutrition({})
+                    if (formRef.current) {
+                      const nameInput = formRef.current.querySelector<HTMLInputElement>('input[name="name"]')
+                      const caloriesInput = formRef.current.querySelector<HTMLInputElement>('input[name="calories"]')
+                      const proteinInput = formRef.current.querySelector<HTMLInputElement>('input[name="protein"]')
+                      const carbsInput = formRef.current.querySelector<HTMLInputElement>('input[name="carbs"]')
+                      const fatsInput = formRef.current.querySelector<HTMLInputElement>('input[name="fats"]')
+                      if (nameInput) nameInput.value = ''
+                      if (caloriesInput) caloriesInput.value = ''
+                      if (proteinInput) proteinInput.value = ''
+                      if (carbsInput) carbsInput.value = ''
+                      if (fatsInput) fatsInput.value = ''
+                    }
+                  }}
+                  className="text-dim hover:text-text"
+                  aria-label="Remove food"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim">
+                  Quantity:
+                </label>
+                <input
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  value={foodQuantity}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === '') {
+                      setFoodQuantity('')
+                    } else {
+                      const numValue = Number(value)
+                      if (!isNaN(numValue) && numValue > 0) {
+                        setFoodQuantity(numValue)
+                      }
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const numValue = Number(e.target.value)
+                    if (isNaN(numValue) || numValue <= 0) {
+                      setFoodQuantity(1)
+                    } else {
+                      setFoodQuantity(numValue)
+                    }
+                  }}
+                  className="input-modern w-20 text-sm"
+                />
+                <span className="text-[10px] text-dim font-mono">
+                  x {selectedFood.servingSize ? `${selectedFood.servingSize} ${selectedFood.servingSizeUnit || 'g'}` : 'serving'}
+                </span>
+                {Object.keys(manualNutrition).length > 0 && (
+                  <span className="text-[10px] text-accent font-mono ml-auto">
+                    (auto-calculated)
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
             <div>
               <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2 flex items-center gap-1.5 md:gap-2">
@@ -103,6 +368,21 @@ export function MealForm({
                 name="calories"
                 required
                 min="0"
+                value={manualNutrition.calories !== undefined ? manualNutrition.calories : (calculatedNutrition?.calories !== undefined ? calculatedNutrition.calories : (editingMeal?.calories || ''))}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === '') {
+                    setManualNutrition(prev => {
+                      const { calories, ...rest } = prev
+                      return rest
+                    })
+                  } else {
+                    const numValue = Number(value)
+                    if (!isNaN(numValue) && numValue >= 0) {
+                      setManualNutrition(prev => ({ ...prev, calories: numValue }))
+                    }
+                  }
+                }}
                 onBlur={(e) => {
                   const value = Number(e.target.value)
                   const validation = validateNumber(value, { min: 0, max: 10000, label: 'Calories', required: true })
@@ -117,7 +397,6 @@ export function MealForm({
                 }}
                 className={validationErrors.calories ? 'input-modern text-sm md:text-base border-error' : 'input-modern text-sm md:text-base'}
                 placeholder="e.g., 500"
-                defaultValue={editingMeal?.calories || ''}
                 id="calories-input"
               />
               {validationErrors.calories && (
@@ -137,6 +416,21 @@ export function MealForm({
                 required
                 min="0"
                 step="0.1"
+                value={manualNutrition.protein !== undefined ? manualNutrition.protein : (calculatedNutrition?.protein !== undefined ? calculatedNutrition.protein : (editingMeal?.protein || ''))}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === '') {
+                    setManualNutrition(prev => {
+                      const { protein, ...rest } = prev
+                      return rest
+                    })
+                  } else {
+                    const numValue = Number(value)
+                    if (!isNaN(numValue) && numValue >= 0) {
+                      setManualNutrition(prev => ({ ...prev, protein: numValue }))
+                    }
+                  }
+                }}
                 onBlur={(e) => {
                   const value = Number(e.target.value)
                   const validation = validateNumber(value, { min: 0, max: 1000, label: 'Protein', required: true })
@@ -151,7 +445,6 @@ export function MealForm({
                 }}
                 className={validationErrors.protein ? 'input-modern text-sm md:text-base border-error' : 'input-modern text-sm md:text-base'}
                 placeholder="e.g., 30"
-                defaultValue={editingMeal?.protein || ''}
                 id="protein-input"
               />
               {validationErrors.protein && (
@@ -168,6 +461,21 @@ export function MealForm({
                 name="carbs"
                 min="0"
                 step="0.1"
+                value={manualNutrition.carbs !== undefined ? manualNutrition.carbs : (calculatedNutrition?.carbs !== undefined ? calculatedNutrition.carbs : (editingMeal?.carbs || ''))}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === '') {
+                    setManualNutrition(prev => {
+                      const { carbs, ...rest } = prev
+                      return rest
+                    })
+                  } else {
+                    const numValue = Number(value)
+                    if (!isNaN(numValue) && numValue >= 0) {
+                      setManualNutrition(prev => ({ ...prev, carbs: numValue }))
+                    }
+                  }
+                }}
                 onBlur={(e) => {
                   const value = e.target.value ? Number(e.target.value) : undefined
                   if (value !== undefined) {
@@ -184,7 +492,6 @@ export function MealForm({
                 }}
                 className={validationErrors.carbs ? 'input-modern text-sm md:text-base border-error' : 'input-modern text-sm md:text-base'}
                 placeholder="Optional"
-                defaultValue={editingMeal?.carbs || ''}
                 id="carbs-input"
               />
               {validationErrors.carbs && (
@@ -201,6 +508,21 @@ export function MealForm({
                 name="fats"
                 min="0"
                 step="0.1"
+                value={manualNutrition.fats !== undefined ? manualNutrition.fats : (calculatedNutrition?.fats !== undefined ? calculatedNutrition.fats : (editingMeal?.fats || ''))}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === '') {
+                    setManualNutrition(prev => {
+                      const { fats, ...rest } = prev
+                      return rest
+                    })
+                  } else {
+                    const numValue = Number(value)
+                    if (!isNaN(numValue) && numValue >= 0) {
+                      setManualNutrition(prev => ({ ...prev, fats: numValue }))
+                    }
+                  }
+                }}
                 onBlur={(e) => {
                   const value = e.target.value ? Number(e.target.value) : undefined
                   if (value !== undefined) {
@@ -217,7 +539,6 @@ export function MealForm({
                 }}
                 className={validationErrors.fats ? 'input-modern text-sm md:text-base border-error' : 'input-modern text-sm md:text-base'}
                 placeholder="Optional"
-                defaultValue={editingMeal?.fats || ''}
                 id="fats-input"
               />
               {validationErrors.fats && (
@@ -290,12 +611,20 @@ export function MealForm({
         </form>
 
       {/* Food Search Dialog */}
-      {showFoodSearch && (
-        <FoodSearch
-          onSelectFood={handleFoodSelect}
-          onClose={() => setShowFoodSearch(false)}
-        />
-      )}
+      <FoodSearch
+        open={showFoodSearch}
+        onSelectFood={handleFoodSelect}
+        onClose={() => setShowFoodSearch(false)}
+      />
+
+      {/* Meal Selector Dialog */}
+      <MealSelector
+        open={showMealSelector}
+        onClose={() => setShowMealSelector(false)}
+        onSelect={handleMealSelect}
+        mealType={currentMealType}
+        quantity={typeof quantity === 'number' ? quantity : Number(quantity) || 1}
+      />
     </>
   )
 }
