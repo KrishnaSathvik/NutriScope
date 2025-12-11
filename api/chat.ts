@@ -46,6 +46,8 @@ interface ChatRequest {
     restrictions?: string[]
     target_carbs?: number
     target_fats?: number
+    target_weight?: number // Target weight in kg
+    timeframe_months?: number // Timeframe in months to reach target weight
   }
   dailyLog?: {
     calories_consumed?: number
@@ -53,10 +55,24 @@ interface ChatRequest {
     calories_burned?: number
     water_intake?: number
     meals?: Array<{
+      id?: string
+      meal_id?: string
       meal_type?: string
       calories?: number
       protein?: number
+      carbs?: number
+      fats?: number
       name?: string
+      meal_description?: string
+      food_items?: Array<{
+        name?: string
+        calories?: number
+        protein?: number
+        carbs?: number
+        fats?: number
+        quantity?: number
+        unit?: string
+      }>
     }>
     exercises?: Array<{
       name?: string
@@ -166,6 +182,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Build personalized context from profile and daily log
     let context = ''
+    
+    // Add meal context for carb/fat calculation
+    if (dailyLog?.meals && dailyLog.meals.length > 0) {
+      context += `**Today's Meals - USE THESE EXACT meal_id VALUES WHEN UPDATING:**\n`
+      dailyLog.meals.forEach((meal, i) => {
+        const mealId = meal.id || meal.meal_id
+        context += `Meal ${i + 1}:\n`
+        context += `  meal_id: "${mealId}" ← USE THIS EXACT VALUE\n`
+        context += `  meal_type: "${meal.meal_type || 'meal'}"\n`
+        if (meal.name || meal.meal_description) context += `  name: "${meal.name || meal.meal_description}"\n`
+        context += `  calories: ${meal.calories || 0}, protein: ${meal.protein || 0}g`
+        if (meal.carbs !== undefined && meal.carbs !== null) context += `, carbs: ${meal.carbs}g`
+        if (meal.fats !== undefined && meal.fats !== null) context += `, fats: ${meal.fats}g`
+        context += `\n`
+        if (meal.food_items && meal.food_items.length > 0) {
+          context += `  food_items: ${meal.food_items.map((f: any) => f.name).join(', ')}\n`
+        }
+        context += `\n`
+      })
+      context += `**CRITICAL RULES FOR UPDATING MEALS:**\n`
+      context += `1. ALWAYS use the exact meal_id from the "meal_id" field above (e.g., "${dailyLog.meals[0]?.id || dailyLog.meals[0]?.meal_id || 'uuid-here'}").\n`
+      context += `2. NEVER use array indices like "1", "2", "3" as meal_id - those are NOT valid meal IDs.\n`
+      context += `3. meal_id is a UUID string (looks like "abc123-def456-ghi789-..."), NOT a number.\n`
+      context += `4. Copy the meal_id EXACTLY as shown above - do not modify it.\n\n`
+    }
+    
     if (profile) {
       const userName = profile.name ? `Hi ${profile.name}! ` : ''
       
@@ -185,8 +227,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const goalDescriptions: Record<string, string> = {
         lose_weight: 'losing weight',
         gain_muscle: 'gaining muscle mass',
+        gain_weight: 'gaining weight',
         maintain: 'maintaining your current weight',
         improve_fitness: 'improving overall fitness',
+        build_endurance: 'building endurance',
+        improve_health: 'improving overall health',
+        body_recomposition: 'body recomposition (losing fat while gaining muscle)',
+        increase_energy: 'increasing energy levels',
+        reduce_body_fat: 'reducing body fat percentage',
       }
       
       const activityDescriptions: Record<string, string> = {
@@ -204,10 +252,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         flexitarian: 'flexitarian diet (mostly plant-based)',
       }
       
+      // Handle multiple goals (new) or single goal (backward compatibility)
+      const userGoals = profile.goals && profile.goals.length > 0 
+        ? profile.goals 
+        : (profile.goal ? [profile.goal] : ['maintain'])
+      
+      const goalLabels = userGoals.map(g => goalDescriptions[g] || g).join(', ')
+      
       context += `**Your Goals & Preferences:**\n`
-      context += `- Primary Goal: ${goalDescriptions[profile.goal || 'maintain'] || profile.goal || 'maintain'}\n`
+      if (userGoals.length > 1) {
+        context += `- Goals: ${goalLabels}\n`
+        context += `- Primary Goal (for backward compatibility): ${goalDescriptions[profile.goal || 'maintain'] || profile.goal || 'maintain'}\n`
+      } else {
+        context += `- Primary Goal: ${goalLabels}\n`
+      }
+      if (profile.gender) context += `- Gender: ${profile.gender}\n`
       context += `- Activity Level: ${activityDescriptions[profile.activity_level || 'moderate'] || profile.activity_level || 'moderate'}\n`
       context += `- Dietary Preference: ${dietaryDescriptions[profile.dietary_preference || 'flexitarian'] || profile.dietary_preference || 'flexitarian'}\n`
+      
+      // Include target weight and timeframe if available
+      if (profile.target_weight && profile.timeframe_months) {
+        context += `- Target Weight: ${profile.target_weight}kg (in ${profile.timeframe_months} month${profile.timeframe_months > 1 ? 's' : ''})\n`
+      }
       context += `\n`
       
       // Personalized targets
@@ -261,8 +327,11 @@ PERSONALIZATION RULES
    - Sex: ${profile?.gender || 'not specified'} (used for BMR calculation and personalized recommendations)
    - Goals: ${(profile as any)?.goals && (profile as any).goals.length > 0 ? JSON.stringify((profile as any).goals) : `"${profile?.goal || 'general health'}"`}
    - Primary Goal (backward compatibility): "${profile?.goal || 'general health'}"
-   - Calorie target: ${profile?.calorie_target || 2000}
-   - Protein target: ${profile?.protein_target || 150}
+   - Current Weight: ${profile?.weight || 'not specified'}kg
+   - Target Weight: ${(profile as any)?.target_weight ? `${(profile as any).target_weight}kg` : 'not specified'}${(profile as any)?.timeframe_months ? ` (in ${(profile as any).timeframe_months} month${(profile as any).timeframe_months > 1 ? 's' : ''})` : ''}
+   - Calorie target: ${profile?.calorie_target || 2000} cal/day (calculated based on goals, target weight, and timeframe)
+   - Protein target: ${profile?.protein_target || 150}g/day (calculated based on goals and activity level)
+   - Water goal: ${profile?.water_goal || 2000}ml/day (calculated based on weight, activity level, and goals)
    - Optional carb/fat targets if present: carbs=${'target_carbs' in (profile || {}) ? profile?.target_carbs : 'n/a'}, fats=${'target_fats' in (profile || {}) ? profile?.target_fats : 'n/a'}
    - Activity level: "${profile?.activity_level || 'moderate'}"
    - Dietary preference: "${profile?.dietary_preference || 'none'}"
@@ -350,6 +419,32 @@ You can help users with:
 
 1. **Meal Logging:**
    - Understand natural language meal descriptions (e.g., "I had 3 chicken drumsticks and 1 cup salad", "5 nuggets and a protein shake").
+   - **CRITICAL: Check dailyLog.meals FIRST** - If a meal already exists for the meal_type (breakfast, lunch, dinner, etc.), you MUST use "update_meal" or "update_meals", NOT "log_meal"
+   - **For NEW meals** (meal_type doesn't exist in dailyLog.meals): Use action type "log_meal_with_confirmation" or "log_meal"
+   - **For UPDATING a SINGLE existing meal**: Use action type "update_meal" with meal_id in action.data
+     • If user says "update my lunch", "change my breakfast to...", "fix my dinner", "edit my meal", "calculate carbs and fats", "add carbs and fats", or mentions a specific meal they already logged
+     • Find the meal_id from dailyLog.meals array by matching meal_type
+     • **CRITICAL: meal_id MUST be the exact UUID string from dailyLog.meals[].id (e.g., "abc123-def456-...") - NEVER use numbers like "1" or "0"**
+     • Include meal_id: The ID of the meal to update (use the "id" field from dailyLog.meals)
+     • **CRITICAL: When user asks to calculate/add carbs/fats for existing meals:**
+       - Look at the meal's existing data: name, meal_description, food_items, calories, protein
+       - Calculate missing carbs and fats based on the meal description/food items
+       - Use nutrition knowledge: estimate carbs for grains/vegetables/fruits, estimate fats for oils/nuts/meats
+       - If meal has food_items array, sum up carbs/fats from individual items
+       - If only meal name/description exists, estimate based on food type
+       - Always include calculated carbs and fats in the update action
+     • Include only the fields that need to be updated (meal_type, meal_description, calories, protein, carbs, fats, food_items)
+     • Set requires_confirmation: false (single updates don't need confirmation)
+   - **For UPDATING MULTIPLE meals (2+)**: Use action type "update_meals" with meals array in action.data
+     • If user says "update my breakfast and lunch", "change all my meals", "fix my breakfast, lunch, and dinner", "calculate carbs and fats", "update meals with carbs and fat", or asks to update/add nutrition for multiple meals
+     • **CRITICAL: Include ALL meals from dailyLog.meals that need updating** - don't skip any meals
+     • **CRITICAL: meal_id MUST be copied EXACTLY from the "meal_id" field shown in the meal context above**
+     • **NEVER use array indices (1, 2, 3) or numbers as meal_id - meal_id is always a UUID string**
+     • **Example: If meal context shows "meal_id: 'abc-123-def-456'", use exactly that string, NOT "1" or "2"**
+     • Include meals: Array of { meal_id: <exact UUID from context>, meal_type, carbs, fats, ...other updates } for EACH meal to update
+     • Set requires_confirmation: true and show summary of which meals will be updated
+     • In confirmation_message, list ALL meals with their calculated values: "I'll update: Breakfast (X cal, Yg protein, Zg carbs, Wg fats), Lunch (...), Dinner (...)"
+     • In your message, clearly state which meals you found and what values you calculated for each
    - Extract:
      • meal_type: MUST be one of these exact values: 'breakfast', 'lunch', 'dinner', 'morning_snack', 'evening_snack', 'pre_breakfast', 'post_dinner'
      • For snacks, ALWAYS use 'morning_snack' or 'evening_snack' - NEVER just 'snack'
@@ -375,6 +470,22 @@ You can help users with:
      • food_items: array of { name, calories, protein, carbs, fats, quantity, unit }.
    - **CRITICAL RULE: meal_description is MANDATORY** - Always generate and include a meal_description in action.data when logging meals. Never omit it.
    - **CRITICAL RULE: Always calculate carbs and fats** - Even if user doesn't mention them, estimate based on food type. Use 0 for pure protein foods (chicken, fish), estimate carbs for grains/vegetables, estimate fats for nuts/oils.
+   - **CRITICAL RULE: When updating meals to add carbs/fats** - If user asks to "calculate carbs and fats", "add carbs and fats", "update meals with carbs and fat", "calculate for all meals", or similar requests:
+     • **MANDATORY: Check dailyLog.meals array - it contains ALL meals logged today**
+     • **If 2+ meals exist**: Use action type "update_meals" and include ALL meals from dailyLog.meals (don't skip any!)
+     • **If only 1 meal exists**: Use action type "update_meal" with that meal's meal_id
+     • **For EACH meal in dailyLog.meals**, you MUST:
+       - Use the meal's existing data: id (as meal_id), name, meal_description, food_items, calories, protein
+       - If carbs/fats are missing or null, calculate them based on:
+         * food_items array (if exists): sum carbs/fats from individual items
+         * meal name/description: estimate based on food type
+         * calories and protein: use nutrition ratios (if meal has calories but no carbs/fats, estimate based on food type)
+       - Use nutrition knowledge: grains/vegetables/fruits = carbs, oils/nuts/meats/dairy = fats
+       - **NEVER set carbs/fats to 0 unless the meal truly has none** (e.g., plain water, black coffee)
+       - If a meal shows 0 calories/protein, it might be incomplete - still try to estimate carbs/fats if meal name suggests food
+     • Include calculated carbs and fats in the update action - DO NOT ask the user for these values
+     • In your message, list ALL meals you found and their calculated values: "I found X meals. I'll update: Breakfast (Y cal, Zg protein, Ag carbs, Bg fats), Lunch (...), Dinner (...)"
+     • In confirmation_message, clearly list each meal: "I'll update your breakfast (Ag carbs, Bg fats), lunch (Cg carbs, Dg fats), and dinner (Eg carbs, Fg fats). Continue?"
    - If the user gives explicit calories/protein, **always use those** and estimate carbs/fats based on the food type.
    - **Direct Logging**: If user explicitly says "log this", "add this meal", "save this meal", "log it", "I ate [food] for [meal]", or uses direct commands, set requires_confirmation: false and log immediately
    - Otherwise, use action type: "log_meal_with_confirmation" with requires_confirmation: true.
@@ -392,7 +503,10 @@ You can help users with:
    - Same as existing behavior:
      • Generate name, instructions (single text string), prep/cook time, servings, and nutrition (per serving: calories, protein, carbs, fats).
      • Do NOT include ingredients list.
-   - Ask if user wants to save; use "generate_recipe" then "save_recipe" if confirmed.
+   - **Direct Saving**: If user explicitly says "add to my recipes", "save to my recipes", "add this recipe", "save this recipe", "add [recipe name] to my recipes", "add [recipe name] to recipe", or uses direct commands, use action type "save_recipe" with requires_confirmation: false and save immediately.
+   - **Generate & Ask**: If user asks to generate a recipe or asks "can you create a recipe for...", use action type "generate_recipe" with requires_confirmation: true, then use "save_recipe" if confirmed.
+   - **User Provides Recipe**: If user says "I have this recipe" or provides recipe details directly, use action type "save_recipe" with requires_confirmation: false and save immediately.
+   - **Confirmation Responses**: If the user says "yes", "yep", "sure", "ok", "okay", "save it", "add it", or similar affirmative responses after you've generated a recipe (generate_recipe action), automatically convert to "save_recipe" action with requires_confirmation: false and save immediately.
 
 4. **Meal Planning, Grocery Lists, Workouts, Water:**
    - For workouts: If user explicitly says "log my workout", "I ran for 30 minutes", "add workout", set requires_confirmation: false and log directly
@@ -409,7 +523,7 @@ You must ALWAYS respond with valid JSON:
 
 {
   "action": {
-    "type": "log_meal_with_confirmation" | "generate_recipe" | "save_recipe" | "add_to_meal_plan" | 
+    "type": "log_meal_with_confirmation" | "update_meal" | "update_meals" | "generate_recipe" | "save_recipe" | "add_to_meal_plan" | 
             "add_to_grocery_list" | "answer_food_question" | "log_workout" | "log_water" | "none",
     "data": { ... },
     "requires_confirmation": true/false,
@@ -444,6 +558,100 @@ You must ALWAYS respond with valid JSON:
     "confirmation_message": "Do you want me to log this meal?"
   },
   "message": "This meal is ~650 calories and 48g protein..."
+}
+
+**Example update_meal (single meal) response:**
+{
+  "action": {
+    "type": "update_meal",
+    "data": {
+      "meal_id": "abc123",
+      "calories": 500,
+      "protein": 40,
+      "carbs": 45,
+      "fats": 15
+    },
+    "requires_confirmation": false
+  },
+  "message": "I've updated your lunch to 500 calories, 40g protein, 45g carbs, and 15g fats."
+}
+
+**Example update_meal (calculating carbs/fats from existing meal):**
+{
+  "action": {
+    "type": "update_meal",
+    "data": {
+      "meal_id": "abc123",
+      "carbs": 50,
+      "fats": 20
+    },
+    "requires_confirmation": false
+  },
+  "message": "I've calculated and added carbs (50g) and fats (20g) to your lunch based on the meal contents."
+}
+
+**Example update_meals (calculating carbs/fats for all meals) response:**
+{
+  "action": {
+    "type": "update_meals",
+    "data": {
+      "meals": [
+        {
+          "meal_id": "abc-123-def-456-ghi-789",
+          "meal_type": "breakfast",
+          "carbs": 45,
+          "fats": 12
+        },
+        {
+          "meal_id": "def-456-ghi-789-jkl-012",
+          "meal_type": "lunch",
+          "carbs": 50,
+          "fats": 15
+        },
+        {
+          "meal_id": "ghi-789-jkl-012-mno-345",
+          "meal_type": "dinner",
+          "carbs": 40,
+          "fats": 18
+        }
+      ]
+    },
+    "requires_confirmation": true,
+    "confirmation_message": "I'll update your breakfast (45g carbs, 12g fats), lunch (50g carbs, 15g fats), and dinner (40g carbs, 18g fats). Continue?"
+  },
+  "message": "I found 3 meals in your log. I've calculated carbs and fats for each:\n- Breakfast: 45g carbs, 12g fats\n- Lunch: 50g carbs, 15g fats\n- Dinner: 40g carbs, 18g fats\n\nWould you like me to update all of them?"
+}
+
+**CRITICAL: In the examples above, meal_id values like "abc-123-def-456-ghi-789" are UUIDs. You MUST use the EXACT meal_id from the meal context provided, NOT array indices like "1", "2", "3".**
+
+**Example update_meals (multiple meals with full nutrition) response:**
+{
+  "action": {
+    "type": "update_meals",
+    "data": {
+      "meals": [
+        {
+          "meal_id": "abc123",
+          "meal_type": "breakfast",
+          "calories": 400,
+          "protein": 30,
+          "carbs": 45,
+          "fats": 12
+        },
+        {
+          "meal_id": "def456",
+          "meal_type": "lunch",
+          "calories": 600,
+          "protein": 50,
+          "carbs": 50,
+          "fats": 15
+        }
+      ]
+    },
+    "requires_confirmation": true,
+    "confirmation_message": "I'll update your breakfast (400 cal, 30g protein, 45g carbs, 12g fats) and lunch (600 cal, 50g protein, 50g carbs, 15g fats). Continue?"
+  },
+  "message": "I found 2 meals to update. Here's what will change..."
 }
 
 - If you are just giving advice or answering a question and not logging anything, use:

@@ -60,11 +60,19 @@ export default function ProfilePage() {
   // Dialog states
   const [showGenderDialog, setShowGenderDialog] = useState(false)
   const [showUpdateTargetsDialog, setShowUpdateTargetsDialog] = useState(false)
+  const [showGoalsChangeDialog, setShowGoalsChangeDialog] = useState(false)
   const [newTargets, setNewTargets] = useState<{
     calories: number
     protein: number
     water: number
   } | null>(null)
+  const [pendingGoalsChange, setPendingGoalsChange] = useState<{
+    newGoals: UserGoals
+    newTargets: { calories: number; protein: number; water: number }
+    currentTargets: { calories: number; protein: number; water: number }
+  } | null>(null)
+  const [previousGoals, setPreviousGoals] = useState<UserGoals>([])
+  const [previousActivityLevel, setPreviousActivityLevel] = useState<ActivityLevel | null>(null)
   
   const [editing, setEditing] = useState(false)
   const [formData, setFormData] = useState<{
@@ -79,6 +87,8 @@ export default function ProfilePage() {
     calorie_target?: number
     protein_target?: number
     water_goal?: number
+    target_weight?: number // Target weight in kg
+    timeframe_months?: number // Timeframe in months
   }>({
     name: profile?.name || '',
     age: profile?.age || undefined,
@@ -93,6 +103,8 @@ export default function ProfilePage() {
     calorie_target: profile?.calorie_target || profile?.target_calories || 2000,
     protein_target: profile?.protein_target || profile?.target_protein || 150,
     water_goal: profile?.water_goal || 2000,
+    target_weight: (profile as any)?.target_weight || undefined,
+    timeframe_months: (profile as any)?.timeframe_months || undefined,
   })
 
   // Check if user needs to add gender (one-time, only if profile exists but gender is missing)
@@ -121,14 +133,98 @@ export default function ProfilePage() {
         height: profile?.height || undefined,
         weight: profile?.weight || latestWeight?.weight || undefined,
         goal: profile?.goal || 'maintain',
+        goals: (profile as any)?.goals && (profile as any).goals.length > 0 
+          ? (profile as any).goals as UserGoals 
+          : (profile?.goal ? [profile.goal] : ['maintain']) as UserGoals,
         activity_level: profile?.activity_level || 'moderate',
         dietary_preference: profile?.dietary_preference || 'flexitarian',
         calorie_target: profile?.calorie_target || profile?.target_calories || 2000,
         protein_target: profile?.protein_target || profile?.target_protein || 150,
         water_goal: profile?.water_goal || 2000,
+        target_weight: (profile as any)?.target_weight || undefined,
+        timeframe_months: (profile as any)?.timeframe_months || undefined,
       })
     }
   }, [profile, latestWeight, editing])
+
+  // Track previous goals and activity level when editing starts
+  useEffect(() => {
+    if (editing) {
+      // Set previous values when editing starts (only once)
+      if (previousGoals.length === 0 && formData.goals && formData.goals.length > 0) {
+        setPreviousGoals([...formData.goals])
+      }
+      if (!previousActivityLevel && formData.activity_level) {
+        setPreviousActivityLevel(formData.activity_level)
+      }
+    } else {
+      // Reset when not editing
+      setPreviousGoals([])
+      setPreviousActivityLevel(null)
+    }
+  }, [editing])
+
+  // Auto-calculate targets when weight, height, or age change (but not goals/activity - those show dialog on save)
+  useEffect(() => {
+    if (!editing) return // Only recalculate when editing
+    
+    const { weight, height, age, goals, activity_level, dietary_preference } = formData
+    const profileGender = profile?.gender
+    
+    // Only recalculate if we have all required fields
+    // Skip if goals or activity_level changed (will be handled on save)
+    if (weight && height && age && goals && goals.length > 0 && activity_level && profileGender) {
+      // Check if goals or activity level changed - if so, don't auto-update (will show dialog on save)
+      const goalsChanged = previousGoals.length > 0 && 
+        JSON.stringify([...previousGoals].sort()) !== JSON.stringify([...goals].sort())
+      const activityChanged = previousActivityLevel && previousActivityLevel !== activity_level
+      
+      if (goalsChanged || activityChanged) {
+        // Don't auto-update - will show dialog when user clicks Save Changes
+        return
+      }
+      
+      // Goals and activity didn't change, but other fields did - auto-update targets
+      const isMale = profileGender === 'male'
+      const targetWeight = (profile as any)?.target_weight
+      const timeframeMonths = (profile as any)?.timeframe_months
+      
+      try {
+        const targets = calculatePersonalizedTargets({
+          weight,
+          height,
+          age,
+          goal: goals,
+          activityLevel: activity_level,
+          dietaryPreference: dietary_preference,
+          isMale,
+          targetWeight: targetWeight,
+          timeframeMonths: timeframeMonths,
+        })
+        
+        // Update targets automatically
+        setFormData(prev => ({
+          ...prev,
+          calorie_target: targets.calorie_target,
+          protein_target: targets.protein_target,
+          water_goal: targets.water_goal,
+        }))
+      } catch (error) {
+        console.error('Error calculating targets:', error)
+      }
+    }
+  }, [
+    editing,
+    formData.weight,
+    formData.height,
+    formData.age,
+    formData.dietary_preference,
+    profile?.gender,
+    (profile as any)?.target_weight,
+    (profile as any)?.timeframe_months,
+    // Note: formData.goals, formData.activity_level, previousGoals, and previousActivityLevel are excluded
+    // to prevent auto-update when these change (will show dialog on save instead)
+  ])
 
   const updateMutation = useMutation({
     mutationFn: async (data: Partial<UserProfile>) => {
@@ -233,18 +329,26 @@ export default function ProfilePage() {
 
       // Recalculate targets if we have required data
       // Use the current profile data (which should now include gender)
-      if (profile.weight && profile.height && profile.age && profile.goal && profile.activity_level) {
+      const userGoals: UserGoals = (profile as any)?.goals && (profile as any).goals.length > 0
+        ? (profile as any).goals as UserGoals
+        : (profile?.goal ? [profile.goal] : ['maintain']) as UserGoals
+      
+      if (profile.weight && profile.height && profile.age && userGoals.length > 0 && profile.activity_level) {
         const isMale = gender === 'male'
+        const targetWeight = (profile as any)?.target_weight
+        const timeframeMonths = (profile as any)?.timeframe_months
         
         // Calculate NEW targets with the selected gender
         const newTargets = calculatePersonalizedTargets({
           weight: profile.weight,
           height: profile.height,
           age: profile.age,
-          goal: profile.goal,
+          goal: userGoals, // Use goals array
           activityLevel: profile.activity_level,
           dietaryPreference: profile.dietary_preference,
           isMale, // Use the NEW gender value
+          targetWeight: targetWeight, // Include target weight if available
+          timeframeMonths: timeframeMonths, // Include timeframe if available
         })
 
         // Get CURRENT targets from profile (these were calculated with old/default gender)
@@ -326,8 +430,104 @@ export default function ProfilePage() {
     setNewTargets(null)
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Handle confirming goal changes
+  const handleConfirmGoalsChange = async () => {
+    if (!pendingGoalsChange) return
+    
+    // Update formData with new targets
+    setFormData(prev => ({
+      ...prev,
+      calorie_target: pendingGoalsChange.newTargets.calories,
+      protein_target: pendingGoalsChange.newTargets.protein,
+      water_goal: pendingGoalsChange.newTargets.water,
+    }))
+    
+    // Update previous goals and activity level
+    setPreviousGoals([...pendingGoalsChange.newGoals])
+    setPreviousActivityLevel(formData.activity_level)
+    
+    // Close dialog
+    setShowGoalsChangeDialog(false)
+    setPendingGoalsChange(null)
+    
+    // Now save the changes
+    await saveProfileChanges()
+  }
+
+  // Handle canceling goal changes
+  const handleCancelGoalsChange = () => {
+    if (!pendingGoalsChange) return
+    
+    // Revert goals and activity level to previous state
+    setFormData(prev => ({
+      ...prev,
+      goals: previousGoals,
+      goal: previousGoals.length > 0 ? (previousGoals[0] as UserGoal) : 'maintain',
+      activity_level: previousActivityLevel || prev.activity_level,
+    }))
+    
+    // Close dialog
+    setShowGoalsChangeDialog(false)
+    setPendingGoalsChange(null)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Check if goals or activity level changed
+    const goalsChanged = previousGoals.length > 0 && 
+      JSON.stringify([...previousGoals].sort()) !== JSON.stringify([...(formData.goals || [])].sort())
+    const activityChanged = previousActivityLevel && previousActivityLevel !== formData.activity_level
+    
+    // If goals or activity level changed, show confirmation dialog
+    if ((goalsChanged || activityChanged) && profile?.gender && formData.weight && formData.height && formData.age) {
+      const isMale = profile.gender === 'male'
+      const targetWeight = (profile as any)?.target_weight
+      const timeframeMonths = (profile as any)?.timeframe_months
+      
+      try {
+        const newTargets = calculatePersonalizedTargets({
+          weight: formData.weight,
+          height: formData.height,
+          age: formData.age,
+          goal: formData.goals || [],
+          activityLevel: formData.activity_level,
+          dietaryPreference: formData.dietary_preference,
+          isMale,
+          targetWeight: targetWeight,
+          timeframeMonths: timeframeMonths,
+        })
+        
+        const currentTargets = {
+          calories: profile?.calorie_target || profile?.target_calories || 2000,
+          protein: profile?.protein_target || profile?.target_protein || 150,
+          water: profile?.water_goal || 2000,
+        }
+        
+        // Show confirmation dialog
+        setPendingGoalsChange({
+          newGoals: formData.goals || [],
+          newTargets: {
+            calories: newTargets.calorie_target,
+            protein: newTargets.protein_target,
+            water: newTargets.water_goal,
+          },
+          currentTargets,
+        })
+        setShowGoalsChangeDialog(true)
+        return // Don't save yet - wait for user confirmation
+      } catch (error) {
+        console.error('Error calculating targets:', error)
+        // Fall through to save without dialog if calculation fails
+      }
+    }
+    
+    // No changes to goals/activity, or calculation failed - save directly
+    await saveProfileChanges()
+  }
+
+  // Separate function to actually save the changes
+  const saveProfileChanges = async () => {
     // Map formData to match database schema
     // Note: gender is NOT included here - it cannot be changed after onboarding
     // Only use calorie_target and protein_target (not target_calories/target_protein)
@@ -343,6 +543,8 @@ export default function ProfilePage() {
       calorie_target: formData.calorie_target ?? undefined,
       protein_target: formData.protein_target ?? undefined,
       water_goal: formData.water_goal ?? undefined,
+      target_weight: formData.target_weight ?? undefined,
+      timeframe_months: formData.timeframe_months ?? undefined,
     }
     updateMutation.mutate(updateData)
   }
@@ -369,7 +571,34 @@ export default function ProfilePage() {
           </div>
           {!editing && (
             <button
-              onClick={() => setEditing(true)}
+              onClick={() => {
+                // Initialize formData with current profile data including goals when editing starts
+                const initialGoals = (profile as any)?.goals && (profile as any).goals.length > 0 
+                  ? (profile as any).goals as UserGoals 
+                  : (profile?.goal ? [profile.goal] : ['maintain']) as UserGoals
+                
+                setFormData({
+                  name: profile?.name || '',
+                  age: profile?.age || undefined,
+                  height: profile?.height || undefined,
+                  weight: profile?.weight || latestWeight?.weight || undefined,
+                  goal: profile?.goal || 'maintain',
+                  goals: initialGoals,
+                  activity_level: profile?.activity_level || 'moderate',
+                  dietary_preference: profile?.dietary_preference || 'flexitarian',
+                  calorie_target: profile?.calorie_target || profile?.target_calories || 2000,
+                  protein_target: profile?.protein_target || profile?.target_protein || 150,
+                  water_goal: profile?.water_goal || 2000,
+                  target_weight: (profile as any)?.target_weight || undefined,
+                  timeframe_months: (profile as any)?.timeframe_months || undefined,
+                })
+                
+                // Set previous values for comparison
+                setPreviousGoals([...initialGoals])
+                setPreviousActivityLevel(profile?.activity_level || 'moderate')
+                
+                setEditing(true)
+              }}
               className="btn-secondary gap-1.5 md:gap-2 text-[10px] md:text-xs"
             >
               <Edit className="w-3.5 h-3.5 md:w-4 md:h-4" />
@@ -502,18 +731,24 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">Activity Level</label>
+              <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">
+                Activity Level
+                <span className="ml-2 text-[9px] normal-case font-normal">(affects calorie burn calculation)</span>
+              </label>
               <select
                 value={formData.activity_level}
                 onChange={(e) => setFormData({ ...formData, activity_level: e.target.value as any })}
                 className="input-modern text-sm md:text-base"
               >
-                <option value="sedentary">Sedentary</option>
-                <option value="light">Light</option>
-                <option value="moderate">Moderate</option>
-                <option value="active">Active</option>
-                <option value="very_active">Very Active</option>
+                <option value="sedentary">Sedentary (1.2x) - Little to no exercise</option>
+                <option value="light">Light (1.375x) - Light exercise 1-3 days/week</option>
+                <option value="moderate">Moderate (1.55x) - Moderate exercise 3-5 days/week</option>
+                <option value="active">Active (1.725x) - Heavy exercise 6-7 days/week</option>
+                <option value="very_active">Very Active (1.9x) - Very heavy exercise + physical job</option>
               </select>
+              <p className="text-[10px] text-dim mt-1 font-mono">
+                💡 Select based on your typical week. Changing this will recalculate your calorie targets.
+              </p>
             </div>
 
             <div>
@@ -572,6 +807,43 @@ export default function ProfilePage() {
               </div>
             </div>
 
+            {/* Target Weight and Timeframe */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+              <div>
+                <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">Target Weight (kg, optional)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={formData.target_weight || ''}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? undefined : Number(e.target.value)
+                    setFormData({ ...formData, target_weight: value })
+                  }}
+                  className="input-modern text-sm md:text-base"
+                  placeholder="e.g., 70"
+                  min="30"
+                  max="300"
+                />
+                <p className="text-[9px] md:text-[10px] text-dim font-mono mt-1">Your ideal target weight</p>
+              </div>
+              <div>
+                <label className="block text-[10px] md:text-xs font-mono uppercase tracking-wider text-dim mb-2">Timeframe (months, optional)</label>
+                <input
+                  type="number"
+                  value={formData.timeframe_months || ''}
+                  onChange={(e) => {
+                    const value = e.target.value === '' ? undefined : Number(e.target.value)
+                    setFormData({ ...formData, timeframe_months: value })
+                  }}
+                  className="input-modern text-sm md:text-base"
+                  placeholder="e.g., 6"
+                  min="1"
+                  max="24"
+                />
+                <p className="text-[9px] md:text-[10px] text-dim font-mono mt-1">Months to reach target weight (1-24)</p>
+              </div>
+            </div>
+
             <div className="flex space-x-4 pt-4 border-t border-border">
               <button
                 type="submit"
@@ -600,11 +872,16 @@ export default function ProfilePage() {
                     height: profile?.height || undefined,
                     weight: profile?.weight || latestWeight?.weight || undefined,
                     goal: profile?.goal || 'maintain',
+                    goals: (profile as any)?.goals && (profile as any).goals.length > 0 
+                      ? (profile as any).goals as UserGoals 
+                      : (profile?.goal ? [profile.goal] : ['maintain']) as UserGoals,
                     activity_level: profile?.activity_level || 'moderate',
                     dietary_preference: profile?.dietary_preference || 'flexitarian',
                     calorie_target: profile?.calorie_target || profile?.target_calories || 2000,
                     protein_target: profile?.protein_target || profile?.target_protein || 150,
                     water_goal: profile?.water_goal || 2000,
+                    target_weight: (profile as any)?.target_weight || undefined,
+                    timeframe_months: (profile as any)?.timeframe_months || undefined,
                   })
                 }}
                 className="btn-secondary gap-2"
@@ -697,9 +974,47 @@ export default function ProfilePage() {
               <div className="p-3 md:p-4 border border-border rounded-sm bg-panel/50">
                 <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
                   <Target className="w-3.5 h-3.5 md:w-4 md:h-4 text-acid flex-shrink-0" />
-                  <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Goal</span>
+                  <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Goals</span>
                 </div>
-                <div className="font-bold text-text font-mono capitalize text-base md:text-lg">{profile?.goal?.replace('_', ' ') || 'Not set'}</div>
+                {(() => {
+                  // Get goals array from profile (prefer goals array, fallback to single goal)
+                  const userGoals: UserGoals = (profile as any)?.goals && (profile as any).goals.length > 0
+                    ? (profile as any).goals as UserGoals
+                    : (profile?.goal ? [profile.goal] : []) as UserGoals
+                  
+                  if (userGoals.length === 0) {
+                    return <div className="font-bold text-text font-mono capitalize text-base md:text-lg">Not set</div>
+                  }
+                  
+                  // Goal labels mapping
+                  const goalLabels: Record<UserGoalType, string> = {
+                    lose_weight: "Lose Weight",
+                    gain_muscle: "Gain Muscle",
+                    gain_weight: "Gain Weight",
+                    maintain: "Maintain",
+                    improve_fitness: "Improve Fitness",
+                    build_endurance: "Build Endurance",
+                    improve_health: "Improve Health",
+                    body_recomposition: "Body Recomp",
+                    increase_energy: "Increase Energy",
+                    reduce_body_fat: "Reduce Body Fat",
+                  }
+                  
+                  return (
+                    <div className="space-y-2">
+                      {userGoals.map((goal, index) => (
+                        <div key={index} className="font-bold text-text font-mono capitalize text-sm md:text-base">
+                          {goalLabels[goal as UserGoalType] || goal.replace('_', ' ')}
+                        </div>
+                      ))}
+                      {userGoals.length > 1 && (
+                        <p className="text-[9px] md:text-[10px] text-dim font-mono mt-1">
+                          {userGoals.length} goals selected
+                        </p>
+                      )}
+                    </div>
+                  )
+                })()}
               </div>
               <div className="p-3 md:p-4 border border-border rounded-sm bg-panel/50">
                 <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
@@ -717,6 +1032,44 @@ export default function ProfilePage() {
               </div>
             </div>
 
+            {/* Target Weight and Timeframe Display */}
+            {((profile as any)?.target_weight || (profile as any)?.timeframe_months) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                {(profile as any)?.target_weight && (
+                  <div className="p-3 md:p-4 border border-border rounded-sm bg-panel/50">
+                    <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
+                      <Target className="w-3.5 h-3.5 md:w-4 md:h-4 text-acid flex-shrink-0" />
+                      <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Target Weight</span>
+                    </div>
+                    <div className="font-bold text-text font-mono text-base md:text-lg">
+                      {(profile as any).target_weight.toFixed(1)} kg
+                    </div>
+                    {profile?.weight && (
+                      <p className="text-[9px] md:text-[10px] text-dim font-mono mt-1">
+                        {((profile as any).target_weight - profile.weight) > 0 ? 'Gain' : 'Lose'} {Math.abs((profile as any).target_weight - profile.weight).toFixed(1)} kg
+                      </p>
+                    )}
+                  </div>
+                )}
+                {(profile as any)?.timeframe_months && (
+                  <div className="p-3 md:p-4 border border-border rounded-sm bg-panel/50">
+                    <div className="flex items-center gap-1.5 md:gap-2 mb-2 md:mb-3">
+                      <Calendar className="w-3.5 h-3.5 md:w-4 md:h-4 text-acid flex-shrink-0" />
+                      <span className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider">Timeframe</span>
+                    </div>
+                    <div className="font-bold text-text font-mono text-base md:text-lg">
+                      {(profile as any).timeframe_months} month{(profile as any).timeframe_months > 1 ? 's' : ''}
+                    </div>
+                    {(profile as any)?.target_weight && profile?.weight && (
+                      <p className="text-[9px] md:text-[10px] text-dim font-mono mt-1">
+                        {((Math.abs((profile as any).target_weight - profile.weight) / ((profile as any).timeframe_months * 4.33))).toFixed(2)} kg/week
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="pt-3 md:pt-4 border-t border-border">
               <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
                 <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-indigo-500/20 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 dark:border-indigo-500/30 flex-shrink-0">
@@ -726,19 +1079,29 @@ export default function ProfilePage() {
               </div>
               {/* Calculate TDEE and deficit if we have required data */}
               {(() => {
-                const hasRequiredData = profile?.weight && profile?.height && profile?.age && profile?.goal && profile?.activity_level && profile?.gender
+                // Use goals array if available, otherwise fall back to single goal
+                const userGoals: UserGoals = (profile as any)?.goals && (profile as any).goals.length > 0
+                  ? (profile as any).goals as UserGoals
+                  : (profile?.goal ? [profile.goal] : ['maintain']) as UserGoals
+                
+                const hasRequiredData = profile?.weight && profile?.height && profile?.age && userGoals.length > 0 && profile?.activity_level && profile?.gender
                 let tdee: number | null = null
                 let deficit: number | null = null
                 
                 if (hasRequiredData) {
+                  const targetWeight = (profile as any)?.target_weight
+                  const timeframeMonths = (profile as any)?.timeframe_months
+                  
                   const targets = calculatePersonalizedTargets({
                     weight: profile.weight!,
                     height: profile.height!,
                     age: profile.age!,
-                    goal: profile.goal!,
+                    goal: userGoals, // Use goals array
                     activityLevel: profile.activity_level!,
                     dietaryPreference: profile.dietary_preference,
                     isMale: profile.gender === 'male',
+                    targetWeight: targetWeight, // Include target weight if available
+                    timeframeMonths: timeframeMonths, // Include timeframe if available
                   })
                   tdee = targets.tdee
                   
@@ -867,6 +1230,19 @@ export default function ProfilePage() {
           newTargets={newTargets}
           onUpdate={handleUpdateTargets}
           onSkip={handleSkipTargetUpdate}
+        />
+      )}
+
+      {/* Goals Change Confirmation Dialog */}
+      {pendingGoalsChange && (
+        <UpdateTargetsDialog
+          open={showGoalsChangeDialog}
+          onOpenChange={setShowGoalsChangeDialog}
+          currentTargets={pendingGoalsChange.currentTargets}
+          newTargets={pendingGoalsChange.newTargets}
+          onUpdate={handleConfirmGoalsChange}
+          onSkip={handleCancelGoalsChange}
+          description="We've recalculated your personalized targets based on your goal changes. Would you like to update them?"
         />
       )}
     </div>

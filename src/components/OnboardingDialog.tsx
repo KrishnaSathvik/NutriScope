@@ -169,6 +169,7 @@ export function OnboardingDialog({
         protein_target: proteinTarget,
         water_goal: data.water_goal || 2000,
         unit_system: data.unit_system || 'metric', // Save user's unit preference
+        onboarding_completed: true, // Mark onboarding as completed
       }
 
       // Add email if user has one (not for anonymous/guest users)
@@ -906,13 +907,51 @@ export function OnboardingDialog({
                   <Label className="text-sm font-medium text-text font-mono mb-3 block">
                     Activity Level
                   </Label>
+                  <p className="text-xs text-dim mb-3 font-mono">
+                    Select the option that best matches your weekly exercise routine. This affects how many calories your body burns daily.
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                     {[
-                      { value: "sedentary", label: "Sedentary", icon: Briefcase },
-                      { value: "light", label: "Light", icon: Coffee },
-                      { value: "moderate", label: "Moderate", icon: Footprints },
-                      { value: "active", label: "Active", icon: Activity },
-                      { value: "very_active", label: "Very Active", icon: Zap },
+                      { 
+                        value: "sedentary", 
+                        label: "Sedentary", 
+                        icon: Briefcase,
+                        description: "Little to no exercise",
+                        multiplier: "1.2x",
+                        examples: "Desk job, minimal walking"
+                      },
+                      { 
+                        value: "light", 
+                        label: "Light", 
+                        icon: Coffee,
+                        description: "Light exercise 1-3 days/week",
+                        multiplier: "1.375x",
+                        examples: "Walking, yoga, light workouts"
+                      },
+                      { 
+                        value: "moderate", 
+                        label: "Moderate", 
+                        icon: Footprints,
+                        description: "Moderate exercise 3-5 days/week",
+                        multiplier: "1.55x",
+                        examples: "30-60 min workouts, jogging, cycling"
+                      },
+                      { 
+                        value: "active", 
+                        label: "Active", 
+                        icon: Activity,
+                        description: "Heavy exercise 6-7 days/week",
+                        multiplier: "1.725x",
+                        examples: "Intense training, sports, long runs"
+                      },
+                      { 
+                        value: "very_active", 
+                        label: "Very Active", 
+                        icon: Zap,
+                        description: "Very heavy exercise + physical job",
+                        multiplier: "1.9x",
+                        examples: "Athletes, construction, 2x daily workouts"
+                      },
                     ].map((option) => {
                       const Icon = activityIcons[option.value as ActivityLevel]
                       const isSelected = activityLevel === option.value
@@ -921,9 +960,9 @@ export function OnboardingDialog({
                           key={option.value}
                           type="button"
                           onClick={() => setValue("activity_level", option.value as ActivityLevel)}
-                          className={`relative rounded-sm p-3 border-2 transition-all font-mono text-center ${
+                          className={`relative rounded-sm p-3 border-2 transition-all font-mono text-left ${
                             isSelected
-                              ? "bg-acid/10 ring-2"
+                              ? "bg-acid/10 ring-2 ring-acid border-acid"
                               : "border-border bg-surface hover:border-dim"
                           }`}
                           style={isSelected ? { 
@@ -931,10 +970,19 @@ export function OnboardingDialog({
                             boxShadow: '0 0 0 2px rgba(13, 148, 136, 0.2)'
                           } : {}}
                         >
-                          <Icon className={`w-5 h-5 mx-auto mb-1 ${isSelected ? 'text-accent' : 'text-dim'}`} />
-                          <span className={`text-xs block font-medium ${isSelected ? 'text-text' : 'text-dim'}`}>
-                            {option.label}
-                          </span>
+                          <div className="flex items-start gap-2 mb-2">
+                            <Icon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isSelected ? 'text-accent' : 'text-dim'}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-bold">{option.label}</div>
+                              <div className="text-[10px] text-dim mt-0.5">{option.multiplier}</div>
+                            </div>
+                          </div>
+                          <div className="text-[10px] text-dim leading-tight">
+                            {option.description}
+                          </div>
+                          <div className="text-[9px] text-dim mt-1 leading-tight italic">
+                            {option.examples}
+                          </div>
                           {isSelected && (
                             <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ backgroundColor: '#0D9488' }}>
                               <CheckCircle2 className="w-3.5 h-3.5 text-white stroke-[2.5]" />
@@ -944,6 +992,9 @@ export function OnboardingDialog({
                       )
                     })}
                   </div>
+                  <p className="text-[10px] text-dim mt-2 font-mono">
+                    💡 Tip: Choose based on your typical week, not your best week. You can adjust this later in your profile.
+                  </p>
                 </div>
 
                 <div className="flex gap-3 pt-4">

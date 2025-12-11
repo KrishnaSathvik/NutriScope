@@ -30,7 +30,7 @@ export default function RecipesPage() {
   const { data: recipes = [], isLoading } = useQuery({
     queryKey: ['recipes'],
     queryFn: getRecipes,
-    enabled: !!user && showMyRecipes, // Only fetch user recipes when showing "My Recipes"
+    enabled: !!user, // Always fetch user recipes when logged in (needed for invalidation after AI saves)
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   })

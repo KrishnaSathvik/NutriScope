@@ -177,6 +177,9 @@ export interface UserProfile {
   reminder_enabled?: boolean
   reminder_settings?: ReminderSettings
   preferences?: UserPreferences // Phase 1: User preferences
+  onboarding_completed?: boolean // Flag to trigger onboarding (false = show onboarding)
+  target_weight?: number // Target weight in kg
+  timeframe_months?: number // Timeframe in months to reach target weight
   created_at: string
   updated_at: string
 }
@@ -333,11 +336,22 @@ export interface AchievementDefinition {
 }
 
 export interface AIAction {
-  type: 'log_meal' | 'log_meal_with_confirmation' | 'log_workout' | 'log_water' | 
+  type: 'log_meal' | 'log_meal_with_confirmation' | 'update_meal' | 'update_meals' | 'log_workout' | 'log_water' | 
         'get_summary' | 'generate_recipe' | 'save_recipe' | 'add_to_meal_plan' | 
         'add_to_grocery_list' | 'answer_food_question' | 'none'
   data?: {
-    // Meal logging
+    // Meal logging/updating
+    meal_id?: string // Required for update_meal (single meal)
+    meals?: Array<{ // For bulk updates (update_meals)
+      meal_id: string
+      meal_type?: MealType
+      meal_description?: string
+      calories?: number
+      protein?: number
+      carbs?: number
+      fats?: number
+      food_items?: FoodItem[]
+    }>
     meal_type?: MealType
     calories?: number
     protein?: number

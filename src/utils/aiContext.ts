@@ -89,6 +89,18 @@ export function buildPersonalizedContext(
     if ('target_carbs' in profile && profile.target_carbs) context += `- Carb Target: ${profile.target_carbs}g/day\n`
     if ('target_fats' in profile && profile.target_fats) context += `- Fat Target: ${profile.target_fats}g/day\n`
     context += `- Water Goal: ${profile.water_goal || 2000}ml/day\n`
+    
+    // Include target weight and timeframe if available
+    const targetWeight = (profile as any)?.target_weight
+    const timeframeMonths = (profile as any)?.timeframe_months
+    if (targetWeight && timeframeMonths) {
+      context += `- Target Weight: ${targetWeight}kg (in ${timeframeMonths} month${timeframeMonths > 1 ? 's' : ''})\n`
+      if (profile.weight) {
+        const weightDiff = targetWeight - profile.weight
+        const weeklyChange = (weightDiff / (timeframeMonths * 4.33)).toFixed(2)
+        context += `- Weight Change Plan: ${weightDiff > 0 ? 'Gain' : 'Lose'} ${Math.abs(weightDiff).toFixed(1)}kg (${Math.abs(parseFloat(weeklyChange))}kg/week)\n`
+      }
+    }
     context += `\n`
     
     // Personalized guidance (only for chat mode or when explicitly requested)
@@ -169,13 +181,27 @@ export function buildPersonalizedContext(
     context += `- Workouts Logged: ${dailyLog.exercises.length}\n`
     
     if (dailyLog.meals.length > 0) {
-      const mealLimit = mode === 'chat' ? 3 : 5
-      context += `\n**Recent Meals:**\n`
+      const mealLimit = mode === 'chat' ? 5 : 5
+      context += `\n**Today's Meals - USE THESE EXACT meal_id VALUES WHEN UPDATING:**\n`
       dailyLog.meals.slice(0, mealLimit).forEach((m, i) => {
-        context += `${i + 1}. ${m.meal_type || 'meal'}: ${m.calories} cal, ${m.protein}g protein`
-        if (m.name) context += ` (${m.name})`
+        context += `Meal ${i + 1}:\n`
+        context += `  meal_id: "${m.id}" ← USE THIS EXACT VALUE\n`
+        context += `  meal_type: "${m.meal_type || 'meal'}"\n`
+        if (m.name) context += `  name: "${m.name}"\n`
+        context += `  calories: ${m.calories || 0}, protein: ${m.protein || 0}g`
+        if (m.carbs !== undefined && m.carbs !== null) context += `, carbs: ${m.carbs}g`
+        if (m.fats !== undefined && m.fats !== null) context += `, fats: ${m.fats}g`
+        context += `\n`
+        if (m.food_items && m.food_items.length > 0) {
+          context += `  food_items: ${m.food_items.map((f: any) => f.name).join(', ')}\n`
+        }
         context += `\n`
       })
+      context += `**CRITICAL RULES FOR UPDATING MEALS:**\n`
+      context += `1. ALWAYS use the exact meal_id from the "meal_id" field above (e.g., "${dailyLog.meals[0]?.id || 'uuid-here'}").\n`
+      context += `2. NEVER use array indices like "1", "2", "3" as meal_id - those are NOT valid meal IDs.\n`
+      context += `3. meal_id is a UUID string (looks like "abc123-def456-ghi789-..."), NOT a number.\n`
+      context += `4. Copy the meal_id EXACTLY as shown above - do not modify it.\n\n`
     }
     
     if (dailyLog.exercises.length > 0) {

@@ -13,6 +13,31 @@ function calculateBMR(weight: number, height: number, age: number, isMale: boole
 
 /**
  * Calculate Total Daily Energy Expenditure (TDEE) based on activity level
+ * 
+ * Activity Level Multipliers (based on Harris-Benedict/Mifflin-St Jeor activity factors):
+ * 
+ * - Sedentary (1.2x): Little to no exercise
+ *   • Desk job, minimal walking
+ *   • BMR × 1.2 = TDEE
+ * 
+ * - Light (1.375x): Light exercise 1-3 days/week
+ *   • Walking, yoga, light workouts
+ *   • BMR × 1.375 = TDEE
+ * 
+ * - Moderate (1.55x): Moderate exercise 3-5 days/week
+ *   • 30-60 min workouts, jogging, cycling
+ *   • BMR × 1.55 = TDEE
+ * 
+ * - Active (1.725x): Heavy exercise 6-7 days/week
+ *   • Intense training, sports, long runs
+ *   • BMR × 1.725 = TDEE
+ * 
+ * - Very Active (1.9x): Very heavy exercise + physical job
+ *   • Athletes, construction workers, 2x daily workouts
+ *   • BMR × 1.9 = TDEE
+ * 
+ * Note: These multipliers account for both exercise and daily activity (NEAT).
+ * Users should select based on their typical week, not their best week.
  */
 function calculateTDEE(bmr: number, activityLevel: ActivityLevel): number {
   const activityMultipliers: Record<ActivityLevel, number> = {
@@ -272,31 +297,96 @@ export function calculatePersonalizedTargets(params: {
   if (targetWeight && timeframeMonths && weight !== targetWeight) {
     // Use target weight/timeframe-based explanation
     const weightDiff = targetWeight - weight
+    const weeklyChange = Math.abs(weightDiff / (timeframeMonths * 4.33))
+    
+    // Add TDEE breakdown
+    explanation += `How we calculate your daily burn (TDEE):\n`
+    explanation += `• BMR (Base Metabolic Rate): ${bmr.toFixed(0)} cal/day\n`
+    explanation += `  (Calculated using Mifflin-St Jeor: based on your weight, height, age, and gender)\n`
+    explanation += `• Activity Multiplier: ${activityLevel === 'sedentary' ? '1.2x' : activityLevel === 'light' ? '1.375x' : activityLevel === 'moderate' ? '1.55x' : activityLevel === 'active' ? '1.725x' : '1.9x'} (${activityLevel.replace('_', ' ')})\n`
+    explanation += `• TDEE (Total Daily Energy Expenditure): ${tdee} cal/day\n`
+    explanation += `  (This is an ESTIMATE - actual burn varies based on muscle mass, genetics, NEAT, etc.)\n\n`
+    
     if (weightDiff < 0) {
-      explanation += `To reach your target weight of ${targetWeight.toFixed(1)} kg in ${timeframeMonths} month${timeframeMonths > 1 ? 's' : ''}, aim for ${calorie_target} calories/day.\n`
-      explanation += `This creates a ${Math.abs(calorie_deficit)} calorie deficit (your body burns ${tdee} cal/day).\n\n`
+      explanation += `To reach your target weight of ${targetWeight.toFixed(1)} kg in ${timeframeMonths} month${timeframeMonths > 1 ? 's' : ''}:\n`
+      explanation += `• Target: ${calorie_target} calories/day\n`
+      explanation += `• This creates a ${Math.abs(calorie_deficit)} calorie deficit vs TDEE\n`
+      explanation += `• Expected weight loss: ~${weeklyChange.toFixed(2)} kg/week\n\n`
     } else {
-      explanation += `To reach your target weight of ${targetWeight.toFixed(1)} kg in ${timeframeMonths} month${timeframeMonths > 1 ? 's' : ''}, aim for ${calorie_target} calories/day.\n`
-      explanation += `This creates a ${calorie_deficit} calorie surplus (your body burns ${tdee} cal/day).\n\n`
+      explanation += `To reach your target weight of ${targetWeight.toFixed(1)} kg in ${timeframeMonths} month${timeframeMonths > 1 ? 's' : ''}:\n`
+      explanation += `• Target: ${calorie_target} calories/day\n`
+      explanation += `• This creates a ${calorie_deficit} calorie surplus vs TDEE\n`
+      explanation += `• Expected weight gain: ~${weeklyChange.toFixed(2)} kg/week\n\n`
     }
+    
+    explanation += `⚠️ Important: TDEE is an estimate. Your actual daily burn may vary by ±200-400 calories based on:\n`
+    explanation += `• Muscle mass (more muscle = higher metabolism)\n`
+    explanation += `• Genetics and individual metabolism\n`
+    explanation += `• NEAT (Non-Exercise Activity Thermogenesis - fidgeting, posture, etc.)\n`
+    explanation += `• Daily activity variations\n\n`
+    explanation += `💡 Tip: Track your weight weekly and adjust calories if needed. If you're not seeing expected progress after 2-3 weeks, adjust by ±200-300 calories.\n\n`
   } else if (hasWeightLoss && hasMuscleGain) {
+    explanation += `How we calculate your daily burn (TDEE):\n`
+    explanation += `• BMR: ${bmr.toFixed(0)} cal/day (based on weight, height, age, gender)\n`
+    explanation += `• Activity Level: ${activityLevel.replace('_', ' ')} (${activityLevel === 'sedentary' ? '1.2x' : activityLevel === 'light' ? '1.375x' : activityLevel === 'moderate' ? '1.55x' : activityLevel === 'active' ? '1.725x' : '1.9x'} multiplier)\n`
+    explanation += `• TDEE: ${tdee} cal/day (estimated daily burn)\n\n`
     explanation += `For body recomposition (losing fat while building muscle), aim for ${calorie_target} calories/day.\n`
-    explanation += `This creates a ${Math.abs(calorie_deficit)} calorie deficit with high protein to preserve muscle.\n\n`
+    if (calorie_deficit < 0) {
+      explanation += `This creates a ${Math.abs(calorie_deficit)} calorie deficit vs TDEE with high protein to preserve muscle.\n`
+    } else {
+      explanation += `This creates a ${calorie_deficit} calorie surplus vs TDEE (your body burns ${tdee} cal/day).\n`
+    }
+    explanation += `⚠️ Note: TDEE is an estimate. Actual burn varies by ±200-400 cal based on individual factors.\n\n`
   } else if (hasWeightLoss) {
+    explanation += `How we calculate your daily burn (TDEE):\n`
+    explanation += `• BMR: ${bmr.toFixed(0)} cal/day (based on weight, height, age, gender)\n`
+    explanation += `• Activity Level: ${activityLevel.replace('_', ' ')} (${activityLevel === 'sedentary' ? '1.2x' : activityLevel === 'light' ? '1.375x' : activityLevel === 'moderate' ? '1.55x' : activityLevel === 'active' ? '1.725x' : '1.9x'} multiplier)\n`
+    explanation += `• TDEE: ${tdee} cal/day (estimated daily burn)\n\n`
     explanation += `To lose weight safely, aim for ${calorie_target} calories/day.\n`
-    explanation += `This creates a ${Math.abs(calorie_deficit)} calorie deficit (your body burns ${tdee} cal/day).\n\n`
+    if (calorie_deficit < 0) {
+      explanation += `This creates a ${Math.abs(calorie_deficit)} calorie deficit vs TDEE (your body burns ${tdee} cal/day).\n`
+    } else {
+      explanation += `⚠️ Warning: This is ${calorie_deficit} calories ABOVE TDEE. For weight loss, you typically need a deficit. Consider adjusting your activity level or target.\n`
+    }
+    explanation += `⚠️ Note: TDEE is an estimate. Actual burn varies by ±200-400 cal based on muscle mass, genetics, and daily activity.\n\n`
   } else if (hasMuscleGain) {
+    explanation += `How we calculate your daily burn (TDEE):\n`
+    explanation += `• BMR: ${bmr.toFixed(0)} cal/day (based on weight, height, age, gender)\n`
+    explanation += `• Activity Level: ${activityLevel.replace('_', ' ')} (${activityLevel === 'sedentary' ? '1.2x' : activityLevel === 'light' ? '1.375x' : activityLevel === 'moderate' ? '1.55x' : activityLevel === 'active' ? '1.725x' : '1.9x'} multiplier)\n`
+    explanation += `• TDEE: ${tdee} cal/day (estimated daily burn)\n\n`
     explanation += `To build muscle, aim for ${calorie_target} calories/day.\n`
-    explanation += `This creates a ${calorie_deficit} calorie surplus (your body burns ${tdee} cal/day).\n\n`
+    if (calorie_deficit > 0) {
+      explanation += `This creates a ${calorie_deficit} calorie surplus vs TDEE (your body burns ${tdee} cal/day).\n`
+    } else {
+      explanation += `This is ${Math.abs(calorie_deficit)} calories below TDEE (your body burns ${tdee} cal/day).\n`
+    }
+    explanation += `⚠️ Note: TDEE is an estimate. Actual burn varies by ±200-400 cal based on muscle mass, genetics, and daily activity.\n\n`
   } else if (hasWeightGain) {
+    explanation += `How we calculate your daily burn (TDEE):\n`
+    explanation += `• BMR: ${bmr.toFixed(0)} cal/day (based on weight, height, age, gender)\n`
+    explanation += `• Activity Level: ${activityLevel.replace('_', ' ')} (${activityLevel === 'sedentary' ? '1.2x' : activityLevel === 'light' ? '1.375x' : activityLevel === 'moderate' ? '1.55x' : activityLevel === 'active' ? '1.725x' : '1.9x'} multiplier)\n`
+    explanation += `• TDEE: ${tdee} cal/day (estimated daily burn)\n\n`
     explanation += `To gain weight, aim for ${calorie_target} calories/day.\n`
-    explanation += `This creates a ${calorie_deficit} calorie surplus (your body burns ${tdee} cal/day).\n\n`
+    if (calorie_deficit > 0) {
+      explanation += `This creates a ${calorie_deficit} calorie surplus vs TDEE (your body burns ${tdee} cal/day).\n`
+    } else {
+      explanation += `This is ${Math.abs(calorie_deficit)} calories below TDEE (your body burns ${tdee} cal/day).\n`
+    }
+    explanation += `⚠️ Note: TDEE is an estimate. Actual burn varies by ±200-400 cal based on individual factors.\n\n`
   } else if (hasRecomp) {
+    explanation += `How we calculate your daily burn (TDEE):\n`
+    explanation += `• BMR: ${bmr.toFixed(0)} cal/day (based on weight, height, age, gender)\n`
+    explanation += `• Activity Level: ${activityLevel.replace('_', ' ')} (${activityLevel === 'sedentary' ? '1.2x' : activityLevel === 'light' ? '1.375x' : activityLevel === 'moderate' ? '1.55x' : activityLevel === 'active' ? '1.725x' : '1.9x'} multiplier)\n`
+    explanation += `• TDEE: ${tdee} cal/day (estimated daily burn)\n\n`
     explanation += `For body recomposition, aim for ${calorie_target} calories/day.\n`
-    explanation += `Your body burns about ${tdee} calories/day.\n\n`
+    explanation += `⚠️ Note: TDEE is an estimate. Track your progress and adjust as needed.\n\n`
   } else {
+    explanation += `How we calculate your daily burn (TDEE):\n`
+    explanation += `• BMR: ${bmr.toFixed(0)} cal/day (based on weight, height, age, gender)\n`
+    explanation += `• Activity Level: ${activityLevel.replace('_', ' ')} (${activityLevel === 'sedentary' ? '1.2x' : activityLevel === 'light' ? '1.375x' : activityLevel === 'moderate' ? '1.55x' : activityLevel === 'active' ? '1.725x' : '1.9x'} multiplier)\n`
+    explanation += `• TDEE: ${tdee} cal/day (estimated daily burn)\n\n`
     explanation += `To maintain your current weight, aim for ${calorie_target} calories/day.\n`
-    explanation += `This matches what your body burns daily.\n\n`
+    explanation += `⚠️ Note: TDEE is an estimate. Your actual burn may vary by ±200-400 calories.\n\n`
   }
   
   explanation += `Your Daily Targets:\n`

@@ -381,7 +381,35 @@ export default function Dashboard() {
       {/* Calorie Balance - Clear Summary */}
       {dailyLog && (
         <div className="card-modern p-4 md:p-6">
-          <h2 className="text-sm md:text-base font-semibold text-text uppercase tracking-wider font-mono mb-4 md:mb-6">Calorie Balance</h2>
+          <div className="flex items-start justify-between mb-4 md:mb-6">
+            <h2 className="text-sm md:text-base font-semibold text-text uppercase tracking-wider font-mono">Calorie Balance</h2>
+            <div className="group relative">
+              <Info className="w-4 h-4 text-dim cursor-help hover:text-accent transition-colors" />
+              <div className="absolute bottom-full right-0 mb-2 w-80 p-3 bg-surface border border-border rounded-lg shadow-xl text-xs text-text z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-none font-mono">
+                <div className="space-y-2">
+                  <div className="font-bold text-accent mb-2">How Calorie Balance Works:</div>
+                  <div>
+                    <strong>Total Calories:</strong> All calories from food/drinks consumed today
+                  </div>
+                  <div>
+                    <strong>Total Burned:</strong> Calories burned through exercise/workouts today
+                  </div>
+                  <div>
+                    <strong>Net Calories:</strong> Total Consumed - Total Burned<br />
+                    <span className="text-dim text-[10px]">This is what your body actually "kept" after exercise</span>
+                  </div>
+                  <div>
+                    <strong>TDEE:</strong> Total Daily Energy Expenditure (maintenance calories)<br />
+                    <span className="text-dim text-[10px]">Estimated daily burn based on your BMR × activity level</span>
+                  </div>
+                  <div>
+                    <strong>Deficit/Surplus:</strong> TDEE - Net Calories<br />
+                    <span className="text-dim text-[10px]">Positive = Deficit (eating less than maintenance)<br />Negative = Surplus (eating more than maintenance)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           
           <div className="grid md:grid-cols-3 gap-4 md:gap-6 mb-4 md:mb-6">
             {/* Total Calories Consumed */}
@@ -433,46 +461,53 @@ export default function Dashboard() {
               // Standard nutrition calculation: Net Calories = Consumed - Burned
               const netCalories = dailyLog.calories_consumed - dailyLog.calories_burned
               
+              // Check goals array if available, otherwise fall back to single goal
+              const userGoals: UserGoals = (profile as any)?.goals && (profile as any).goals.length > 0
+                ? (profile as any).goals as UserGoals
+                : (profile?.goal ? [profile.goal] : ['maintain']) as UserGoals
+              
+              const hasWeightLoss = userGoals.includes('lose_weight') || userGoals.includes('reduce_body_fat')
+              const hasMuscleGain = userGoals.includes('gain_muscle')
+              const hasWeightGain = userGoals.includes('gain_weight')
+              
               // Calculate actual deficit/surplus vs TDEE (maintenance calories)
               // Deficit = TDEE - Net Calories (positive = deficit, negative = surplus)
               let actualDeficit: number | null = null
-              let displayLabel = 'Deficit Total'
               let isGoodDeficit = false
               let isSurplus = false
               
               if (tdee !== null) {
                 actualDeficit = tdee - netCalories
                 
-                // Personalize display based on goal
-                if (profile?.goal === 'lose_weight' || profile?.goal === 'improve_fitness') {
+                // Determine if it's actually a deficit or surplus based on the calculation
+                // Positive actualDeficit = deficit (eating less than TDEE)
+                // Negative actualDeficit = surplus (eating more than TDEE)
+                isSurplus = actualDeficit < 0
+                
+                // Personalize color coding based on goals
+                if (hasWeightLoss && !hasMuscleGain && !hasWeightGain) {
                   // For weight loss: positive deficit is good (eating less than maintenance)
                   isGoodDeficit = actualDeficit > 0
-                  isSurplus = actualDeficit < 0
-                  displayLabel = 'Calorie Deficit'
-                } else if (profile?.goal === 'gain_muscle') {
-                  // For muscle gain: negative deficit (surplus) is good (eating more than maintenance)
+                } else if (hasMuscleGain || hasWeightGain) {
+                  // For muscle/weight gain: surplus is good (eating more than maintenance)
                   isGoodDeficit = actualDeficit < 0
-                  isSurplus = actualDeficit < 0
-                  displayLabel = 'Calorie Surplus'
-                  actualDeficit = Math.abs(actualDeficit) // Show as positive surplus
                 } else {
-                  // For maintain: close to 0 is good
+                  // For maintain or other goals: close to 0 is good
                   isGoodDeficit = Math.abs(actualDeficit) < 50
-                  isSurplus = actualDeficit < 0
-                  displayLabel = 'Balance'
                 }
               } else {
                 // Fallback: use target-based calculation if TDEE not available
                 const calorieTarget = profile?.calorie_target || 2000
                 actualDeficit = calorieTarget - netCalories
                 isSurplus = actualDeficit < 0
-                displayLabel = 'Deficit Total'
               }
               
               return (
                 <div className="pt-3 md:pt-0">
                   <div className="flex items-center gap-1.5 mb-1 md:mb-2">
-                    <div className="text-xs md:text-sm text-dim font-medium font-mono uppercase tracking-wider">{displayLabel}</div>
+                    <div className="text-xs md:text-sm text-dim font-medium font-mono uppercase tracking-wider">
+                      {isSurplus ? 'Calorie Surplus' : actualDeficit === 0 || (actualDeficit !== null && Math.abs(actualDeficit) < 50) ? 'Calorie Balance' : 'Calorie Deficit'}
+                    </div>
                     {tdee !== null && (
                       <div className="group relative">
                         <Info className="w-3.5 h-3.5 md:w-4 md:h-4 text-dim cursor-help hover:text-accent transition-colors" />
@@ -496,34 +531,24 @@ export default function Dashboard() {
                     )}
                   </div>
                   <div className={`text-3xl md:text-4xl font-bold font-mono mb-1 ${
-                    isSurplus && (profile?.goal === 'lose_weight' || profile?.goal === 'improve_fitness')
+                    isSurplus && hasWeightLoss && !hasMuscleGain && !hasWeightGain
                       ? 'text-error' // Surplus is bad for weight loss
                       : isGoodDeficit
                       ? 'text-success' // Good deficit/surplus for goal
-                      : isSurplus && profile?.goal === 'gain_muscle'
-                      ? 'text-success' // Surplus is good for muscle gain
-                      : 'text-error' // Deficit is bad for muscle gain
+                      : isSurplus && (hasMuscleGain || hasWeightGain)
+                      ? 'text-success' // Surplus is good for muscle/weight gain
+                      : 'text-error' // Deficit is bad for muscle/weight gain
                   }`}>
-                    {isSurplus && profile?.goal === 'gain_muscle' ? '+' : ''}
+                    {isSurplus ? '+' : ''}
                     {Math.abs(actualDeficit || 0)}
                   </div>
                   <div className="text-xs md:text-sm text-dim font-medium font-mono">
-                    {isSurplus && (profile?.goal === 'lose_weight' || profile?.goal === 'improve_fitness')
-                      ? 'cal surplus'
-                      : isSurplus && profile?.goal === 'gain_muscle'
+                    {isSurplus
                       ? 'cal surplus'
                       : actualDeficit === 0 || (actualDeficit !== null && Math.abs(actualDeficit) < 50)
                       ? 'balanced'
                       : 'cal deficit'}
                   </div>
-                  {tdee !== null && (
-                    <div className="mt-2 pt-2 border-t border-border/50">
-                      <div className="text-[10px] md:text-xs text-dim font-mono space-y-0.5">
-                        <div>Net: {netCalories} cal (consumed - burned)</div>
-                        <div>TDEE: {tdee} cal (maintenance)</div>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )
             })()}

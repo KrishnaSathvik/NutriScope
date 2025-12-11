@@ -39,7 +39,7 @@ export async function chatWithAI(
   
   if (useBackendProxy) {
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || '/api/chat'
+      const apiUrl = (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.trim()) || '/api/chat'
       
       // Create AbortController for timeout
       const controller = new AbortController()
@@ -63,22 +63,39 @@ export async function chatWithAI(
               age: profile.age,
               weight: profile.weight,
               height: profile.height,
+              gender: profile.gender,
               calorie_target: profile.calorie_target,
               protein_target: profile.protein_target,
               water_goal: profile.water_goal,
               goal: profile.goal,
+              goals: (profile as any)?.goals && (profile as any).goals.length > 0 
+                ? (profile as any).goals 
+                : undefined, // Include goals array if available
               activity_level: profile.activity_level,
               dietary_preference: profile.dietary_preference,
               restrictions: profile.restrictions,
               ...('target_carbs' in profile && profile.target_carbs ? { target_carbs: profile.target_carbs } : {}),
               ...('target_fats' in profile && profile.target_fats ? { target_fats: profile.target_fats } : {}),
+              ...('target_weight' in profile && (profile as any).target_weight ? { target_weight: (profile as any).target_weight } : {}),
+              ...('timeframe_months' in profile && (profile as any).timeframe_months ? { timeframe_months: (profile as any).timeframe_months } : {}),
             } : undefined,
             dailyLog: dailyLog ? {
               calories_consumed: dailyLog.calories_consumed,
               protein: dailyLog.protein,
               calories_burned: dailyLog.calories_burned,
               water_intake: dailyLog.water_intake,
-              meals: dailyLog.meals.slice(0, 5),
+              meals: dailyLog.meals.slice(0, 5).map(meal => ({
+                id: meal.id,
+                meal_id: meal.id, // Include meal_id for updates
+                meal_type: meal.meal_type,
+                name: meal.name,
+                meal_description: meal.name, // Alias for name
+                calories: meal.calories,
+                protein: meal.protein,
+                carbs: meal.carbs,
+                fats: meal.fats,
+                food_items: meal.food_items, // Include food_items for calculation
+              })),
               exercises: dailyLog.exercises.slice(0, 3),
             } : undefined,
             imageUrl,
@@ -87,8 +104,13 @@ export async function chatWithAI(
         })
 
         if (!response.ok) {
-          // Handle 404 (API endpoint doesn't exist in dev) - fall back to direct OpenAI
+          // Handle 404 (API endpoint doesn't exist) - fall back to direct OpenAI
+          // This can happen in both dev and prod if endpoint isn't deployed
           if (response.status === 404) {
+            logger.warn('API endpoint not found (404), falling back to direct OpenAI', { apiUrl, status: response.status })
+            // Clear timeout since we're aborting this request
+            clearTimeout(timeoutId)
+            // Throw specific error to trigger fallback
             throw new Error('API_ENDPOINT_NOT_FOUND')
           }
           if (response.status === 429) {
@@ -137,12 +159,6 @@ export async function chatWithAI(
       })
       return result
     } catch (error: any) {
-      // In production, always use backend proxy - no fallback
-      if (import.meta.env.PROD) {
-        logger.error('Backend proxy failed in production:', error)
-        throw new Error('AI service unavailable. Please try again later.')
-      }
-      // Fall back to direct OpenAI only in development
       // Check if it's a 404 (endpoint doesn't exist) or network error
       const errorMessage = error?.message || String(error || '')
       const errorName = error?.name || ''
@@ -154,12 +170,20 @@ export async function chatWithAI(
                     errorName === 'TypeError' ||
                     (errorName === 'AbortError' && errorMessage.includes('404'))
       
+      // For 404s, always fall back to direct OpenAI (can happen in dev or prod if endpoint not deployed)
       if (is404) {
-        logger.debug('API endpoint not found in development, using direct OpenAI')
-      } else {
-        logger.warn('Backend proxy failed, falling back to direct OpenAI:', error)
+        logger.warn('API endpoint not found (404), falling back to direct OpenAI')
+        return chatWithAIDirect(messages, profile, dailyLog, imageUrl)
       }
-      // Always fall back to direct OpenAI in development
+      
+      // In production, throw error for non-404 failures
+      if (import.meta.env.PROD) {
+        logger.error('Backend proxy failed in production:', error)
+        throw new Error('AI service unavailable. Please try again later.')
+      }
+      
+      // In development, fall back to direct OpenAI for any error
+      logger.warn('Backend proxy failed, falling back to direct OpenAI:', error)
       return chatWithAIDirect(messages, profile, dailyLog, imageUrl)
     }
   }
@@ -232,6 +256,23 @@ You can help users with:
    - Calculate nutrition from food descriptions
    - Show summary and ask for confirmation before logging
    - Use action type: "log_meal_with_confirmation" with requires_confirmation: true
+   
+2. **Meal Updates:**
+   - **CRITICAL: Always check dailyLog.meals FIRST** - If a meal already exists for the meal_type, use "update_meal" or "update_meals", NEVER "log_meal"
+   - **Single meal update**: Use action type "update_meal" with meal_id from dailyLog.meals array
+     • If user says "update my lunch", "change my breakfast to...", "fix my dinner", "edit my meal", "calculate carbs and fats", "add carbs and fats"
+     • Find meal_id by matching meal_type in dailyLog.meals
+     • **CRITICAL: meal_id MUST be the exact UUID string from dailyLog.meals[].id - NEVER use numbers like "1" or "0"**
+     • Set requires_confirmation: false
+   - **Multiple meal updates (2+)**: Use action type "update_meals" with meals array
+     • If user says "update my breakfast and lunch", "change all my meals", "calculate carbs and fats", "update meals with carbs and fat"
+     • **CRITICAL: Include ALL meals from dailyLog.meals that need updating** - don't skip any meals
+     • **CRITICAL: meal_id MUST be copied EXACTLY from the "meal_id" field shown in the meal context above**
+     • **NEVER use array indices (1, 2, 3) or numbers as meal_id - meal_id is always a UUID string**
+     • Include meals: Array of { meal_id: <exact UUID from context>, meal_type, carbs, fats, ...other updates } for EACH meal to update
+     • Set requires_confirmation: true
+     • In confirmation_message, list all meals: "I'll update your breakfast, lunch, and dinner. Continue?"
+   - Include only fields that need updating (meal_type, meal_description, calories, protein, carbs, fats, food_items)
 
 2. **Food Questions:**
    - Answer "Can I eat this?" questions
@@ -243,8 +284,10 @@ You can help users with:
    - Generate recipes from descriptions or images
    - Include name, instructions (as text/paragraphs), prep/cook time, servings, and nutrition (calories, protein, carbs, fats)
    - Do NOT include ingredients - recipes are simplified to just name, instructions, and nutrition info
-   - Ask if user wants to save recipe
-   - Use action type: "generate_recipe" then "save_recipe" if confirmed
+   - **Direct Saving**: If user explicitly says "add to my recipes", "save to my recipes", "add this recipe", "save this recipe", "add [recipe name] to my recipes", "add [recipe name] to recipe", or uses direct commands, use action type "save_recipe" with requires_confirmation: false and save immediately.
+   - **Generate & Ask**: If user asks to generate a recipe or asks "can you create a recipe for...", use action type "generate_recipe" with requires_confirmation: true, then use "save_recipe" if confirmed.
+   - **User Provides Recipe**: If user says "I have this recipe" or provides recipe details directly, use action type "save_recipe" with requires_confirmation: false and save immediately.
+   - **Confirmation Responses**: If the user says "yes", "yep", "sure", "ok", "okay", "save it", "add it", or similar affirmative responses after you've generated a recipe (generate_recipe action), automatically convert to "save_recipe" action with requires_confirmation: false and save immediately.
 
 4. **Meal Planning:**
    - Add meals to meal plans (e.g., "Add chicken curry to Monday lunch")
@@ -268,7 +311,7 @@ You can help users with:
 Always respond with JSON:
 {
   "action": {
-    "type": "log_meal_with_confirmation" | "generate_recipe" | "save_recipe" | "add_to_meal_plan" | 
+    "type": "log_meal_with_confirmation" | "update_meal" | "generate_recipe" | "save_recipe" | "add_to_meal_plan" | 
             "add_to_grocery_list" | "answer_food_question" | "log_workout" | "log_water" | "none",
     "data": { ... },
     "requires_confirmation": true/false,
@@ -287,8 +330,10 @@ Always respond with JSON:
 - Ask for confirmation
 
 **For Recipe Generation:**
-- If user says "I have this recipe" or provides recipe details, automatically save it (requires_confirmation: false)
-- If user asks to generate a recipe, generate it and ask for confirmation (requires_confirmation: true)
+- **Direct Saving**: If user explicitly says "add to my recipes", "save to my recipes", "add this recipe", "save this recipe", "add [recipe name] to my recipes", "add [recipe name] to recipe", use action type "save_recipe" with requires_confirmation: false and save immediately.
+- **User Provides Recipe**: If user says "I have this recipe" or provides recipe details directly, use action type "save_recipe" with requires_confirmation: false and save immediately.
+- **Generate & Ask**: If user asks to generate a recipe or asks "can you create a recipe for...", use action type "generate_recipe" with requires_confirmation: true, then use "save_recipe" if confirmed.
+- **Confirmation Responses**: If the user says "yes", "yep", "sure", "ok", "okay", "save it", "add it", or similar affirmative responses after you've generated a recipe (generate_recipe action), automatically convert to "save_recipe" action with requires_confirmation: false and save immediately.
 - Generate complete recipe with name, instructions (as text - can be paragraphs or numbered steps), prep/cook time, servings, and nutrition (calories, protein, carbs, fats per serving)
 - Do NOT include ingredients - recipes are simplified and only need name, instructions, and nutrition info
 - Instructions should be a single text string (not an array) - users can type paragraphs or numbered steps
@@ -409,12 +454,175 @@ export async function executeAction(
 ): Promise<{ success: boolean; message: string; data?: any }> {
   try {
     switch (action.type) {
+      case 'update_meals':
+        // Bulk meal updates (2+ meals) - requires confirmation
+        if (!action.data || !action.data.meals || !Array.isArray(action.data.meals) || action.data.meals.length < 2) {
+          return { success: false, message: 'Missing meals array for bulk update' }
+        }
+        
+        const { updateMeal, getMeals } = await import('./meals')
+        const mealsToUpdate = action.data.meals
+        const errors: string[] = []
+        
+        // Get all meals first to validate meal_ids
+        const allMeals = await getMeals(date)
+        const mealIdToName = new Map<string, string>() // Track meal_id -> display name
+        
+        // Update all meals
+        for (const mealUpdate of mealsToUpdate) {
+          if (!mealUpdate.meal_id) {
+            errors.push(`Missing meal_id for meal: ${mealUpdate.meal_type || 'unknown'}`)
+            continue
+          }
+          
+          // Validate meal_id is a valid UUID (not just a number)
+          const mealId = String(mealUpdate.meal_id).trim()
+          if (!mealId || mealId === '1' || mealId === '0' || mealId.length < 10) {
+            // Try to find meal by meal_type if meal_id is invalid
+            const mealByType = allMeals.find(m => m.meal_type === mealUpdate.meal_type)
+            if (mealByType) {
+              mealUpdate.meal_id = mealByType.id
+            } else {
+              errors.push(`Invalid meal_id "${mealId}" for meal: ${mealUpdate.meal_type || 'unknown'}`)
+              continue
+            }
+          }
+          
+          // Verify meal exists
+          const existingMeal = allMeals.find(m => m.id === mealUpdate.meal_id)
+          if (!existingMeal) {
+            errors.push(`Meal not found with id: ${mealUpdate.meal_id}`)
+            continue
+          }
+          
+          const updates: any = {}
+          if (mealUpdate.meal_type) updates.meal_type = mealUpdate.meal_type
+          if (mealUpdate.meal_description) updates.name = mealUpdate.meal_description
+          if (mealUpdate.calories !== undefined) updates.calories = mealUpdate.calories
+          if (mealUpdate.protein !== undefined) updates.protein = mealUpdate.protein
+          if (mealUpdate.carbs !== undefined && mealUpdate.carbs !== null) updates.carbs = mealUpdate.carbs
+          if (mealUpdate.fats !== undefined && mealUpdate.fats !== null) updates.fats = mealUpdate.fats
+          if (mealUpdate.food_items) updates.food_items = mealUpdate.food_items
+          
+          try {
+            await updateMeal(mealUpdate.meal_id, updates)
+            
+            // Store meal identifier for summary (use existing name or create unique identifier)
+            const mealName = existingMeal.name
+            const mealType = existingMeal.meal_type || 'meal'
+            const calories = existingMeal.calories || 0
+            const protein = existingMeal.protein || 0
+            
+            // Create unique identifier: prefer name, otherwise use meal_type with nutrition info
+            const identifier = mealName || `${mealType} (${calories} cal, ${protein}g protein)`
+            mealIdToName.set(mealUpdate.meal_id, identifier)
+          } catch (error: any) {
+            const mealName = existingMeal.name || existingMeal.meal_type || 'meal'
+            errors.push(`Failed to update ${mealName}: ${error.message || 'Unknown error'}`)
+          }
+        }
+        
+        // Refetch all meals once after updates to get latest names
+        const updatedMealsData = await getMeals(date)
+        
+        // Build final meal list with updated names
+        const finalMealList: string[] = []
+        for (const mealUpdate of mealsToUpdate) {
+          if (!mealUpdate.meal_id) continue
+          
+          const mealId = String(mealUpdate.meal_id).trim()
+          const updatedMeal = updatedMealsData.find(m => m.id === mealId)
+          
+          if (updatedMeal) {
+            // Use updated meal name if available, otherwise use stored identifier
+            const displayName = updatedMeal.name || mealIdToName.get(mealId) || updatedMeal.meal_type || 'meal'
+            finalMealList.push(displayName)
+          } else {
+            // Fallback to stored identifier
+            const storedName = mealIdToName.get(mealId)
+            if (storedName) {
+              finalMealList.push(storedName)
+            }
+          }
+        }
+        
+        if (errors.length > 0 && finalMealList.length === 0) {
+          return { 
+            success: false, 
+            message: `Failed to update meals:\n${errors.join('\n')}` 
+          }
+        }
+        
+        const mealList = finalMealList.length > 0 
+          ? finalMealList.map((name, i) => `${i + 1}. ${name}`).join('\n')
+          : 'meals'
+        
+        let message = `✅ Done! I've updated ${finalMealList.length} meal${finalMealList.length > 1 ? 's' : ''}:\n${mealList}`
+        if (errors.length > 0) {
+          message += `\n\n⚠️ Some meals failed to update:\n${errors.join('\n')}`
+        }
+        
+        return { 
+          success: finalMealList.length > 0, 
+          message
+        }
+        
+      case 'update_meal':
+        // Single meal update - no confirmation needed
+        if (!action.data || !action.data.meal_id) {
+          return { success: false, message: 'Missing meal ID for update' }
+        }
+        const { updateMeal: updateSingleMeal, getMeals: getMealsForName } = await import('./meals')
+        let mealId = String(action.data.meal_id).trim()
+        
+        // Validate meal_id - if invalid, try to find by meal_type
+        if (!mealId || mealId === '1' || mealId === '0' || mealId.length < 10) {
+          const allMeals = await getMealsForName(date)
+          const mealByType = allMeals.find(m => m.meal_type === action.data?.meal_type)
+          if (mealByType) {
+            mealId = mealByType.id
+          } else {
+            return { success: false, message: `Invalid meal ID: ${action.data?.meal_id || mealId}. Please provide a valid meal ID.` }
+          }
+        }
+        
+        // Verify meal exists
+        const allMealsForUpdate = await getMealsForName(date)
+        const existingMeal = allMealsForUpdate.find(m => m.id === mealId)
+        if (!existingMeal) {
+          return { success: false, message: `Meal not found with ID: ${mealId}` }
+        }
+        
+        // Extract update fields
+        const updates: any = {}
+        if (action.data.meal_type) updates.meal_type = action.data.meal_type
+        if (action.data.meal_description) updates.name = action.data.meal_description
+        if (action.data.calories !== undefined) updates.calories = action.data.calories
+        if (action.data.protein !== undefined) updates.protein = action.data.protein
+        if (action.data.carbs !== undefined && action.data.carbs !== null) updates.carbs = action.data.carbs
+        if (action.data.fats !== undefined && action.data.fats !== null) updates.fats = action.data.fats
+        if (action.data.food_items) updates.food_items = action.data.food_items
+        
+        try {
+          await updateSingleMeal(mealId, updates)
+          const updatedMealName = existingMeal.name || existingMeal.meal_type || 'meal'
+          return { 
+            success: true, 
+            message: `✅ Done! I've updated your ${updatedMealName}.` 
+          }
+        } catch (error: any) {
+          return { 
+            success: false, 
+            message: `Failed to update meal: ${error.message || 'Unknown error'}` 
+          }
+        }
+        
       case 'log_meal':
       case 'log_meal_with_confirmation':
         if (!action.data) {
           return { success: false, message: 'Missing meal data' }
         }
-        const { createMeal } = await import('./meals')
+        const { createMeal, getMeals: getExistingMeals } = await import('./meals')
         
         // Normalize meal_type - map common values to database values
         // Database expects: 'pre_breakfast', 'breakfast', 'morning_snack', 'lunch', 'evening_snack', 'dinner', 'post_dinner'
@@ -453,23 +661,35 @@ export async function executeAction(
           normalizedMealType = 'evening_snack'
         }
         
+        // SAFEGUARD: Check if meal already exists for this meal_type
+        // This prevents accidentally creating duplicates when an update was intended
+        const existingMeals = await getExistingMeals(date)
+        const existingMealForType = existingMeals.find(m => m.meal_type === normalizedMealType)
+        if (existingMealForType) {
+          // Meal already exists - this should have been an update, not a new log
+          return { 
+            success: false, 
+            message: `A ${normalizedMealType.replace('_', ' ')} already exists. Please use "update my ${normalizedMealType.replace('_', ' ')}" instead.` 
+          }
+        }
+        
         // Generate meal name from food_items if meal_description is missing
-        let mealName = action.data.meal_description
-        if (!mealName && action.data.food_items && action.data.food_items.length > 0) {
+        let newMealName = action.data.meal_description
+        if (!newMealName && action.data.food_items && action.data.food_items.length > 0) {
           // Create a name from the first few food items
           const itemNames = action.data.food_items
             .slice(0, 3)
             .map((item: any) => item.name || item)
             .filter(Boolean)
             .join(' with ')
-          mealName = itemNames || normalizedMealType || 'meal'
+          newMealName = itemNames || normalizedMealType || 'meal'
         }
-        mealName = mealName || normalizedMealType || 'meal'
+        newMealName = newMealName || normalizedMealType || 'meal'
         
         await createMeal({
           date,
           meal_type: normalizedMealType,
-          name: mealName,
+          name: newMealName,
           calories: action.data.calories || 0,
           protein: action.data.protein || 0,
           carbs: action.data.carbs ?? 0, // Default to 0 if not provided
@@ -478,7 +698,7 @@ export async function executeAction(
         })
         return { 
           success: true, 
-          message: `✅ Done! I've logged "${mealName}" as your ${normalizedMealType?.replace('_', ' ') || 'meal'}.` 
+          message: `✅ Done! I've logged "${newMealName}" as your ${normalizedMealType?.replace('_', ' ') || 'meal'}.` 
         }
 
       case 'log_workout':

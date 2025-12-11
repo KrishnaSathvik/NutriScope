@@ -124,7 +124,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else if (data) {
         setProfile(data as UserProfile)
-        setShowOnboarding(false)
+        // Check onboarding_completed flag - if false, show onboarding even if profile exists
+        const onboardingCompleted = (data as any).onboarding_completed !== false
+        setShowOnboarding(!onboardingCompleted)
         
         // Phase 1: Migrate preferences from localStorage to DB (one-time migration)
         migratePreferencesFromLocalStorage(userId).catch(err => {

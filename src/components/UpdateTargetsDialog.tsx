@@ -16,6 +16,7 @@ interface UpdateTargetsDialogProps {
   }
   onUpdate: () => Promise<void>
   onSkip: () => void
+  description?: string // Optional custom description
 }
 
 export function UpdateTargetsDialog({
@@ -25,6 +26,7 @@ export function UpdateTargetsDialog({
   newTargets,
   onUpdate,
   onSkip,
+  description,
 }: UpdateTargetsDialogProps) {
   const caloriesDiff = newTargets.calories - currentTargets.calories
   const proteinDiff = newTargets.protein - currentTargets.protein
@@ -45,7 +47,7 @@ export function UpdateTargetsDialog({
             </DialogTitle>
           </div>
           <DialogDescription className="text-dim font-mono text-sm">
-            We've recalculated your personalized targets based on your sex. Would you like to update them?
+            {description || "We've recalculated your personalized targets based on your sex. Would you like to update them?"}
           </DialogDescription>
         </DialogHeader>
 
