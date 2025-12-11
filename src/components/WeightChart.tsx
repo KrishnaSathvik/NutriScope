@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { format, subDays, subMonths } from 'date-fns'
 import { getWeightLogs, calculateBMI, getBMICategoryInfo } from '@/services/weightTracking'
 import { useAuth } from '@/contexts/AuthContext'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { Scale, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 interface WeightChartProps {
@@ -151,7 +151,6 @@ export function WeightChart({ days = 30, showBMI = false, showGoal = false, show
         </div>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2a2a" />
             <XAxis
               dataKey="date"
               stroke="#888"

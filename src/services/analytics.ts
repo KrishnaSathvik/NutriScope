@@ -8,6 +8,11 @@ export interface CorrelationData {
   date: string
 }
 
+export interface TrendLinePoint {
+  x: number
+  y: number
+}
+
 export interface PredictionData {
   currentValue: number
   predictedValue: number
@@ -36,6 +41,45 @@ export function calculateCorrelation(
 
   if (den === 0) return 0
   return num / den
+}
+
+/**
+ * Calculate trend line points for correlation visualization
+ */
+export function calculateTrendLine(data: CorrelationData[]): TrendLinePoint[] {
+  if (data.length < 2) return []
+  
+  const n = data.length
+  const sumX = data.reduce((sum, d) => sum + d.x, 0)
+  const sumY = data.reduce((sum, d) => sum + d.y, 0)
+  const sumXY = data.reduce((sum, d) => sum + d.x * d.y, 0)
+  const sumXX = data.reduce((sum, d) => sum + d.x * d.x, 0)
+  
+  const meanX = sumX / n
+  const meanY = sumY / n
+  
+  const denominator = sumXX - n * meanX * meanX
+  if (Math.abs(denominator) < 0.0001) {
+    // All x values are the same, return horizontal line
+    return [
+      { x: data[0].x, y: meanY },
+      { x: data[data.length - 1].x, y: meanY }
+    ]
+  }
+  
+  const slope = (sumXY - n * meanX * meanY) / denominator
+  const intercept = meanY - slope * meanX
+  
+  // Find min and max x values
+  const xValues = data.map(d => d.x)
+  const minX = Math.min(...xValues)
+  const maxX = Math.max(...xValues)
+  
+  // Generate trend line points
+  return [
+    { x: minX, y: slope * minX + intercept },
+    { x: maxX, y: slope * maxX + intercept }
+  ]
 }
 
 /**

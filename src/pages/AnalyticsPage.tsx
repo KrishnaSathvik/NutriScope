@@ -3,11 +3,11 @@ import { useQuery } from '@tanstack/react-query'
 import { format, subDays, subMonths, differenceInDays } from 'date-fns'
 import { getDailyLog } from '@/services/dailyLogs'
 import { useAuth } from '@/contexts/AuthContext'
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, LineChart, AreaChart, Area, ComposedChart, Legend, ScatterChart, Scatter, Cell } from 'recharts'
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, Line, LineChart, AreaChart, Area, ComposedChart, Legend, Scatter, Cell, ReferenceLine } from 'recharts'
 import { Flame, Target, Activity, Droplet, TrendingUp, TrendingDown, Minus, Cookie, Calendar, BarChart3, Scale, TrendingUp as TrendingUpIcon, Lightbulb, Beef } from 'lucide-react'
 import { StatCardSkeleton, ChartSkeleton } from '@/components/LoadingSkeleton'
 import { WeightChart } from '@/components/WeightChart'
-import { getWeightCaloriesCorrelation, getProteinWorkoutsCorrelation, predictWeight } from '@/services/analytics'
+import { getWeightCaloriesCorrelation, getProteinWorkoutsCorrelation, predictWeight, calculateTrendLine, CorrelationData } from '@/services/analytics'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
 type TimeRange = '7d' | '30d' | '3m' | '1y' | 'custom'
@@ -440,7 +440,6 @@ export default function AnalyticsPage() {
                     <stop offset="95%" stopColor="#ff3300" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#222" />
                 <XAxis 
                   dataKey="date" 
                   stroke="#525252" 
@@ -487,6 +486,13 @@ export default function AnalyticsPage() {
                   dot={{ fill: '#00cc66', r: 3 }}
                   name="Net"
                 />
+                <ReferenceLine 
+                  y={calorieTarget} 
+                  stroke="#525252" 
+                  strokeWidth={1}
+                  strokeDasharray="5 5"
+                  label={{ value: "Target", position: "right", fill: "#525252", fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                />
                 <Legend 
                   wrapperStyle={{ fontFamily: 'JetBrains Mono', fontSize: '11px', color: '#525252' }}
                   iconType="line"
@@ -518,7 +524,6 @@ export default function AnalyticsPage() {
                     <stop offset="95%" stopColor="#00cc66" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#222" />
                 <XAxis 
                   dataKey="date" 
                   stroke="#525252" 
@@ -547,14 +552,12 @@ export default function AnalyticsPage() {
                   stroke="#00cc66" 
                   strokeWidth={3}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey={proteinTarget} 
+                <ReferenceLine 
+                  y={proteinTarget} 
                   stroke="#525252" 
                   strokeWidth={1}
                   strokeDasharray="5 5"
-                  dot={false}
-                  name="Target"
+                  label={{ value: "Target", position: "right", fill: "#525252", fontSize: 10, fontFamily: 'JetBrains Mono' }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -584,7 +587,6 @@ export default function AnalyticsPage() {
                     <stop offset="95%" stopColor="#ffaa00" stopOpacity={0.2} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#222" />
                 <XAxis 
                   dataKey="date" 
                   stroke="#525252" 
@@ -653,7 +655,6 @@ export default function AnalyticsPage() {
               </div>
               <ResponsiveContainer width="100%" height={180} className="md:h-[250px]">
                 <LineChart data={logsArray}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#222" />
                   <XAxis 
                     dataKey="date" 
                     stroke="#525252" 
@@ -697,7 +698,6 @@ export default function AnalyticsPage() {
               </div>
               <ResponsiveContainer width="100%" height={180} className="md:h-[250px]">
                 <LineChart data={logsArray}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#222" />
                   <XAxis 
                     dataKey="date" 
                     stroke="#525252" 
@@ -796,43 +796,75 @@ export default function AnalyticsPage() {
                         }`}>
                           {weightCaloriesCorrelation.correlation.toFixed(2)}
                         </span>
+                        {weightCaloriesCorrelation.data.length < 5 && (
+                          <span className="text-[10px] text-dim ml-2">({weightCaloriesCorrelation.data.length} data points - need more for accurate correlation)</span>
+                        )}
                       </div>
                       <div className="text-[10px] md:text-xs text-dim font-mono italic">
                         {weightCaloriesCorrelation.insight}
                       </div>
                     </div>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <ScatterChart data={weightCaloriesCorrelation.data}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                        <XAxis 
-                          dataKey="x" 
-                          name="Calories"
-                          stroke="#525252"
-                          tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-                        />
-                        <YAxis 
-                          dataKey="y" 
-                          name="Weight (kg)"
-                          stroke="#525252"
-                          tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: '#111',
-                            border: '1px solid #222',
-                            borderRadius: '4px',
-                            color: '#e5e5e5',
-                            fontFamily: 'JetBrains Mono',
-                            fontSize: '11px',
-                          }}
-                        />
-                        <Scatter name="Weight vs Calories" dataKey="y" fill="#ffaa00">
-                          {weightCaloriesCorrelation.data.map((_: any, index: number) => (
-                            <Cell key={`cell-${index}`} fill="#ffaa00" />
-                          ))}
-                        </Scatter>
-                      </ScatterChart>
-                    </ResponsiveContainer>
+                    {weightCaloriesCorrelation.data.length < 3 ? (
+                      <div className="text-center py-8 text-dim font-mono text-xs">
+                        <p className="mb-2">Need at least 3 data points to show correlation</p>
+                        <p className="text-[10px]">Log more meals and weight entries to see patterns</p>
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <ComposedChart data={weightCaloriesCorrelation.data}>
+                          <XAxis 
+                            dataKey="x" 
+                            name="Calories"
+                            stroke="#525252"
+                            tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                          />
+                          <YAxis 
+                            dataKey="y" 
+                            name="Weight (kg)"
+                            stroke="#525252"
+                            tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                          />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload[0]) {
+                                const data = payload[0].payload as CorrelationData
+                                return (
+                                  <div className="bg-surface border border-border rounded p-2 text-xs font-mono">
+                                    <p className="text-text">Date: {format(new Date(data.date), 'MMM d')}</p>
+                                    <p className="text-accent">Calories: {data.x.toFixed(0)}</p>
+                                    <p className="text-accent">Weight: {data.y.toFixed(1)} kg</p>
+                                  </div>
+                                )
+                              }
+                              return null
+                            }}
+                          />
+                          {/* Trend line */}
+                          {weightCaloriesCorrelation.data.length >= 3 && (() => {
+                            const trendLine = calculateTrendLine(weightCaloriesCorrelation.data)
+                            return (
+                              <Line
+                                type="linear"
+                                dataKey="y"
+                                data={trendLine}
+                                stroke="#ffaa00"
+                                strokeWidth={2}
+                                strokeDasharray="5 5"
+                                dot={false}
+                                activeDot={false}
+                                isAnimationActive={false}
+                                connectNulls={true}
+                              />
+                            )
+                          })()}
+                          <Scatter name="Weight vs Calories" dataKey="y" fill="#ffaa00">
+                            {weightCaloriesCorrelation.data.map((_: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill="#ffaa00" r={6} />
+                            ))}
+                          </Scatter>
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
                 )}
 
@@ -853,43 +885,75 @@ export default function AnalyticsPage() {
                         }`}>
                           {proteinWorkoutsCorrelation.correlation.toFixed(2)}
                         </span>
+                        {proteinWorkoutsCorrelation.data.length < 5 && (
+                          <span className="text-[10px] text-dim ml-2">({proteinWorkoutsCorrelation.data.length} data points - need more for accurate correlation)</span>
+                        )}
                       </div>
                       <div className="text-[10px] md:text-xs text-dim font-mono italic">
                         {proteinWorkoutsCorrelation.insight}
                       </div>
                     </div>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <ScatterChart data={proteinWorkoutsCorrelation.data}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                        <XAxis 
-                          dataKey="x" 
-                          name="Protein (g)"
-                          stroke="#525252"
-                          tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-                        />
-                        <YAxis 
-                          dataKey="y" 
-                          name="Workouts"
-                          stroke="#525252"
-                          tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: '#111',
-                            border: '1px solid #222',
-                            borderRadius: '4px',
-                            color: '#e5e5e5',
-                            fontFamily: 'JetBrains Mono',
-                            fontSize: '11px',
-                          }}
-                        />
-                        <Scatter name="Protein vs Workouts" dataKey="y" fill="#00ff88">
-                          {proteinWorkoutsCorrelation.data.map((_: any, index: number) => (
-                            <Cell key={`cell-${index}`} fill="#00ff88" />
-                          ))}
-                        </Scatter>
-                      </ScatterChart>
-                    </ResponsiveContainer>
+                    {proteinWorkoutsCorrelation.data.length < 3 ? (
+                      <div className="text-center py-8 text-dim font-mono text-xs">
+                        <p className="mb-2">Need at least 3 data points to show correlation</p>
+                        <p className="text-[10px]">Log more protein intake and workouts to see patterns</p>
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={200}>
+                        <ComposedChart data={proteinWorkoutsCorrelation.data}>
+                          <XAxis 
+                            dataKey="x" 
+                            name="Protein (g)"
+                            stroke="#525252"
+                            tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                          />
+                          <YAxis 
+                            dataKey="y" 
+                            name="Workouts"
+                            stroke="#525252"
+                            tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                          />
+                          <Tooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload[0]) {
+                                const data = payload[0].payload as CorrelationData
+                                return (
+                                  <div className="bg-surface border border-border rounded p-2 text-xs font-mono">
+                                    <p className="text-text">Date: {format(new Date(data.date), 'MMM d')}</p>
+                                    <p className="text-accent">Protein: {data.x.toFixed(0)}g</p>
+                                    <p className="text-accent">Workouts: {data.y}</p>
+                                  </div>
+                                )
+                              }
+                              return null
+                            }}
+                          />
+                          {/* Trend line */}
+                          {proteinWorkoutsCorrelation.data.length >= 3 && (() => {
+                            const trendLine = calculateTrendLine(proteinWorkoutsCorrelation.data)
+                            return (
+                              <Line
+                                type="linear"
+                                dataKey="y"
+                                data={trendLine}
+                                stroke="#00ff88"
+                                strokeWidth={2}
+                                strokeDasharray="5 5"
+                                dot={false}
+                                activeDot={false}
+                                isAnimationActive={false}
+                                connectNulls={true}
+                              />
+                            )
+                          })()}
+                          <Scatter name="Protein vs Workouts" dataKey="y" fill="#00ff88">
+                            {proteinWorkoutsCorrelation.data.map((_: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill="#00ff88" r={6} />
+                            ))}
+                          </Scatter>
+                        </ComposedChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
                 )}
               </div>
