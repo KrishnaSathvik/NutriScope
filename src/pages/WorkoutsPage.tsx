@@ -38,6 +38,10 @@ export default function WorkoutsPage() {
     mutationFn: createExercise,
     onSuccess: async (_, variables) => {
       const workoutDate = variables.date
+      // Close dialog immediately
+      setShowAddForm(false)
+      setEditingExerciseId(null)
+      
       // Invalidate all exercises queries (for any date)
       queryClient.invalidateQueries({ queryKey: ['exercises'] })
       // Invalidate specific date's dailyLog and aiInsights
@@ -52,20 +56,20 @@ export default function WorkoutsPage() {
       queryClient.invalidateQueries({ queryKey: ['weekLogs'] })
       // Update streak when workout is logged
       queryClient.invalidateQueries({ queryKey: ['streak'] })
-      // Check for new achievements
+      
+      // Check for new achievements in the background (don't block dialog closing)
       if (profile) {
-        try {
-          const newAchievements = await checkAndUnlockAchievements({ profile })
-          if (newAchievements.length > 0) {
-            queryClient.invalidateQueries({ queryKey: ['achievements'] })
-            queryClient.invalidateQueries({ queryKey: ['achievementsWithProgress'] })
-          }
-        } catch (error) {
-          console.error('Error checking achievements:', error)
-        }
+        checkAndUnlockAchievements({ profile })
+          .then((newAchievements) => {
+            if (newAchievements.length > 0) {
+              queryClient.invalidateQueries({ queryKey: ['achievements'] })
+              queryClient.invalidateQueries({ queryKey: ['achievementsWithProgress'] })
+            }
+          })
+          .catch((error) => {
+            console.error('Error checking achievements:', error)
+          })
       }
-      setShowAddForm(false)
-      setEditingExerciseId(null)
     },
   })
 

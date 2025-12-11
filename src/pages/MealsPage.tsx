@@ -58,6 +58,10 @@ export default function MealsPage() {
     mutationFn: (mealData: { date: string; name?: string; meal_type: MealType; calories: number; protein: number; carbs?: number; fats?: number; food_items?: any[] }) => createMeal(mealData),
     onSuccess: async (_, variables) => {
       const mealDate = variables.date
+      // Close dialog immediately
+      setShowAddForm(false)
+      setEditingMealId(null)
+      
       // Invalidate all meals queries (for any date)
       queryClient.invalidateQueries({ queryKey: ['meals'] })
       // Invalidate specific date's dailyLog and aiInsights
@@ -72,20 +76,20 @@ export default function MealsPage() {
       queryClient.invalidateQueries({ queryKey: ['weekLogs'] })
       // Update streak when meal is logged
       queryClient.invalidateQueries({ queryKey: ['streak'] })
-      // Check for new achievements
+      
+      // Check for new achievements in the background (don't block dialog closing)
       if (profile) {
-        try {
-          const newAchievements = await checkAndUnlockAchievements({ profile })
-          if (newAchievements.length > 0) {
-            queryClient.invalidateQueries({ queryKey: ['achievements'] })
-            queryClient.invalidateQueries({ queryKey: ['achievementsWithProgress'] })
-          }
-        } catch (error) {
-          console.error('Error checking achievements:', error)
-        }
+        checkAndUnlockAchievements({ profile })
+          .then((newAchievements) => {
+            if (newAchievements.length > 0) {
+              queryClient.invalidateQueries({ queryKey: ['achievements'] })
+              queryClient.invalidateQueries({ queryKey: ['achievementsWithProgress'] })
+            }
+          })
+          .catch((error) => {
+            console.error('Error checking achievements:', error)
+          })
       }
-      setShowAddForm(false)
-      setEditingMealId(null)
     },
   })
 
