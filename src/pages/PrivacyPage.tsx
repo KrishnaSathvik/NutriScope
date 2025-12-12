@@ -45,8 +45,11 @@ export default function PrivacyPage() {
                     </p>
                     <ul className="list-disc list-inside space-y-2 text-base text-dim font-mono ml-4">
                       <li>Account information (email address, password)</li>
-                      <li>Profile information (goals, dietary preferences, activity level)</li>
-                      <li>Health and fitness data (meals, workouts, water intake, nutrition logs)</li>
+                      <li>Profile information (name, age, weight, height, goals, dietary preferences, activity level, personalized targets)</li>
+                      <li>Health and fitness data (meals, workouts, water intake, weight logs, nutrition logs, body composition)</li>
+                      <li>Recipe and planning data (recipes, meal plans, grocery lists)</li>
+                      <li>Achievement and streak data (logging streaks, unlocked achievements, progress tracking)</li>
+                      <li>AI interaction data (chat conversations, voice transcriptions, image uploads)</li>
                       <li>Usage data (how you interact with our services)</li>
                       <li>Device information (browser type, IP address, device identifiers)</li>
                     </ul>

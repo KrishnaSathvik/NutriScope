@@ -133,9 +133,19 @@ function validateRequest(body: any): { valid: boolean; error?: string } {
   }
 
   // Validate message length
+  // Note: Images (especially base64 data URLs) can be large, so we allow larger payloads when images are present
+  const hasImage = body.imageUrl || (Array.isArray(body.messages) && body.messages.some((msg: any) => 
+    Array.isArray(msg.content) && msg.content.some((item: any) => item.type === 'image_url')
+  ))
+  
   const totalLength = JSON.stringify(body.messages).length
-  if (totalLength > 100000) {
-    return { valid: false, error: 'Message payload too large (max 100KB)' }
+  const maxLength = hasImage ? 500000 : 100000 // 500KB for images, 100KB for text only
+  
+  if (totalLength > maxLength) {
+    return { 
+      valid: false, 
+      error: `Message payload too large (max ${hasImage ? '500KB' : '100KB'})` 
+    }
   }
 
   return { valid: true }
@@ -747,13 +757,20 @@ Be conversational, helpful, and always tie your advice back to the user's **curr
     // Prepare messages
     const openaiMessages: any[] = [systemMessage]
     let imageAdded = false
-    for (const msg of messages) {
+    
+    // Process messages and add image to the LAST user message if imageUrl is provided
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i]
+      const isLastMessage = i === messages.length - 1
+      const isLastUserMessage = isLastMessage && msg.role === 'user'
+      
       if (msg.role === 'user') {
         // Check if message already has image content
-        const hasImageInContent = Array.isArray(msg.content) && msg.content.some((item: any) => item.type === 'image_url')
+        const hasImageInContent = Array.isArray(msg.content) && 
+          msg.content.some((item: any) => item.type === 'image_url')
         
-        if (imageContent.length > 0 && !imageAdded && !hasImageInContent) {
-          // Add image to first user message that doesn't already have one
+        // Add image to the LAST user message if imageUrl is provided and not already present
+        if (imageContent.length > 0 && isLastUserMessage && !hasImageInContent && !imageAdded) {
           let textContent = ''
           if (typeof msg.content === 'string') {
             textContent = msg.content
@@ -769,7 +786,6 @@ Be conversational, helpful, and always tie your advice back to the user's **curr
               ...imageContent,
             ],
           })
-          imageContent = [] // Only add image to first user message
           imageAdded = true
         } else {
           // Message already has image or we've already added image

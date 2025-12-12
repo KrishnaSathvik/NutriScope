@@ -16,8 +16,7 @@ export function Footer() {
               </span>
             </Link>
             <p className="mt-4 text-sm text-dim font-mono max-w-sm leading-relaxed">
-              Real-time health tracking for modern lifestyles. Track meals,
-              monitor nutrition, and achieve your fitness goals instantly.
+              AI-powered health tracking platform. Track meals, workouts, water, and weight. Plan meals, manage recipes, and unlock achievements with advanced analytics—all in one place.
             </p>
           </div>
 

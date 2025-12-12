@@ -1,4 +1,4 @@
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import {
@@ -16,6 +16,11 @@ import {
   MessageSquare,
   Flame,
   Beef,
+  Droplet,
+  Scale,
+  Bell,
+  Sparkles,
+  Calendar,
 } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { Footer } from '@/components/Footer'
@@ -25,17 +30,10 @@ export default function LandingPage() {
   const { user, isGuest, loading, signInAnonymously } = useAuth()
   const navigate = useNavigate()
   const [showGuestDialog, setShowGuestDialog] = useState(false)
-  const [hasGuestData, setHasGuestData] = useState(false)
 
   // Check for guest data on mount
   useEffect(() => {
-    if (!user && !isGuest && !loading) {
-      const storedGuestUserId = localStorage.getItem('nutriscope_guest_user_id')
-      const hasGuestDataFlag = localStorage.getItem('nutriscope_has_guest_data')
-      if (storedGuestUserId && hasGuestDataFlag === 'true') {
-        setHasGuestData(true)
-      }
-    }
+    // Guest data check is handled in handleGetStarted
   }, [user, isGuest, loading])
 
   const handleGetStarted = (e: React.MouseEvent) => {
@@ -114,7 +112,7 @@ export default function LandingPage() {
                 </h1>
 
                 <p className="text-base sm:text-lg text-dim font-mono max-w-xl mt-6 leading-relaxed">
-                  Track meals, plan your week, manage recipes, and achieve your fitness goals with AI-powered insights—all in one comprehensive platform.
+                  Track meals, workouts, water, and weight. Plan your week, manage recipes, and achieve your fitness goals with AI-powered insights—all in one comprehensive platform. Try it free with guest mode, no signup required.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-3 items-center mt-8">
@@ -141,7 +139,7 @@ export default function LandingPage() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-text font-mono uppercase">Unified tracking</p>
-                      <p className="text-xs sm:text-sm text-dim font-mono mt-0.5">Meals, workouts, recipes, and planning in one place.</p>
+                      <p className="text-xs sm:text-sm text-dim font-mono mt-0.5">Meals, workouts, water, weight, recipes, and planning in one place.</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
@@ -159,7 +157,7 @@ export default function LandingPage() {
                     </div>
                     <div>
                       <p className="text-sm font-bold text-text font-mono uppercase">AI-powered</p>
-                      <p className="text-xs sm:text-sm text-dim font-mono mt-0.5">Voice, image, and natural language logging.</p>
+                      <p className="text-xs sm:text-sm text-dim font-mono mt-0.5">Voice, image, natural language logging, and daily summaries.</p>
                     </div>
                   </div>
                 </div>
@@ -283,14 +281,32 @@ export default function LandingPage() {
 
                 {/* Card 2 */}
                 <article className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300">
+                  <h3 className="text-xl sm:text-2xl font-bold text-text font-mono uppercase mb-2">Workout Tracking</h3>
+                  <p className="text-sm sm:text-base text-dim font-mono leading-relaxed">
+                    Track workouts with 150+ exercises from our library. METs-based calorie calculations automatically adjust based on your weight and duration. Log cardio, strength, yoga, sports, and more with detailed tracking.
+                  </p>
+                  <div className="mt-6 flex items-center gap-3 text-xs sm:text-sm flex-wrap">
+                    <span className="inline-flex items-center gap-2">
+                      <Dumbbell className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
+                      <span className="font-mono text-dim font-medium">150+ Exercises</span>
+                    </span>
+                    <span className="inline-flex items-center gap-2">
+                      <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
+                    <span className="font-mono text-dim font-medium">METs Calculation</span>
+                  </span>
+                </div>
+              </article>
+
+                {/* Card 3 */}
+                <article className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300">
                   <h3 className="text-xl sm:text-2xl font-bold text-text font-mono uppercase mb-2">Recipe & Meal Planning</h3>
                   <p className="text-sm sm:text-base text-dim font-mono leading-relaxed">
                     Create and manage recipes with automatic nutrition calculation. Plan weekly meals with our calendar view. Generate smart grocery lists from meal plans with automatic ingredient aggregation.
                   </p>
                   <div className="mt-6 flex items-center gap-3 text-xs sm:text-sm flex-wrap">
                     <span className="inline-flex items-center gap-2">
-                      <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
-                      <span className="font-mono text-dim font-medium">Meal Templates</span>
+                      <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
+                      <span className="font-mono text-dim font-medium">Weekly Planning</span>
                     </span>
                     <span className="inline-flex items-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
@@ -299,7 +315,25 @@ export default function LandingPage() {
                 </div>
               </article>
 
-                {/* Card 3 */}
+                {/* Card 4 */}
+                <article className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300">
+                  <h3 className="text-xl sm:text-2xl font-bold text-text font-mono uppercase mb-2">Water & Weight Tracking</h3>
+                  <p className="text-sm sm:text-base text-dim font-mono leading-relaxed">
+                    Monitor daily water intake with quick-add buttons and customizable goals. Track weight with automatic BMI calculation, body composition trends, and progress toward weight goals.
+                  </p>
+                  <div className="mt-6 flex items-center gap-3 text-xs sm:text-sm flex-wrap">
+                    <span className="inline-flex items-center gap-2">
+                      <Droplet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
+                      <span className="font-mono text-dim font-medium">Water Goals</span>
+                    </span>
+                    <span className="inline-flex items-center gap-2">
+                      <Scale className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
+                    <span className="font-mono text-dim font-medium">BMI Tracking</span>
+                  </span>
+                </div>
+              </article>
+
+                {/* Card 5 */}
                 <article className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300">
                   <h3 className="text-xl sm:text-2xl font-bold text-text font-mono uppercase mb-2">Advanced Analytics & Achievements</h3>
                   <p className="text-sm sm:text-base text-dim font-mono leading-relaxed">
@@ -313,6 +347,24 @@ export default function LandingPage() {
                     <span className="inline-flex items-center gap-2">
                       <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
                     <span className="font-mono text-dim font-medium">Achievements</span>
+                  </span>
+                </div>
+              </article>
+
+                {/* Card 6 */}
+                <article className="card-modern relative overflow-hidden group hover:border-acid/50 transition-all duration-300">
+                  <h3 className="text-xl sm:text-2xl font-bold text-text font-mono uppercase mb-2">Smart Reminders & Daily Summaries</h3>
+                  <p className="text-sm sm:text-base text-dim font-mono leading-relaxed">
+                    Get personalized reminders for meals, water, workouts, weight logging, and streaks. Receive AI-generated daily summaries with insights, goal progress, and actionable tips to stay on track.
+                  </p>
+                  <div className="mt-6 flex items-center gap-3 text-xs sm:text-sm flex-wrap">
+                    <span className="inline-flex items-center gap-2">
+                      <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
+                      <span className="font-mono text-dim font-medium">Smart Reminders</span>
+                    </span>
+                    <span className="inline-flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-dim stroke-2" />
+                    <span className="font-mono text-dim font-medium">AI Summaries</span>
                   </span>
                 </div>
               </article>
@@ -348,7 +400,7 @@ export default function LandingPage() {
                     <span className="select-none leading-none text-5xl sm:text-6xl md:text-7xl font-bold text-acid/30 font-mono w-12 sm:w-16 text-center">1</span>
                     <div>
                       <p className="text-2xl sm:text-3xl font-bold text-text font-mono uppercase tracking-tight">Log</p>
-                      <p className="mt-1 text-sm sm:text-base text-dim font-mono leading-relaxed">Track meals with text, voice, photos, or USDA database search. Use templates, edit entries, copy previous days, or plan weekly meals—no spreadsheets.</p>
+                      <p className="mt-1 text-sm sm:text-base text-dim font-mono leading-relaxed">Track meals with text, voice, photos, or USDA database search. Log workouts from 150+ exercises. Monitor water intake and weight with BMI tracking. Use templates, edit entries, copy previous days, or plan weekly meals—no spreadsheets.</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-4 sm:gap-6">
@@ -362,7 +414,7 @@ export default function LandingPage() {
                     <span className="select-none leading-none text-5xl sm:text-6xl md:text-7xl font-bold text-acid/30 font-mono w-12 sm:w-16 text-center">3</span>
                     <div>
                       <p className="text-2xl sm:text-3xl font-bold text-text font-mono uppercase tracking-tight">Analyze</p>
-                      <p className="mt-1 text-sm sm:text-base text-dim font-mono leading-relaxed">Advanced analytics with correlations, predictions, and insights. Unlock achievements and track progress across multiple time ranges.</p>
+                      <p className="mt-1 text-sm sm:text-base text-dim font-mono leading-relaxed">Advanced analytics with correlations, predictions, and insights. Unlock achievements, track streaks, and receive AI-generated daily summaries. Monitor progress across multiple time ranges with detailed charts.</p>
                     </div>
                   </div>
                 </div>

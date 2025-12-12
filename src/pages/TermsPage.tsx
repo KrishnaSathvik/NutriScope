@@ -51,12 +51,16 @@ export default function TermsPage() {
                       NutriScope is an AI-powered health and fitness tracking application that provides:
                     </p>
                     <ul className="list-disc list-inside space-y-2 text-base text-dim font-mono ml-4">
-                      <li>Meal and nutrition logging with AI assistance</li>
-                      <li>Workout tracking with exercise library and METs-based calorie calculation</li>
-                      <li>Water intake and weight tracking</li>
-                      <li>Analytics and data visualization</li>
-                      <li>AI chat assistant with voice and image support</li>
-                      <li>Daily summaries and insights</li>
+                      <li>Meal and nutrition logging with AI assistance (text, voice, photos, USDA database)</li>
+                      <li>Workout tracking with exercise library (150+ exercises) and METs-based calorie calculation</li>
+                      <li>Water intake and weight tracking with BMI calculation</li>
+                      <li>Advanced analytics with correlations, predictions, and data visualization</li>
+                      <li>AI chat assistant with voice transcription and image analysis</li>
+                      <li>Daily summaries with AI-generated insights</li>
+                      <li>Recipe management and meal planning</li>
+                      <li>Smart grocery lists with auto-categorization</li>
+                      <li>Achievement system with streak tracking</li>
+                      <li>Smart reminders for meals, water, workouts, goals, weight, streaks, and daily summaries</li>
                     </ul>
                     <p className="text-base text-dim font-mono leading-relaxed mt-4">
                       Permission is granted to use NutriScope for personal, non-commercial use only. This license does not include modifying, copying, reverse engineering, or using the service for commercial purposes.

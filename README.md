@@ -1,924 +1,216 @@
 # NutriScope - AI-Powered Health & Fitness Tracker
 
-A comprehensive, modern health and fitness tracking application that simplifies nutrition and workout logging through natural conversation, intelligent meal planning, recipe management, and advanced analytics. Built with React, TypeScript, Supabase, and OpenAI.
+A comprehensive, modern health and fitness tracking application that simplifies nutrition and workout logging through natural conversation, intelligent meal planning, recipe management, and advanced analytics.
 
-![NutriScope](https://img.shields.io/badge/version-1.0.0-blue)
+[![Live Demo](https://img.shields.io/badge/demo-live-brightgreen)](https://nutriscope.app)
 ![React](https://img.shields.io/badge/React-18.2.0-61dafb)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.3.2-3178c6)
 ![Supabase](https://img.shields.io/badge/Supabase-2.38.4-3ecf8e)
-![Vite](https://img.shields.io/badge/Vite-5.0.5-646CFF)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-## 🌟 Overview
+## 🌟 Why NutriScope?
 
-NutriScope is a full-featured health and fitness tracking platform that combines AI-powered assistance with comprehensive data tracking, meal planning, recipe management, and advanced analytics. Whether you're tracking meals, planning workouts, managing recipes, or analyzing your progress, NutriScope provides an intuitive, modern interface powered by cutting-edge AI.
+- **AI-Powered Logging** - Log meals and workouts through natural conversation
+- **Comprehensive Tracking** - Calories, macros, workouts, weight, water, and more
+- **Smart Analytics** - Advanced insights with correlations, predictions, and goal tracking
+- **Meal Planning** - Weekly meal planning with recipe integration and grocery list generation
+- **Guest Mode** - Try the full app without signup, migrate data when ready
 
-## ✨ Key Features
+## ✨ Core Features
 
-> **🎉 Recent Updates:** Enhanced AI personalization, performance monitoring, Google Analytics, accessibility improvements, code splitting, and expanded reminder system with weight, streak, and summary reminders!
-
-### 🍽️ **Meal Logging & Nutrition**
-- **Multiple Input Methods:**
-  - Manual entry with full nutrition details (calories, protein, carbs, fats)
-  - **USDA Food Database Search** - Search 300,000+ foods with accurate nutrition data
-  - AI-powered natural language logging via chat
-  - Image recognition for meal logging
-  - Meal templates for quick logging
-  - Copy previous day's meals with one click
-
-- **Meal Types:** Pre Breakfast, Breakfast, Morning Snack, Lunch, Evening Snack, Dinner, Post Dinner (7 meal types total)
-- **Nutrition Tracking:** Calories, protein, carbs, fats (carbs and fats optional)
-- **Edit & Delete:** Full CRUD operations for meal management
-- **Food Database:** Integration with USDA FoodData Central API for accurate nutrition data
-
-### 💪 **Workout Tracking**
-- **Exercise Library:** Browse 150+ exercises with METs values for accurate calorie calculation
-- **Automatic Calorie Calculation:** METs-based formula using user weight and duration
-- **Exercise Types:** Cardio, Strength, Yoga, Sports, Other
-- **Multiple Exercises:** Log multiple exercises per workout session
-- **Detailed Tracking:** Duration, sets, reps, weight, calories burned
-- **AI Logging:** Natural language workout logging via chat
-- **Edit & Delete:** Full workout management capabilities
-
-### 📊 **Dashboard & Daily Overview**
-- **Real-time Progress:**
-  - Daily calorie balance (consumed/burned/net)
-  - Protein intake tracking with progress bars
-  - Water intake progress with goal tracking
-  - Quick weight entry widget
-  - Streak counter (consecutive logging days)
-  - Achievement widget
-  - **Coach Tip Card:** AI-generated personalized insights and recommendations
-
-- **Water Tracking:**
-  - Quick water intake buttons (250ml, 500ml, 750ml, 1000ml)
-  - Custom water amount entry
-  - Progress visualization with goal tracking
-
-- **Quick Entry:**
-  - Weight entry widget from dashboard
-  - Navigate to detailed pages via header navigation
-
-- **Summary Cards:**
-  - Calorie balance breakdown
-  - Protein intake tracking with progress
-  - Macro distribution
-  - Activity summary
-  - **Coach Tip Card:** AI-generated personalized insights and recommendations
-
-### 🔔 **Smart Reminder System**
-- **Meal Reminders:**
-  - Breakfast, lunch, dinner notifications
-  - Morning and evening snack reminders
-  - Customizable meal times
-
-- **Water Reminders:**
-  - Recurring hydration reminders
-  - Customizable intervals (default: hourly)
-  - Start/end time configuration
-
-- **Workout Reminders:**
-  - Weekly workout schedule
-  - Customizable days and times
-  - Motivational notifications
-
-- **Goal Progress Reminders:**
-  - Daily progress check-ins
-  - Encouragement when close to goals
-  - Personalized goal tracking
-
-- **Weight Logging Reminders** ⭐ NEW
-  - Daily or custom schedule
-  - Consistent weight tracking
-  - Progress monitoring
-
-- **Streak Reminders** ⭐ NEW
-  - Maintain your logging streak
-  - Prevents streak breaks
-  - Motivational notifications
-
-- **Daily Summary Reminders** ⭐ NEW
-  - End-of-day summary notifications
-  - Review daily progress
-  - AI insights and recommendations
-
-### ⚡ **Performance & Monitoring** ⭐ NEW
-- **Performance Monitoring:**
-  - Web Vitals tracking (LCP, FID, CLS, FCP, TTFB)
-  - Page load time tracking
-  - API response time monitoring
-  - Route change performance
-  - Automatic slow API detection (>2s warnings)
-  - Development console logging
-  - **Sentry Integration (Optional):** Production error tracking - requires `VITE_SENTRY_DSN` environment variable. If not configured, app continues without error tracking.
-
-- **Google Analytics Integration:**
-  - Automatic page view tracking
-  - Custom event tracking
-  - User engagement metrics
-  - Pre-built tracking functions for:
-    - Meal logging
-    - Workout logging
-    - AI chat interactions
-    - Recipe saves
-    - Weight logging
-    - Water intake
-    - User sign ups and logins
-
-- **Code Splitting:**
-  - Route-based lazy loading
-  - Reduced initial bundle size (~50% reduction)
-  - Faster page loads
-  - Suspense boundaries for smooth loading
-
-### ♿ **Accessibility** ⭐ ENHANCED
-- **ARIA Labels:**
-  - All interactive elements labeled
-  - Screen reader support
-  - Navigation landmarks
-  - Form accessibility
-
-- **Skip Navigation:**
-  - Keyboard-accessible skip link
-  - Faster navigation for keyboard users
-  - WCAG 2.1 AA compliant
-
-- **Keyboard Navigation:**
-  - Full keyboard support
-  - Visible focus indicators
-  - Logical tab order
-
-- **Semantic HTML:**
-  - Proper heading hierarchy
-  - Landmark elements (nav, main, header)
-  - Screen reader friendly
-
-### 📈 **Advanced Analytics**
-- **Multiple Time Ranges:**
-  - 7 days, 30 days, 3 months, 1 year
-  - Custom date range picker
-
-- **Comprehensive Charts:**
-  - Calorie balance trends (line charts showing consumed vs burned over time)
-  - Protein intake trends (line charts)
-  - Macronutrients breakdown (stacked area charts for calories, protein, carbs, fats)
-  - Weight trends with BMI tracking (line charts with goal lines)
-  - Water intake statistics
-  - Workout frequency and calories burned
-
-- **Advanced Analytics:**
-  - **Correlation Analysis:**
-    - Weight vs Calories correlation
-    - Protein vs Workouts correlation
-    - Scatter charts with correlation coefficients
-    - AI-generated insights
-
-  - **Predictions:**
-    - Weight prediction based on trends
-    - Days to goal calculation
-    - Trend analysis (increasing/decreasing/stable)
-
-- **Summary Statistics:**
-  - Average calories consumed/burned
-  - Total workouts and calories burned
-  - Average protein intake
-  - Water intake averages
-  - Trend indicators (up/down arrows)
-
-- **Data Persistence:**
-  - Cache configuration for data persistence
-  - Real-time data updates
-  - Automatic refetching when returning to page
-
-### 🏆 **Achievements System**
-- **Achievement Types:**
-  - **Streak Achievements:** 7 days, 30 days, 100 days
-  - **Goal Achievements:** Calorie goal (5 days), Protein goal (7 days)
-  - **Milestone Achievements:** First meal, First workout, 10 meals, 10 workouts, 30 days logged
-  - **Special Achievements:** Perfect week (meals + workouts every day)
-
-- **Features:**
-  - Progress tracking for each achievement
-  - Achievement badges with icons
-  - Achievement widget on dashboard
-  - Dedicated achievements page
-  - Unlock notifications
-
-### 📝 **Recipe Management**
-- **Simplified Recipe Structure:**
-  - Recipe name, description, servings
-  - Single text field for instructions (step-by-step or paragraphs)
-  - Nutrition per serving (calories, protein, carbs, fats)
-  - Prep time and cook time (optional)
-  - Recipe images (optional)
-  - Tags (optional)
-  - Favorite recipes
-
-- **Recipe Features:**
-  - **Manual Nutrition Entry:** Enter nutrition values directly per serving
-  - **Recipe Browser:** Browse all your recipes
-  - **Save as Meal Template:** Convert recipes to reusable meal templates
-  - **Quick Add:** Add recipes directly to meal plans
-  - **Edit & Delete:** Full recipe management
-  - **Recipe Detail View:** Full-screen responsive dialog with all recipe information
-  - **Favorite Recipes:** Star recipes for quick access
-  - **Nutrition Per Serving:** Display nutrition values per serving (not scaling)
-
-### 📅 **Meal Planning**
-- **Weekly Calendar View:**
-  - Plan meals for entire week (Monday-Sunday)
-  - Multiple meal types per day
-  - Week navigation (previous/next week)
-  - Visual meal planning interface
-
-- **Planning Options:**
-  - Add recipes from your recipe collection
-  - Add custom meals with nutrition data
-  - Remove planned meals
-  - View planned meals by day and meal type
-
-- **Integration:**
-  - Generate grocery lists from meal plans
-  - Link recipes to planned meals
-  - Track planned vs actual meals
-
-### 🛒 **Grocery Lists**
-- **Simplified Real-World Format:**
-  - Single default grocery list
-  - Simple format: item name and quantity (e.g., "2x Eggs")
-  - No complex units - just quantity and name
-  - Auto-categorization (produce, meat, dairy, pantry, beverages, frozen, other)
-
-- **Smart Search & Autocomplete:**
-  - **Search Box:** Type to search and add items instantly
-  - **Database-Backed:** Search from database of common grocery items
-  - **Autocomplete Suggestions:** See suggestions as you type
-  - **Keyboard Navigation:** Arrow keys to navigate, Enter to add
-  - **Auto-Add on Enter:** Press Enter/Return to add item to list
-  - **Popularity Tracking:** Most searched items appear first
-
-- **List Management:**
-  - Auto-generate from meal plans (optional)
-  - Add items via search or manual entry
-  - Check off items as you shop
-  - Delete items with trash icon
-  - Items grouped by category automatically
-
-### 💬 **AI Chat Assistant** ⭐ ENHANCED
-- **Natural Language Interface:**
-  - Conversational meal/workout logging
-  - Nutrition and fitness questions
-  - Personalized insights and recommendations
-  - Context-aware responses
-
-- **Multi-Modal Input:**
-  - **Voice Input:** Record audio and transcribe with OpenAI Whisper
-  - **Image Upload:** Upload meal photos for AI analysis (OpenAI Vision)
-  - **Text Chat:** Traditional text-based conversation
-
-- **Advanced Features:**
-  - **Action Execution:** AI automatically logs meals/workouts/water based on conversation
-  - **Conversation Persistence:** Save chat history to database
-  - **Chat History:** View and resume previous conversations
-  - **Enhanced Context:** AI has access to daily log, profile, and goals
-  - **Typing Animations:** Smooth message animations
-  - **Streaming Responses:** Real-time AI response streaming
-
-- **Deep Personalization** ⭐ NEW
-  - Uses user's name, age, weight, height, and activity level
-  - Considers dietary preferences and restrictions
-  - References personalized calorie, protein, and water targets
-  - Tracks daily progress and provides context-aware advice
-  - Understands user goals (lose weight, gain muscle, maintain, improve fitness)
-  - Provides goal-specific meal and workout recommendations
-  - Offers encouragement based on progress
-  - Adapts advice to user's current daily intake
-
-### ⚖️ **Weight Tracking**
-- **Daily Weight Logging:**
-  - Quick entry from dashboard
-  - Body composition tracking (body fat %, muscle mass)
-  - Notes and observations
-  - Historical weight data
-
-- **BMI Calculation:**
-  - Automatic BMI calculation from weight and height
-  - BMI category (underweight, normal, overweight, obese)
-  - Visual BMI indicators
-
-- **Weight Trends:**
-  - Weight trend charts with goal lines
-  - Weight change tracking
-  - Average, min, max statistics
-  - Integration with analytics page
-
-### 💧 **Water Intake Tracking**
-- **Daily Hydration:**
-  - Cumulative water tracking
-  - Quick-add buttons (250ml, 500ml, 750ml, 1000ml)
-  - Custom amount entry
-  - Daily goal tracking (default 2000ml)
-  - Progress visualization
-
-- **Integration:**
-  - Water intake included in daily summaries
-  - Analytics tracking
-  - Goal reminders
-
-### 🔥 **Streak Tracking**
-- **Logging Streaks:**
-  - Current streak counter
-  - Longest streak record
-  - Streak widget on dashboard
-  - Visual streak indicators
-  - Streak achievements
-
-### 📅 **History & Summaries**
-- **Calendar View:**
-  - Visual activity indicators (meals, workouts, water)
-  - Week navigation
-  - Date selection
-  - Quick access to daily summaries
-
-- **Daily Summary Page:**
-  - Comprehensive daily breakdown
-  - **AI-Generated Insights:** Personalized recommendations and observations
-  - Key metrics grid
-  - Nutrition breakdown
-  - Calorie balance visualization
-  - Meal and workout lists
-  - Cached insights (prevents unnecessary API calls)
-
-### 👤 **User Management**
-- **Guest Mode:**
-  - Try the app without creating an account
-  - Anonymous authentication via Supabase
-  - Full functionality without signup
-  - **Complete Data Migration:** All data migrates when converting to account:
-    - User profiles
-    - Meals and workouts
-    - Daily logs
-    - Weight logs
-    - Recipes
-    - Meal plans
-    - Grocery lists
-    - Achievements
-    - Chat conversations
-    - Meal templates
-
-- **Onboarding Dialog (Personalization Setup):**
-  - **3-step wizard:** Basic Info → Goals → Targets
-  - **Step 1:** Name, Age, Weight, Height (all optional except name)
-  - **Step 2:** Goal selection (4 options with colored icons: lose weight, gain muscle, maintain, improve fitness)
-  - **Step 2:** Dietary preference selection (vegetarian, non-vegetarian, vegan, flexitarian)
-  - **Step 2:** Activity level selection (sedentary, light, moderate, active, very active)
-  - **Step 3:** Personalized target calculations based on user profile
-  - **Step 3:** Personalized explanation display for calculated targets
-  - **Step 3:** Editable target fields (calories, protein, water)
-  - Progress bar with step indicators
-  - Real-time validation
-  - Prevents closing during setup
-
-- **Password Strength Meter (Auth Page):**
-  - Real-time password strength assessment
-  - Visual strength bar (Weak/Fair/Good/Strong)
-  - Criteria checklist (8+ chars, uppercase, lowercase, number, special char)
-  - Security tips
-  - Prevents signup with weak passwords
-
-- **Profile Management:**
-  - Edit personal information
-  - Update goals and targets
-  - Configure reminder settings
-  - View achievements
-  - Account settings
-
-### 🔔 **Notifications & Reminders**
-- **Browser Notifications:**
-  - Meal reminders (breakfast, lunch, dinner, snacks)
-  - Water intake reminders (configurable intervals)
-  - Workout reminders (scheduled days and times)
-  - Goal progress reminders
-  - Customizable schedules
-
-- **Permission Management:**
-  - Notification permission dialog after onboarding
-  - Enable/disable in profile settings
-  - Per-reminder type configuration
-
-### 📱 **Progressive Web App (PWA)**
-- **Installable:**
-  - Add to home screen
-  - App shortcuts
-  - Install prompt
-  - Offline support (service worker)
-
-- **Mobile Optimized:**
-  - Full-screen mobile experience
-  - Touch-friendly interfaces
-  - Mobile-first responsive design
-  - Optimized navigation (bottom nav on mobile, header on desktop)
-  - Pull-to-refresh functionality
-
-### 🎨 **Modern UI/UX**
-- **Design System:**
-  - Dark theme with acid green accents
-  - Consistent typography (Inter, Space Grotesk, JetBrains Mono)
-  - Card-based layouts
-  - Smooth animations and transitions
-  - Loading skeletons (replaces spinners)
-  - Improved empty states with helpful messages
-
-- **Responsive Design:**
-  - Mobile-first approach
-  - Desktop and tablet optimized
-  - Touch-friendly targets
-  - Adaptive layouts
-
-- **Accessibility** ⭐ ENHANCED
-  - **ARIA Labels:** All interactive elements labeled for screen readers
-  - **Skip Navigation:** Keyboard-accessible skip link to main content
-  - **Semantic HTML:** Proper heading hierarchy and landmark elements
-  - **Keyboard Navigation:** Full keyboard support with visible focus indicators
-  - **Screen Reader Support:** WCAG 2.1 AA compliant
-  - Radix UI components (accessible primitives)
-  - Focus management
+- **🍽️ Meal Logging** - Manual entry, USDA FoodData Central search (300K+ foods), AI chat, image recognition
+- **💪 Workout Tracking** - 150+ exercises with METs-based calorie calculation
+- **📊 Advanced Analytics** - Goal achievement rates, weekly patterns, weight trends with BMI, correlation insights
+- **📅 History** - Calendar view of past activity with weekly overview
+- **📋 Daily Summary** - AI-generated daily summaries with insights, goal tracking, and tips
+- **💬 AI Chat Assistant** - Voice input (Whisper transcription), image upload, natural language logging, personalized coaching
+- **🔔 Smart Reminders** - Meal, water, workout, weight, streak, and daily summary reminders
+- **📝 Recipe Management** - Create, save, and plan meals with nutrition tracking
+- **📅 Meal Planning** - Weekly calendar view with grocery list generation
+- **🛒 Grocery Lists** - Smart search, auto-categorization, meal plan integration
+- **🏆 Achievements** - Streak, goal, milestone, and special achievements
+- **📱 PWA** - Installable, offline support, mobile-optimized
+- **🎯 Personalized Targets** - BMR/TDEE calculations based on profile (age, weight, height, activity level, goals)
+- **📈 Streak Tracking** - Daily logging streaks with visual indicators
+- **🌓 Theme Support** - Dark, light, and system theme modes
+- **📋 Onboarding** - 3-step guided setup (Basic Info → Goals → Personalized Targets)
+- **💧 Water Tracking** - Daily water intake logging with quick-add buttons
+- **⚖️ Weight Tracking** - BMI calculation, weight trends, and body composition tracking
+- **📊 Daily Summary** - AI-generated daily summaries with insights and tips
+- **🔄 Real-time Updates** - Live data synchronization across devices
+- **♿ Accessibility** - ARIA labels, keyboard navigation, skip links
 
 ## 🛠️ Tech Stack
 
 ### Frontend
-- **React 18** - Modern UI library with hooks
-- **TypeScript 5.3** - Type-safe development
-- **Vite 5** - Fast build tool and dev server
-- **React Router DOM 6** - Client-side routing
-- **TanStack React Query 5** - Powerful data fetching and caching
-  - Query persistence to localStorage
-  - Optimistic updates
-  - Automatic refetching
-- **Tailwind CSS 3** - Utility-first CSS framework
-- **Radix UI** - Accessible component primitives
-  - Dialog, Select, Progress, Tabs, Toast, Dropdown Menu
-- **Recharts 2** - Chart library (Bar, Line, Area, Scatter charts)
-- **D3.js 7** - Data visualization utilities
-- **date-fns 2** - Date manipulation and formatting
-- **lucide-react** - Modern icon library
-- **react-hook-form 7** - Form handling with validation
-- **zod 3** - Schema validation
+- **React 18** + **TypeScript 5.3** + **Vite 5**
+- **TanStack React Query 5** - Data fetching and caching
+- **Tailwind CSS 3** - Utility-first styling
+- **Radix UI** - Accessible components
+- **Recharts 2** + **D3.js 7** - Data visualization and advanced charts
 
 ### Backend
-- **Supabase** - Backend-as-a-Service
-  - **PostgreSQL Database** - Relational database
-  - **Row Level Security (RLS)** - Data security policies
-  - **Authentication:**
-    - Email/Password authentication
-    - Anonymous authentication (guest mode)
-  - **Storage** - Image uploads (chat images, recipe images)
-  - **Real-time Subscriptions** - Live data updates
+- **Supabase** - PostgreSQL database, authentication, storage, real-time
+- **Row Level Security (RLS)** - Data isolation and security
 
 ### AI Services
-- **OpenAI API**
-  - **GPT-4o-mini** - Conversational AI (primary)
-  - **GPT-4o** - Enhanced AI features
-  - **Whisper** - Voice transcription
-  - **Vision** - Image analysis and meal recognition
+- **OpenAI API** - GPT-4o-mini (chat), Whisper (voice transcription), Vision (images)
 
 ### External APIs
-- **USDA FoodData Central API** - Food database search (300,000+ foods)
-  - Requires API key (free): https://fdc.nal.usda.gov/api-key-sign-up.html
+- **USDA FoodData Central API** - Food database search
 
-### Monitoring & Analytics ⭐ NEW
-- **Performance Monitoring:**
-  - Web Vitals tracking (LCP, FID, CLS, FCP, TTFB)
-  - Page load time tracking
-  - API response time monitoring
-  - Route change performance
-  - Automatic slow API detection (>2s warnings)
-  - Development console logging
-  - **Sentry Error Tracking (Optional):** Requires `VITE_SENTRY_DSN` environment variable. Code is integrated but inactive without DSN configuration.
+### Additional Features
+- **Code Splitting** - React.lazy for optimized bundle sizes
+- **Performance Monitoring** - Built-in performance tracking and analytics
+- **Error Tracking** - Sentry integration for production error monitoring
+- **Analytics** - Google Analytics integration for usage insights
+- **Real-time Subscriptions** - Supabase real-time for live data updates
 
-- **Google Analytics (Optional):**
-  - Automatic page view tracking
-  - Custom event tracking (meals, workouts, AI chat, recipes, etc.)
-  - User engagement metrics
-  - Pre-built tracking functions for all major user actions
-  - Requires `VITE_GA_MEASUREMENT_ID` environment variable
+## 🚀 Quick Start
 
-### Performance Optimization ⭐ NEW
-- **Code Splitting:**
-  - Route-based lazy loading with React.lazy()
-  - Reduced initial bundle size (~50% reduction)
-  - Faster page loads
-  - Suspense boundaries for smooth loading
-  - Dynamic imports for page components
+### Prerequisites
+- Node.js 18+ and npm/pnpm
+- Supabase account (for production)
+- OpenAI API key (for AI features)
+- USDA API key (optional, for food search)
 
-## 📋 Prerequisites
+### Local Development
 
-- **Node.js** 18+ and npm/pnpm
-- **Supabase** account and project (for production)
-- **OpenAI API** key (for AI features)
-- **USDA API** key (optional, for food database search)
-
-## 🚀 Getting Started
-
-### Installation
-
-1. **Clone the repository:**
+1. **Clone and install:**
 ```bash
 git clone <repository-url>
 cd nutriscope-web
-```
-
-2. **Install dependencies:**
-```bash
-npm install
-# or
 pnpm install
 ```
 
-3. **Set up environment variables:**
+2. **Set up environment variables:**
 
-Create a `.env` file in the root directory:
-
+Create `.env` file:
 ```env
-# Supabase Configuration
+# Supabase (required)
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
-# OpenAI API (for AI features)
+# OpenAI (required for AI features)
 VITE_OPENAI_API_KEY=your_openai_api_key
 
-# USDA Food Database API (optional, for food search)
+# USDA Food Database (optional)
 VITE_USDA_API_KEY=your_usda_api_key
 
-# App Environment
+# App Configuration
 VITE_APP_ENV=development
-
-# Backend API Proxy (optional, for production)
 VITE_API_URL=/api/chat
 VITE_USE_BACKEND_PROXY=true
 
-# Optional: Monitoring & Analytics
-VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX  # Google Analytics (optional)
-VITE_SENTRY_DSN=your_sentry_dsn        # Error tracking (optional)
+# Optional: Monitoring
+VITE_GA_MEASUREMENT_ID=G-XXXXXXXXXX  # Google Analytics
+VITE_SENTRY_DSN=your_sentry_dsn        # Error tracking
 ```
 
-**Note:** The app can run in **Guest Mode** without Supabase configured. Guest mode uses Supabase Anonymous Authentication. To enable cloud sync and user accounts, configure Supabase credentials.
+⚠️ **Security Note:** Never ship `VITE_OPENAI_API_KEY` to production clients. Use the serverless proxy (`/api/chat`, `/api/transcribe`) on Vercel to keep API keys server-side.
 
-### Database Setup
-
-1. **Run the SQL schema:**
-
-Open Supabase Dashboard → SQL Editor and run the following files in order:
-
-- `supabase_schema.sql` - Main database schema
-- `exercise_library_schema.sql` - Exercise library table
-- `exercise_library_data.sql` - Exercise data (150+ exercises)
-- `weight_tracking_schema.sql` - Weight tracking tables
-- `achievements_recipes_schema.sql` - Recipes, meal plans, grocery lists, achievements
-
-2. **Enable Row Level Security:**
-
-Run `rls_policies_verification.sql` to:
-- Enable RLS on all tables
-- Create security policies
-- Verify policy configuration
-
-3. **Enable Supabase features:**
-   - Enable Anonymous Authentication in Supabase Dashboard
-   - Configure Storage bucket for chat images (`chat-images`)
-   - Set up Storage bucket for recipe images (optional)
-
-### Development
-
+3. **Run development server:**
 ```bash
-# Start development server
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-
-# Lint code
-npm run lint
-
-# Generate PWA icons
-npm run generate-icons
+pnpm dev
 ```
 
-The app will be available at `http://localhost:5173` (development)
+App runs at `http://localhost:5173`
 
 **Production:** https://nutriscope.app
+
+## 🗄️ Supabase Setup
+
+### Database Schema
+
+Run these SQL files in Supabase Dashboard → SQL Editor (in order):
+
+1. `supabase_schema.sql` - Main database schema
+2. `exercise_library_schema.sql` - Exercise library table
+3. `exercise_library_data.sql` - Exercise data (150+ exercises)
+4. `weight_tracking_schema.sql` - Weight tracking tables
+5. `achievements_recipes_schema.sql` - Recipes, meal plans, grocery lists, achievements
+6. `rls_policies_verification.sql` - Enable RLS and create security policies
+
+### Enable Features
+
+- **Anonymous Authentication** - Enable in Supabase Dashboard → Authentication
+- **Storage Buckets** - Create `chat-images` bucket (and optionally `recipe-images`)
+
+### Guest Mode
+
+**Guest Mode (No Signup):** Guest users can use the full app without creating an account, backed by Supabase Anonymous Auth. Supabase must still be configured for guest mode to work. All guest data can be migrated when converting to an account.
+
+### Onboarding Flow
+
+New users go through a 3-step onboarding process:
+
+1. **Basic Info** - Name, age, weight, height (optional except name)
+2. **Goals** - Select fitness goal (lose weight, gain muscle, maintain, improve fitness), dietary preference, and activity level
+3. **Personalized Targets** - Review and edit calculated calorie, protein, and water targets based on BMR/TDEE calculations
+
+The onboarding dialog appears automatically for new users and can be reset via the database `onboarding_completed` flag.
 
 ## 📁 Project Structure
 
 ```
 nutriscope-web/
 ├── src/
-│   ├── components/              # Reusable UI components
-│   │   ├── ui/                  # Radix UI components
-│   │   │   ├── dialog.tsx
-│   │   │   ├── select.tsx
-│   │   │   ├── progress.tsx
-│   │   │   ├── tabs.tsx
-│   │   │   ├── toaster.tsx
-│   │   │   └── ...
-│   │   ├── AchievementBadge.tsx
-│   │   ├── AchievementWidget.tsx
-│   │   ├── ErrorBoundary.tsx
-│   │   ├── ExerciseSelector.tsx
-│   │   ├── FoodSearch.tsx
-│   │   ├── Footer.tsx
-│   │   ├── Header.tsx
-│   │   ├── InstallPrompt.tsx
-│   │   ├── Layout.tsx
-│   │   ├── LoadingSkeleton.tsx
-│   │   ├── Logo.tsx
-│   │   ├── NotificationPermissionDialog.tsx
-│   │   ├── OnboardingDialog.tsx
-│   │   ├── ProtectedRoute.tsx
-│   │   ├── PullToRefresh.tsx
-│   │   ├── QuickWeightEntry.tsx
-│   │   ├── ReminderScheduler.tsx
-│   │   ├── ReminderSettings.tsx
-│   │   ├── ScrollToTop.tsx
-│   │   ├── StreakWidget.tsx
-│   │   └── WeightChart.tsx
-│   ├── contexts/                # React contexts
-│   │   └── AuthContext.tsx      # Authentication and user state
-│   ├── lib/                     # Third-party library configs
-│   │   ├── supabase.ts          # Supabase client
-│   │   ├── openai.ts            # OpenAI client
-│   │   ├── errors.ts            # Error handling utilities
-│   │   └── sentry.ts            # Error tracking (optional)
-│   ├── pages/                   # Page components
-│   │   ├── AboutPage.tsx
-│   │   ├── AchievementsPage.tsx
-│   │   ├── AnalyticsPage.tsx
-│   │   ├── AuthPage.tsx
-│   │   ├── ChatPage.tsx
-│   │   ├── CookiePolicyPage.tsx
-│   │   ├── Dashboard.tsx
-│   │   ├── DocumentationPage.tsx
-│   │   ├── GroceryListPage.tsx
-│   │   ├── HelpPage.tsx
-│   │   ├── HistoryPage.tsx
-│   │   ├── LandingPage.tsx
-│   │   ├── MealPlanningPage.tsx
-│   │   ├── MealsPage.tsx
-│   │   ├── PrivacyPage.tsx
-│   │   ├── ProductPage.tsx
-│   │   ├── ProfilePage.tsx
-│   │   ├── RecipesPage.tsx
-│   │   ├── SummaryPage.tsx
-│   │   ├── TermsPage.tsx
-│   │   └── WorkoutsPage.tsx
-│   ├── services/                # API service functions
-│   │   ├── achievements.ts      # Achievement system
-│   │   ├── aiChat.ts            # AI chat service
-│   │   ├── aiInsights.ts        # AI insights generation
-│   │   ├── analytics.ts         # Advanced analytics (correlations, predictions)
-│   │   ├── audio.ts             # Voice transcription (Whisper)
-│   │   ├── chat.ts              # Chat conversation persistence
-│   │   ├── dailyLogs.ts         # Daily summary aggregation
-│   │   ├── dailySummary.ts      # Daily summary service
-│   │   ├── exerciseLibrary.ts   # Exercise library with METs
-│   │   ├── foodDatabase.ts     # USDA Food Database API
-│   │   ├── groceryLists.ts      # Grocery list management
-│   │   ├── imageUpload.ts       # Image upload to Supabase
-│   │   ├── mealPlanning.ts     # Meal planning service
-│   │   ├── mealTemplates.ts     # Meal template management
-│   │   ├── meals.ts             # Meal CRUD operations
-│   │   ├── migrateGuestData.ts # Guest to account migration
-│   │   ├── notifications.ts    # Browser notifications
-│   │   ├── recipes.ts           # Recipe management
-│   │   ├── streak.ts            # Streak calculation
-│   │   ├── water.ts             # Water intake operations
-│   │   ├── weightTracking.ts   # Weight logging
-│   │   └── workouts.ts         # Workout CRUD operations
-│   ├── types/                   # TypeScript type definitions
-│   │   └── index.ts             # All type definitions
-│   ├── utils/                   # Utility functions
-│   ├── App.tsx                  # Main app component with routing
-│   ├── main.tsx                 # Entry point with React Query setup
-│   └── index.css                # Global styles and Tailwind
-├── public/                      # Static assets
-│   ├── favicon.ico
-│   ├── manifest.json            # PWA manifest
-│   └── service-worker.js        # Service worker for PWA
-├── api/                         # Backend API routes (Vercel serverless)
-│   └── chat.ts                  # OpenAI API proxy
-├── .env.example                 # Environment variables template
-├── package.json                 # Dependencies and scripts
-├── tsconfig.json                # TypeScript configuration
-├── tailwind.config.js           # Tailwind CSS configuration
-├── vite.config.ts               # Vite configuration
-├── vercel.json                  # Vercel deployment configuration
-├── supabase_schema.sql          # Main database schema
-├── exercise_library_schema.sql  # Exercise library schema
-├── exercise_library_data.sql    # Exercise data
-├── weight_tracking_schema.sql   # Weight tracking schema
-├── achievements_recipes_schema.sql # Recipes, meal plans, grocery lists, achievements
-├── rls_policies_verification.sql # RLS policies setup
-├── rls_policies_cleanup.sql     # RLS policies cleanup
-└── README.md                    # This file
+│   ├── components/          # Reusable UI components
+│   │   ├── ui/              # Radix UI primitives
+│   │   └── ...              # Feature components
+│   ├── pages/               # Page components
+│   ├── services/            # API service functions
+│   ├── contexts/            # React contexts (Auth)
+│   ├── lib/                 # Third-party configs
+│   ├── types/               # TypeScript definitions
+│   └── utils/               # Utility functions
+├── api/                     # Vercel serverless functions
+│   ├── chat.ts              # OpenAI API proxy (GPT-4o-mini)
+│   └── transcribe.ts        # Whisper API proxy (voice transcription)
+├── public/                  # Static assets & PWA files
+├── supabase_schema.sql      # Main database schema
+└── migrations/              # Database migration files
 ```
 
-## 🗄️ Database Schema
+## 🔐 Security
 
-The application uses Supabase (PostgreSQL) with the following tables:
-
-### Core Tables
-- **user_profiles** - User information, goals, preferences, reminder settings
-- **meals** - Meal logs with nutrition data
-- **exercises** - Exercise/workout logs
-- **daily_logs** - Aggregated daily summaries (water intake, totals)
-- **weight_logs** - Weight and body composition tracking
-- **meal_templates** - Saved meal templates for quick logging
-
-### Advanced Features
-- **recipes** - User recipes with name, servings, instructions (text), and nutrition per serving
-- **meal_plans** - Weekly meal planning data
-- **grocery_lists** - Shopping lists generated from meal plans
-- **achievements** - User achievement records
-- **chat_conversations** - AI chat conversation history
-
-### Reference Data
-- **exercise_library** - Exercise database with METs values (150+ exercises)
-
-### Storage Buckets
-- **chat-images** - Images uploaded in chat conversations
-- **recipe-images** - Recipe images (optional)
-
-### Security
-All tables have **Row Level Security (RLS)** enabled with policies ensuring:
+### Database Security
+- **Row Level Security (RLS)** enabled on all tables
 - Users can only access their own data (`auth.uid() = user_id`)
-- Anonymous users can access their own data
+- Anonymous users have isolated data
 - Exercise library is publicly readable (reference data)
 
-See SQL schema files for complete table definitions, indexes, triggers, and RLS policies.
+### API Security
+- **Backend Proxy** - Use `/api/chat` and `/api/transcribe` serverless functions for OpenAI API calls
+- **Environment Variables** - Never expose API keys in client code
+- **Rate Limiting** - Implemented in backend proxy (optional)
 
-## 🔐 Authentication
+### Authentication
+- Email/Password authentication
+- Anonymous authentication (guest mode)
+- Secure session management via Supabase
 
-The app supports two authentication modes:
-
-1. **Email/Password Authentication** - Traditional signup/login
-2. **Anonymous Authentication** - Guest mode using Supabase Anonymous Auth
-
-### Guest Mode Features
-- Full app functionality without signup
-- Data persisted in Supabase
-- **Complete Data Migration** when converting to account:
-  - User profiles
-  - Meals and workouts
-  - Daily logs
-  - Weight logs
-  - Recipes
-  - Meal plans
-  - Grocery lists
-  - Achievements
-  - Chat conversations
-  - Meal templates
-
-## 🎨 Design System
-
-The application uses a custom dark theme design system:
-
-### Colors
-- **Obsidian** (`#0A0A0A`) - Background
-- **Charcoal** (`#1A1A1A`) - Surface
-- **Concrete** (`#2A2A2A`) - Panels
-- **Acid Green** (`#00FF41`) - Primary accent
-- **Success** - Green for positive indicators
-- **Error** - Red for errors/warnings
-- **Dim** - Gray for secondary text
-
-### Typography
-- **Inter** - Body text
-- **Space Grotesk** - Headings
-- **JetBrains Mono** - Monospace (labels, code)
-
-### Components
-- Card-based layouts with consistent spacing
-- Smooth transitions and animations
-- Loading skeletons (replaces spinners)
-- Improved empty states with helpful messages
-- Consistent button styles and form inputs
-
-## 📱 Features Breakdown
-
-### Meal Logging
-- Manual entry with all nutrition fields
-- **USDA Food Database Search** - Search 300,000+ foods
-- Meal templates for quick logging
-- Copy previous day's meals
-- Edit and delete functionality
-- Multiple meal types with icons
-- Optional carbs and fats fields
-- AI-powered natural language logging
-- Image recognition for meals
-
-### Workout Tracking
-- Manual workout entry
-- **Exercise Library** with 150+ exercises
-- **METs-based Calorie Calculation** - Accurate calorie burn calculation
-- Automatic calorie calculation based on user weight
-- Edit and delete functionality
-- Workout type categorization
-- Multiple exercises per workout
-- AI-powered natural language logging
-
-### Analytics
-- **Time Range Selector:** 7d, 30d, 3m, 1y, custom
-- **Calorie Balance Charts:** Bar charts showing consumed vs burned
-- **Protein Intake Trends:** Line charts
-- **Macronutrients Breakdown:** Area charts
-- **Weight Trends:** Line charts with BMI and goal lines
-- **Water & Workout Statistics:** Summary cards
-- **Correlation Analysis:**
-  - Weight vs Calories correlation
-  - Protein vs Workouts correlation
-  - Scatter charts with correlation coefficients
-- **Predictions:**
-  - Weight prediction based on trends
-  - Days to goal calculation
-  - Trend analysis
-- **Summary Statistics:** Averages, totals, trends
-
-### AI Chat
-- Natural language meal/workout logging
-- **Voice Input** with transcription (Whisper)
-- **Image Upload** and analysis (Vision)
-- Action execution (auto-logging)
-- Conversation persistence
-- Enhanced context awareness (daily log, profile, goals)
-- Typing animations
-- Streaming responses
-- Chat history management
-
-### Recipe Management
-- Create recipes with name, servings, instructions (single text field), and nutrition
-- Save recipes as meal templates
-- Manual nutrition entry (calories, protein, carbs, fats)
-- Recipe images (optional)
-- Tags (optional)
-- Favorite recipes
-- Edit and delete functionality
-- Integration with meal planning
-
-### Meal Planning
-- Weekly calendar view (Monday-Sunday)
-- Add recipes or custom meals
-- Multiple meal types per day
-- Week navigation
-- Visual planning interface
-- Generate grocery lists from plans
-
-### Grocery Lists
-- Auto-generate from meal plans
-- Smart ingredient aggregation
-- Automatic categorization
-- Quantity and unit conversion
-- Check off items
-- Multiple lists support
-- Manual list creation
-
-### Achievements
-- **Streak Achievements:** 7, 30, 100 days
-- **Goal Achievements:** Calorie goal, Protein goal
-- **Milestone Achievements:** First meal, First workout, 10 meals, 10 workouts, 30 days
-- **Special Achievements:** Perfect week
-- Progress tracking
-- Achievement badges
-- Unlock notifications
-
-### Weight Tracking
-- Daily weight logging
-- Quick entry from dashboard
-- BMI calculation
-- Body composition tracking
-- Weight trends visualization
-- Goal tracking
-- Integration with analytics
+### Data Privacy
+- Complete data isolation per user
+- Secure image uploads with RLS policies
+- GDPR-compliant data handling
 
 ## 🚢 Deployment
 
 ### Vercel (Recommended)
 
-1. **Push code to Git repository** (GitHub/GitLab/Bitbucket)
+1. **Push to Git repository**
 
-2. **Import project in Vercel:**
+2. **Import in Vercel:**
    - Go to [Vercel Dashboard](https://vercel.com)
-   - Click "New Project"
-   - Import your repository
+   - Click "New Project" → Import repository
 
 3. **Configure environment variables:**
-   ```
+   ```env
    VITE_SUPABASE_URL=your_production_supabase_url
    VITE_SUPABASE_ANON_KEY=your_production_supabase_anon_key
    VITE_OPENAI_API_KEY=your_openai_api_key
-   VITE_USDA_API_KEY=your_usda_api_key (optional)
+   VITE_USDA_API_KEY=your_usda_api_key
    VITE_APP_ENV=production
    VITE_API_URL=/api/chat
    VITE_USE_BACKEND_PROXY=true
@@ -926,105 +218,30 @@ The application uses a custom dark theme design system:
 
 4. **Deploy**
 
-### Backend API Proxy (Optional)
-
-For production, set up a backend API proxy to secure OpenAI API calls:
-
-1. Create `api/chat.ts` in your Vercel project
-2. The proxy handles:
-   - Rate limiting
-   - Server-side validation
-   - API key security
-   - Error handling
-
-See `api/chat.ts` for implementation.
-
-### Environment Variables for Production
-
-```env
-# Supabase
-VITE_SUPABASE_URL=your_production_supabase_url
-VITE_SUPABASE_ANON_KEY=your_production_supabase_anon_key
-
-# OpenAI
-VITE_OPENAI_API_KEY=your_openai_api_key
-
-# USDA Food Database (optional)
-VITE_USDA_API_KEY=your_usda_api_key
-
-# App Configuration
-VITE_APP_ENV=production
-VITE_API_URL=/api/chat
-VITE_USE_BACKEND_PROXY=true
-```
-
-## 🔒 Security
-
-### Database Security
-- **Row Level Security (RLS)** on all tables
-- Users can only access their own data
-- Anonymous users have isolated data
-- Policies verified and tested
-
-### API Security
-- Secure API key handling (environment variables)
-- Backend proxy for OpenAI API (optional)
-- Rate limiting (if using backend proxy)
-- Server-side validation
-
-### Authentication
-- Secure password hashing (Supabase handles this)
-- Anonymous authentication support
-- Session management
-- Token refresh
-
-### Data Privacy
-- Data isolation per user
-- Secure image uploads with RLS policies
-- No data sharing between users
-- GDPR-compliant data handling
+The `/api/chat.ts` and `/api/transcribe.ts` serverless functions automatically handle OpenAI API calls securely.
 
 ## 📝 API Keys Setup
 
 ### OpenAI API Key
 1. Go to [OpenAI Platform](https://platform.openai.com)
-2. Create an account or sign in
-3. Navigate to API Keys section
-4. Create a new API key
-5. Add to `.env` as `VITE_OPENAI_API_KEY`
+2. Create account → API Keys section
+3. Create new API key
+4. Add to `.env` as `VITE_OPENAI_API_KEY`
 
-### USDA Food Database API Key (Optional)
-1. Go to [USDA FoodData Central](https://fdc.nal.usda.gov/api-key-sign-up.html)
-2. Sign up for a free API key
+### USDA FoodData Central API Key (Optional)
+1. Sign up at [USDA FoodData Central](https://fdc.nal.usda.gov/api-key-sign-up.html)
+2. Get free API key
 3. Add to `.env` as `VITE_USDA_API_KEY`
 
 ### Supabase Setup
 1. Create account at [Supabase](https://supabase.com)
-2. Create a new project
-3. Get your project URL and anon key from Settings → API
+2. Create new project
+3. Get project URL and anon key from Settings → API
 4. Add to `.env`:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
 
-## 🧪 Testing
-
-The application includes:
-- Error boundaries for graceful error handling
-- Loading states and skeletons
-- Empty states with helpful messages
-- Form validation
-- Input sanitization
-
-## 📚 Documentation
-
-- **User Documentation:** Available in-app at `/documentation`
-- **Help Center:** FAQs and support at `/help`
-- **API Documentation:** See service files in `src/services/`
-- **Database Schema:** See SQL files in root directory
-
 ## 🐛 Troubleshooting
-
-### Common Issues
 
 **Guest mode not working:**
 - Ensure Anonymous Authentication is enabled in Supabase Dashboard
@@ -1037,61 +254,46 @@ The application includes:
 **AI chat not responding:**
 - Verify `VITE_OPENAI_API_KEY` is set
 - Check API key is valid and has credits
-- Check browser console for errors
+- Use backend proxy (`/api/chat`, `/api/transcribe`) in production
+
+**Voice transcription not working:**
+- Verify `/api/transcribe.ts` is deployed on Vercel
+- Check browser microphone permissions
+- Ensure `VITE_OPENAI_API_KEY` has access to Whisper API
 
 **RLS policy errors:**
 - Run `rls_policies_verification.sql` in Supabase SQL Editor
 - Verify all tables have RLS enabled
-- Check policy names match table names
 
 ## 🎯 Roadmap
 
 ### Completed (v1.0)
 - ✅ Core meal and workout logging
-- ✅ AI chat with voice and image support
+- ✅ AI chat with voice transcription and image support
 - ✅ Advanced analytics with correlations and predictions
-- ✅ Weight tracking with BMI
-- ✅ Streak tracking
-- ✅ Meal templates
-- ✅ Exercise library with METs
-- ✅ Guest mode with complete data migration
-- ✅ Reminders and notifications
-- ✅ Responsive mobile design
-- ✅ Edit functionality for meals/workouts
-- ✅ Copy previous day meals
-- ✅ Loading skeletons
-- ✅ Improved empty states
+- ✅ Weight tracking with BMI calculation
+- ✅ Meal planning and grocery lists
 - ✅ Recipe management
-- ✅ Meal planning
-- ✅ Grocery lists
-- ✅ Achievements system
-- ✅ USDA Food Database integration
-- ✅ PWA features
-- ✅ Pull-to-refresh
-- ✅ Error boundaries
-- ✅ RLS policies verification
-
-### Recent Enhancements (v1.1) ⭐ NEW
-- ✅ Enhanced AI personalization with user profile context
-- ✅ Performance monitoring (Web Vitals, API tracking)
-- ✅ Google Analytics integration
-- ✅ Code splitting and lazy loading
-- ✅ Accessibility improvements (ARIA labels, skip navigation)
-- ✅ Expanded reminder system (weight, streak, daily summary)
-- ✅ UI/UX improvements (removed redundant elements, updated icons)
-- ✅ Centralized logging utility
-- ✅ Sentry error tracking available (requires `VITE_SENTRY_DSN` configuration)
+- ✅ Achievements system with streak tracking
+- ✅ Guest mode with complete data migration
+- ✅ PWA features (installable, offline support)
+- ✅ 3-step onboarding with personalized targets
+- ✅ Water intake tracking
+- ✅ Daily AI summaries and insights
+- ✅ Theme switching (dark/light/system)
+- ✅ Real-time data synchronization
+- ✅ Code splitting for performance
+- ✅ Error boundary and error tracking
+- ✅ Performance monitoring
+- ✅ Accessibility features (ARIA, keyboard navigation)
 
 ### Future Enhancements
 - [ ] Barcode scanner for meal logging
-- [ ] Social features and sharing
 - [ ] Integration with wearables (Fitbit, Apple Health, Google Fit)
 - [ ] Export data (CSV, PDF)
 - [ ] Advanced AI coaching features
-- [ ] Meal photo recognition improvements
-- [ ] Nutrition label scanning
+- [ ] Social features and sharing
 - [ ] Community challenges
-- [ ] Meal sharing and social feed
 
 ## 📄 License
 
@@ -1116,12 +318,13 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 🙏 Acknowledgments
 
-- **OpenAI** - For GPT-4o, Whisper, and Vision APIs
-- **Supabase** - For backend infrastructure
+- **OpenAI** - For GPT-4o-mini, Whisper, and Vision APIs
+- **Supabase** - For backend infrastructure (PostgreSQL, Auth, Storage, Real-time)
 - **USDA** - For FoodData Central API
 - **Radix UI** - For accessible components
-- **Recharts** - For beautiful charts
-- **Vercel** - For deployment platform
+- **Recharts & D3.js** - For beautiful charts and data visualization
+- **TanStack React Query** - For powerful data fetching and caching
+- **Vercel** - For deployment platform and serverless functions
 
 ---
 
