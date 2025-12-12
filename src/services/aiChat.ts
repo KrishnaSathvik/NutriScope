@@ -265,16 +265,33 @@ You can help users with:
    - Use action type: "log_meal_with_confirmation" with requires_confirmation: true
    
 2. **Meal Updates:**
-   - **CRITICAL: Always check dailyLog.meals FIRST** - If a meal already exists for the meal_type, use "update_meal" or "update_meals", NEVER "log_meal"
+   - **CRITICAL: LOG vs UPDATE DECISION RULES:**
+     • **ONLY use "update_meal" or "update_meals" when the user EXPLICITLY says:**
+       - "update my [meal]", "change my [meal]", "edit my [meal]", "fix my [meal]", "modify my [meal]"
+       - "update [meal]", "change [meal]", "edit [meal]", "fix [meal]", "modify [meal]"
+       - "calculate my [meal]", "add carbs to [meal]", "add fats to [meal]", "calculate carbs/fats for [meal]"
+       - "update existing [meal]", "change existing [meal]", "edit existing [meal]"
+       - Keywords: "update", "change", "edit", "fix", "modify", "calculate for", "add to existing"
+     • **ALWAYS use "log_meal" or "log_meal_with_confirmation" when the user says:**
+       - "log [meal]", "add [meal]", "log my [meal]", "add my [meal]", "I had [food] for [meal]"
+       - "for lunch", "for breakfast", "for dinner", "as lunch", "as breakfast", "as dinner"
+       - Just describes food without update keywords (e.g., "I had chicken and rice")
+       - Keywords: "log", "add", "had", "ate", "for [meal]", "as [meal]"
+     • **CRITICAL: If user says "log lunch" or "for lunch" or just describes a meal, ALWAYS LOG A NEW MEAL - even if a meal already exists for that meal_type**
+     • **CRITICAL: Only check dailyLog.meals for existing meals when user EXPLICITLY asks to update - never check when user wants to log**
+   - **For LOGGING NEW meals**: Use action type "log_meal_with_confirmation" or "log_meal"
+     • Always create a new meal entry, even if another meal of the same type already exists
+     • Users can have multiple meals of the same type (e.g., two breakfasts, two lunches)
    - **Single meal update**: Use action type "update_meal" with meal_id from dailyLog.meals array
-     • If user says "update my lunch", "change my breakfast to...", "fix my dinner", "edit my meal", "calculate my lunch", "add carbs to breakfast", or mentions a SPECIFIC meal type (breakfast, lunch, dinner, etc.)
-     • **CRITICAL: When user specifies a meal type (e.g., "my lunch", "breakfast"), ONLY update THAT meal - NEVER update other meals**
+     • **ONLY when user explicitly says "update", "change", "edit", "fix", "modify", "calculate for existing"**
+     • **CRITICAL: When user specifies a meal type (e.g., "update my lunch", "change breakfast"), ONLY update THAT meal - NEVER update other meals**
      • Find meal_id by matching meal_type in dailyLog.meals
      • **CRITICAL: meal_id MUST be the exact UUID string from dailyLog.meals[].id - NEVER use numbers like "1" or "0"**
      • Set requires_confirmation: false
    - **Multiple meal updates (2+)**: Use action type "update_meals" with meals array
-     • ONLY if user explicitly says "update ALL meals", "calculate carbs and fats for all meals", "update meals with carbs and fat", "calculate for all meals", "update my breakfast and lunch" (multiple meals), or asks to update/add nutrition WITHOUT specifying a meal type
-     • **CRITICAL: If user mentions a specific meal type (breakfast, lunch, dinner), use "update_meal" for that ONE meal only**
+     • **ONLY if user explicitly says "update ALL meals", "calculate carbs and fats for all meals", "update meals with carbs and fat", "calculate for all meals", "update my breakfast and lunch" (multiple meals), or asks to update/add nutrition WITHOUT specifying a meal type**
+     • **CRITICAL: If user mentions a specific meal type (breakfast, lunch, dinner) with update keywords, use "update_meal" for that ONE meal only**
+     • **CRITICAL: If user says "log breakfast and lunch" or "add breakfast and lunch", use "log_meal" twice - DO NOT use "update_meals"**
      • **CRITICAL: Include ALL meals from dailyLog.meals that need updating** - don't skip any meals
      • **CRITICAL: meal_id MUST be copied EXACTLY from the "meal_id" field shown in the meal context above**
      • **NEVER use array indices (1, 2, 3) or numbers as meal_id - meal_id is always a UUID string**
@@ -631,7 +648,7 @@ export async function executeAction(
         if (!action.data) {
           return { success: false, message: 'Missing meal data' }
         }
-        const { createMeal, getMeals: getExistingMeals } = await import('./meals')
+        const { createMeal } = await import('./meals')
         
         // Normalize meal_type - map common values to database values
         // Database expects: 'pre_breakfast', 'breakfast', 'morning_snack', 'lunch', 'evening_snack', 'dinner', 'post_dinner'
@@ -670,17 +687,10 @@ export async function executeAction(
           normalizedMealType = 'evening_snack'
         }
         
-        // SAFEGUARD: Check if meal already exists for this meal_type
-        // This prevents accidentally creating duplicates when an update was intended
-        const existingMeals = await getExistingMeals(date)
-        const existingMealForType = existingMeals.find(m => m.meal_type === normalizedMealType)
-        if (existingMealForType) {
-          // Meal already exists - this should have been an update, not a new log
-          return { 
-            success: false, 
-            message: `A ${normalizedMealType.replace('_', ' ')} already exists. Please use "update my ${normalizedMealType.replace('_', ' ')}" instead.` 
-          }
-        }
+        // Note: Users can have multiple meals of the same type (e.g., two breakfasts, two lunches)
+        // We no longer block logging when a meal exists - the AI decides based on user intent
+        // If user says "log" or "add", always create a new meal
+        // If user says "update" or "change", the AI should use update_meal action instead
         
         // Generate meal name from food_items if meal_description is missing
         let newMealName = action.data.meal_description
