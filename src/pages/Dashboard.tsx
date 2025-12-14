@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { useAuth } from '@/contexts/AuthContext'
@@ -6,14 +6,14 @@ import { getDailyLog } from '@/services/dailyLogs'
 import { getWaterIntake } from '@/services/water'
 import { generateQuickTip } from '@/services/aiInsights'
 import { QuickWeightEntry } from '@/components/QuickWeightEntry'
+import { QuickAlcoholEntry } from '@/components/QuickAlcoholEntry'
 import { StreakWidget } from '@/components/StreakWidget'
-import { Droplet, Flame, Plus, Activity, Beef, Sparkles, Loader2, Info } from 'lucide-react'
+import { Droplet, Flame, Activity, Beef, Sparkles, Loader2, Info } from 'lucide-react'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { calculatePersonalizedTargets } from '@/services/personalizedTargets'
 import type { UserGoals } from '@/types'
 
 export default function Dashboard() {
-  const [showWaterForm, setShowWaterForm] = useState(false)
   const { user, profile } = useAuth()
   const today = format(new Date(), 'yyyy-MM-dd')
   const queryClient = useQueryClient()
@@ -102,16 +102,8 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
       queryClient.invalidateQueries({ queryKey: ['aiInsights'] })
       queryClient.invalidateQueries({ queryKey: ['streak'] }) // Update streak when water is logged
-      setShowWaterForm(false)
     },
   })
-
-  const handleWaterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    const amount = Number(formData.get('amount'))
-    waterMutation.mutate(amount)
-  }
 
   const waterAmount = totalWater || 0
   const waterGoal = profile?.water_goal || 2000
@@ -149,6 +141,9 @@ export default function Dashboard() {
 
       {/* Quick Weight Entry */}
       <QuickWeightEntry />
+
+      {/* Quick Alcohol Entry */}
+      <QuickAlcoholEntry />
 
       {/* Coach Tip Card */}
       {aiInsight && (
@@ -312,17 +307,8 @@ export default function Dashboard() {
 
         {/* Quick Add Buttons */}
         <div className="mb-4 md:mb-6">
-          <div className="flex items-center justify-between mb-2 md:mb-3">
-              <div className="text-xs md:text-sm text-dim font-medium font-mono uppercase tracking-wider">Quick Add</div>
-            {!showWaterForm && (
-              <button
-                onClick={() => setShowWaterForm(true)}
-                className="text-[10px] md:text-xs text-acid font-bold hover:opacity-90 font-mono uppercase tracking-wider transition-colors flex items-center gap-1 py-1 px-2 -mr-2"
-              >
-                <Plus className="w-3 h-3" />
-                <span className="hidden sm:inline">Custom</span>
-              </button>
-            )}
+          <div className="text-xs md:text-sm text-dim font-medium font-mono uppercase tracking-wider mb-2 md:mb-3">
+            Quick Add
           </div>
           <div className="grid grid-cols-4 gap-2">
             {quickWaterAmounts.map((amount) => (
@@ -342,39 +328,6 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
-
-        {/* Custom Amount Form */}
-        {showWaterForm && (
-          <form onSubmit={handleWaterSubmit} className="border-t border-border pt-4">
-            <div className="mb-4">
-              <label className="block text-xs font-mono uppercase tracking-wider text-dim mb-2">Amount (ml)</label>
-              <input
-                type="number"
-                name="amount"
-                required
-                min="1"
-                className="input-modern"
-                placeholder="e.g., 250"
-              />
-            </div>
-            <div className="flex space-x-4">
-              <button
-                type="submit"
-                className="btn-primary"
-                disabled={waterMutation.isPending}
-              >
-                {waterMutation.isPending ? 'Adding...' : 'Add Water'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowWaterForm(false)}
-                className="btn-secondary"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        )}
       </div>
 
 

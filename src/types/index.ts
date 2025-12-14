@@ -75,6 +75,21 @@ export interface WaterLog {
   created_at: string
 }
 
+export interface AlcoholLog {
+  id: string
+  user_id: string
+  date: string
+  time?: string
+  drink_type: 'beer' | 'wine' | 'spirits' | 'cocktail' | 'other'
+  drink_name?: string
+  amount: number // in standard drinks (1 drink = 14g pure alcohol)
+  alcohol_content?: number // percentage (e.g., 5.0 for beer, 12.0 for wine)
+  calories: number
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
 export interface DailyLog {
   date: string
   calories_consumed: number
@@ -84,9 +99,11 @@ export interface DailyLog {
   carbs: number
   fats: number
   water_intake: number
+  alcohol_drinks?: number // total standard drinks
   meals: Meal[]
   exercises: Exercise[]
   water_logs: WaterLog[]
+  alcohol_logs?: AlcoholLog[]
 }
 
 // Individual goal types - users can select multiple
@@ -336,10 +353,13 @@ export interface AchievementDefinition {
 }
 
 export interface AIAction {
-  type: 'log_meal' | 'log_meal_with_confirmation' | 'update_meal' | 'update_meals' | 'log_workout' | 'log_water' | 
+  type: 'log_meal' | 'log_meal_with_confirmation' | 'update_meal' | 'update_meals' | 'log_workout' | 'log_water' | 'log_alcohol' |
         'get_summary' | 'generate_recipe' | 'save_recipe' | 'add_to_meal_plan' | 
         'add_to_grocery_list' | 'answer_food_question' | 'none'
   data?: {
+    // Date support - for logging to previous days (format: 'YYYY-MM-DD')
+    date?: string
+    
     // Meal logging/updating
     meal_id?: string // Required for update_meal (single meal)
     meals?: Array<{ // For bulk updates (update_meals)
@@ -368,6 +388,13 @@ export interface AIAction {
     
     // Water
     water_amount?: number
+    
+    // Alcohol
+    drink_type?: 'beer' | 'wine' | 'spirits' | 'cocktail' | 'other'
+    drink_name?: string
+    alcohol_amount?: number // standard drinks
+    amount?: number // alias for alcohol_amount (for compatibility)
+    alcohol_content?: number // percentage
     
     // Recipe
     recipe?: Recipe

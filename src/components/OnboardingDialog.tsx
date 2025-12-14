@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { useNavigate } from "react-router-dom"
 import { calculatePersonalizedTargets } from "@/services/personalizedTargets"
 import {
   Dialog,
@@ -67,6 +68,7 @@ export function OnboardingDialog({
   const [step, setStep] = useState(1)
   const { toast } = useToast()
   const { user } = useAuth()
+  const navigate = useNavigate()
   const {
     register,
     handleSubmit,
@@ -223,8 +225,17 @@ export function OnboardingDialog({
         description: "Welcome to NutriScope!",
       })
       
-      onComplete()
+      // Close dialog immediately
       onOpenChange(false)
+      
+      // Call onComplete (non-blocking)
+      onComplete()
+      
+      // Navigate to dashboard immediately (especially important for guest mode)
+      // Use setTimeout to ensure dialog closes first
+      setTimeout(() => {
+        navigate('/dashboard')
+      }, 100)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Failed to create profile"
       toast({

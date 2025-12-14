@@ -1,18 +1,17 @@
 import { useState, useEffect } from 'react'
-import { format } from 'date-fns'
+import { format, subDays } from 'date-fns'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createWeightLog, getLatestWeight } from '@/services/weightTracking'
-import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/use-toast'
 import { Weight, Plus, Minus, Check, X, Edit } from 'lucide-react'
 
 export function QuickWeightEntry() {
-  const { profile } = useAuth()
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const [isOpen, setIsOpen] = useState(false)
   const [weight, setWeight] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'))
 
   // Get latest weight for quick reference
   const { data: latestWeight, refetch: refetchLatestWeight } = useQuery({
@@ -24,7 +23,7 @@ export function QuickWeightEntry() {
   // Get today's date string for comparison
   const today = format(new Date(), 'yyyy-MM-dd')
   
-  // Check if weight already logged today
+  // Check if weight already logged for selected date
   // Handle both string dates (from DB) and Date objects
   // Supabase DATE type comes as string 'YYYY-MM-DD' or ISO datetime 'YYYY-MM-DDTHH:mm:ss'
   const latestWeightDate = latestWeight?.date 
@@ -32,7 +31,8 @@ export function QuickWeightEntry() {
         ? latestWeight.date.split('T')[0] // Extract date part from ISO datetime if present
         : format(new Date(latestWeight.date), 'yyyy-MM-dd'))
     : null
-  const todayLogged = latestWeight && latestWeightDate === today
+  const selectedDateLogged = latestWeight && latestWeightDate === selectedDate
+  const isToday = selectedDate === today
 
   // Debug logging to help troubleshoot
   useEffect(() => {
@@ -40,17 +40,30 @@ export function QuickWeightEntry() {
       console.log('[QuickWeightEntry] Latest weight:', latestWeight)
       console.log('[QuickWeightEntry] Latest weight date:', latestWeightDate)
       console.log('[QuickWeightEntry] Today:', today)
-      console.log('[QuickWeightEntry] Today logged?', todayLogged)
+      console.log('[QuickWeightEntry] Selected date logged?', selectedDateLogged)
     }
-  }, [latestWeight, latestWeightDate, today, todayLogged])
+  }, [latestWeight, latestWeightDate, today, selectedDateLogged])
 
-  // Pre-fill weight when opening edit form for today's weight
+  // Pre-fill weight when opening edit form
   const handleEditClick = () => {
-    if (todayLogged && latestWeight) {
+    if (selectedDateLogged && latestWeight) {
       setWeight(latestWeight.weight.toString())
+    } else {
+      setWeight('') // Clear weight for new entries
     }
     setIsOpen(true)
   }
+
+  // Reset form when opening
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedDate(format(new Date(), 'yyyy-MM-dd'))
+      // Only pre-fill weight if editing today's existing entry
+      if (!selectedDateLogged || !latestWeight) {
+        setWeight('')
+      }
+    }
+  }, [isOpen, selectedDateLogged, latestWeight])
 
   const weightMutation = useMutation({
     mutationFn: createWeightLog,
@@ -98,13 +111,13 @@ export function QuickWeightEntry() {
 
     setIsSubmitting(true)
     weightMutation.mutate({
-      date: format(new Date(), 'yyyy-MM-dd'),
+      date: selectedDate,
       weight: parseFloat(weightToLog),
     })
     setTimeout(() => setIsSubmitting(false), 500)
   }
 
-  if (todayLogged && !isOpen) {
+  if (selectedDateLogged && !isOpen && isToday) {
     return (
       <div className="card-modern p-3 md:p-4">
         <div className="flex items-center justify-between">
@@ -160,12 +173,11 @@ export function QuickWeightEntry() {
           <div className="w-10 h-10 md:w-12 md:h-12 rounded-sm bg-indigo-500/20 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 dark:border-indigo-500/30 flex-shrink-0">
             <Weight className="w-5 h-5 md:w-6 md:h-6 text-indigo-500 fill-indigo-500 dark:text-indigo-500 dark:fill-indigo-500" />
           </div>
-          <div>
-            <div className="text-xs md:text-sm text-dim font-mono uppercase tracking-wider">
-              {todayLogged ? 'Edit Weight' : 'Log Weight'}
+            <div>
+              <div className="text-xs md:text-sm text-dim font-mono uppercase tracking-wider">
+                {selectedDateLogged ? 'Edit Weight' : 'Log Weight'}
+              </div>
             </div>
-            <div className="text-sm md:text-base text-dim font-mono">Today, {format(new Date(), 'MMM d')}</div>
-          </div>
         </div>
         <button
           onClick={() => {
@@ -179,6 +191,34 @@ export function QuickWeightEntry() {
       </div>
 
       <div className="space-y-4 md:space-y-5">
+        {/* Date Selector */}
+        <div className="space-y-2">
+          <label className="text-xs md:text-sm text-dim font-mono block">Date</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              max={today}
+              className="input-modern text-sm md:text-base font-mono flex-1"
+            />
+            <button
+              onClick={() => setSelectedDate(today)}
+              className="btn-secondary text-xs px-2 md:px-3 py-2"
+              title="Today"
+            >
+              Today
+            </button>
+            <button
+              onClick={() => setSelectedDate(format(subDays(new Date(), 1), 'yyyy-MM-dd'))}
+              className="btn-secondary text-xs px-2 md:px-3 py-2"
+              title="Yesterday"
+            >
+              Yesterday
+            </button>
+          </div>
+        </div>
+
         {/* Quick Adjustments */}
         {latestWeight && (
           <div className="space-y-2">
@@ -235,7 +275,7 @@ export function QuickWeightEntry() {
             min="1"
             max="500"
             className="input-modern text-lg md:text-xl text-center font-mono font-bold w-full py-3 md:py-4"
-            placeholder={latestWeight ? latestWeight.weight.toFixed(1) : "e.g., 70.5"}
+            placeholder="Enter weight"
             autoFocus
           />
           <button
@@ -246,12 +286,12 @@ export function QuickWeightEntry() {
             {isSubmitting ? (
               <>
                 <div className="w-5 h-5 border-2 border-text border-t-transparent rounded-full animate-spin" />
-                <span>{todayLogged ? 'Updating...' : 'Logging...'}</span>
+                <span>{selectedDateLogged ? 'Updating...' : 'Logging...'}</span>
               </>
             ) : (
               <>
                 <Check className="w-5 h-5 md:w-6 md:h-6" />
-                <span>{todayLogged ? 'Update Weight' : 'Log Weight'}</span>
+                <span>{selectedDateLogged ? 'Update Weight' : 'Log Weight'}</span>
               </>
             )}
           </button>

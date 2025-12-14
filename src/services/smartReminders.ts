@@ -5,6 +5,7 @@
 
 import { reminderStorage, StoredReminder } from './reminderStorage'
 import { ReminderSettings } from '@/types'
+import { format } from 'date-fns'
 
 export interface SmartReminderContext {
   userId: string
@@ -376,6 +377,164 @@ class SmartReminderService {
           body: "Don't forget to log your workout.",
           tag: 'workout',
           data: { url: '/workouts', time },
+        },
+        enabled: true,
+        triggerCount: 0,
+        userId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    }
+
+    // Goal Progress Reminders
+    if (settings.goal_reminders?.enabled) {
+      const goalReminders = settings.goal_reminders
+      const checkTime = goalReminders.check_progress_time || '20:00'
+
+      reminders.push({
+        id: `goal-${userId}`,
+        type: 'daily',
+        scheduledTime: Date.now(),
+        nextTriggerTime: this.calculateNextTriggerTime(
+          {
+            id: '',
+            type: 'daily',
+            scheduledTime: Date.now(),
+            nextTriggerTime: 0,
+            options: { title: '', body: '', data: { time: checkTime } },
+            enabled: true,
+            triggerCount: 0,
+            userId: '',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+          new Date()
+        ),
+        options: {
+          title: 'Goal Check-in! 🎯',
+          body: 'Check your progress toward your daily goals.',
+          tag: 'goal',
+          data: { url: '/dashboard', time: checkTime },
+        },
+        enabled: true,
+        triggerCount: 0,
+        userId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    }
+
+    // Weight Logging Reminders
+    if (settings.weight_reminders?.enabled) {
+      const weightReminders = settings.weight_reminders
+      const time = weightReminders.time || '08:00'
+      const days = weightReminders.days || [1, 2, 3, 4, 5, 6, 0] // Daily by default
+
+      reminders.push({
+        id: `weight-${userId}`,
+        type: 'weekly',
+        scheduledTime: Date.now(),
+        nextTriggerTime: this.calculateNextTriggerTime(
+          {
+            id: '',
+            type: 'weekly',
+            scheduledTime: Date.now(),
+            nextTriggerTime: 0,
+            daysOfWeek: days,
+            options: { title: '', body: '', data: { time } },
+            enabled: true,
+            triggerCount: 0,
+            userId: '',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+          new Date()
+        ),
+        daysOfWeek: days,
+        options: {
+          title: 'Log Your Weight! ⚖️',
+          body: "Don't forget to track your weight today.",
+          tag: 'weight',
+          data: { url: '/dashboard', time },
+        },
+        enabled: true,
+        triggerCount: 0,
+        userId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    }
+
+    // Streak Reminders
+    if (settings.streak_reminders?.enabled) {
+      const streakReminders = settings.streak_reminders
+      const time = streakReminders.time || '19:00'
+      const checkDays = streakReminders.check_days || [1, 2, 3, 4, 5] // Weekdays by default
+
+      reminders.push({
+        id: `streak-${userId}`,
+        type: 'weekly',
+        scheduledTime: Date.now(),
+        nextTriggerTime: this.calculateNextTriggerTime(
+          {
+            id: '',
+            type: 'weekly',
+            scheduledTime: Date.now(),
+            nextTriggerTime: 0,
+            daysOfWeek: checkDays,
+            options: { title: '', body: '', data: { time } },
+            enabled: true,
+            triggerCount: 0,
+            userId: '',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+          new Date()
+        ),
+        daysOfWeek: checkDays,
+        options: {
+          title: 'Maintain Your Streak! 🔥',
+          body: "Log something today to keep your streak going!",
+          tag: 'streak',
+          data: { url: '/dashboard', time },
+        },
+        enabled: true,
+        triggerCount: 0,
+        userId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    }
+
+    // Daily Summary Reminders
+    if (settings.summary_reminders?.enabled) {
+      const summaryReminders = settings.summary_reminders
+      const time = summaryReminders.time || '20:00'
+
+      reminders.push({
+        id: `summary-${userId}`,
+        type: 'daily',
+        scheduledTime: Date.now(),
+        nextTriggerTime: this.calculateNextTriggerTime(
+          {
+            id: '',
+            type: 'daily',
+            scheduledTime: Date.now(),
+            nextTriggerTime: 0,
+            options: { title: '', body: '', data: { time } },
+            enabled: true,
+            triggerCount: 0,
+            userId: '',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
+          new Date()
+        ),
+        options: {
+          title: 'Daily Summary 📊',
+          body: 'View your daily progress summary and insights.',
+          tag: 'summary',
+          data: { url: `/summary/${format(new Date(), 'yyyy-MM-dd')}`, time },
         },
         enabled: true,
         triggerCount: 0,

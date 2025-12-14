@@ -1,6 +1,6 @@
 // Service Worker for NutriScope PWA
-const CACHE_NAME = 'nutriscope-v7'
-const RUNTIME_CACHE = 'nutriscope-runtime-v7'
+const CACHE_NAME = 'nutriscope-v8'
+const RUNTIME_CACHE = 'nutriscope-runtime-v8'
 const REMINDER_CHECK_INTERVAL = 60000 // Check every minute
 
 // Assets to cache on install
@@ -253,6 +253,18 @@ async function triggerReminder(reminder, db) {
     }
 
     await self.registration.showNotification(title, options)
+
+    // Send message to all clients to add notification to UI
+    const clients = await self.clients.matchAll()
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'NOTIFICATION_SHOWN',
+        notificationType: reminder.type || 'goal',
+        title: title,
+        body: options.body,
+        url: options.data?.url,
+      })
+    })
 
     // Calculate next trigger time
     const nextTriggerTime = calculateNextTriggerTime(reminder)

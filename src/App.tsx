@@ -33,6 +33,7 @@ const RecipesPage = lazy(() => import('@/pages/RecipesPage'))
 const MealPlanningPage = lazy(() => import('@/pages/MealPlanningPage'))
 const GroceryListPage = lazy(() => import('@/pages/GroceryListPage'))
 const AchievementsPage = lazy(() => import('@/pages/AchievementsPage'))
+const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'))
 const AboutPage = lazy(() => import('@/pages/AboutPage'))
 const CookiePolicyPage = lazy(() => import('@/pages/CookiePolicyPage'))
 const PrivacyPage = lazy(() => import('@/pages/PrivacyPage'))
@@ -132,6 +133,7 @@ function AppRoutes() {
               <Route path="/meal-planning" element={<MealPlanningPage />} />
               <Route path="/grocery-lists" element={<GroceryListPage />} />
               <Route path="/achievements" element={<AchievementsPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/profile" element={<ProfilePage />} />
             </Route>
           </Route>

@@ -313,12 +313,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const completeOnboarding = async () => {
     setShowOnboarding(false)
-    // Reload profile if authenticated
+    // Reload profile if authenticated (non-blocking for guest mode)
     // Add a small delay to ensure database replication before reloading
     if (user) {
-      // Wait a bit for database to sync
-      await new Promise(resolve => setTimeout(resolve, 500))
-      await loadProfile(user.id)
+      // For guest mode, reload profile in background without blocking
+      // This prevents screen freeze if loadProfile hangs
+      const reloadProfile = async () => {
+        try {
+          // Wait a bit for database to sync
+          await new Promise(resolve => setTimeout(resolve, 500))
+          await loadProfile(user.id)
+        } catch (error) {
+          // If loadProfile fails, don't block - user can still navigate
+          logger.warn('Failed to reload profile after onboarding:', error)
+          // Ensure onboarding stays closed even if profile reload fails
+          setShowOnboarding(false)
+        }
+      }
+      
+      // Run in background without blocking
+      reloadProfile().catch(err => {
+        logger.warn('Error in background profile reload:', err)
+        setShowOnboarding(false)
+      })
     }
     // Show notification dialog after onboarding (if not already dismissed)
     // Check will happen in loadProfile after preferences are loaded

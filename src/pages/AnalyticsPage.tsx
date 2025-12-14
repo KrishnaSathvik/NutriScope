@@ -4,10 +4,10 @@ import { format, subDays, subMonths, differenceInDays } from 'date-fns'
 import { getDailyLog } from '@/services/dailyLogs'
 import { useAuth } from '@/contexts/AuthContext'
 import { XAxis, YAxis, Tooltip, ResponsiveContainer, Line, AreaChart, Area, ComposedChart, Legend, ReferenceLine, BarChart, Bar } from 'recharts'
-import { Flame, Target, Activity, Droplet, TrendingUp, TrendingDown, Minus, Cookie, Calendar, BarChart3, Scale, TrendingUp as TrendingUpIcon, Lightbulb, Beef } from 'lucide-react'
+import { Flame, Target, Activity, Droplet, TrendingUp, TrendingDown, Minus, Cookie, Calendar, BarChart3, Scale, TrendingUp as TrendingUpIcon, Lightbulb, Beef, Wine } from 'lucide-react'
 import { StatCardSkeleton, ChartSkeleton } from '@/components/LoadingSkeleton'
 import { WeightChart } from '@/components/WeightChart'
-import { getGoalAchievementInsightsFromData, getWeeklyPatternsFromData, predictWeight } from '@/services/analytics'
+import { getGoalAchievementInsightsFromData, getWeeklyPatternsFromData, predictWeight, getAlcoholWeightImpact, calculateAlcoholWeightImpact } from '@/services/analytics'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
 type TimeRange = '7d' | '30d' | '3m' | '1y' | 'custom'
@@ -68,6 +68,7 @@ export default function AnalyticsPage() {
     fats: number
     workouts: number
     water: number
+    alcohol: number // standard drinks
     meals: number
   }
 
@@ -112,6 +113,7 @@ export default function AnalyticsPage() {
               fats: 0,
               workouts: 0,
               water: 0,
+              alcohol: 0,
               meals: 0,
               count: 0,
             }
@@ -124,6 +126,7 @@ export default function AnalyticsPage() {
           monthlyData[monthKey].fats += (log.fats || 0)
           monthlyData[monthKey].workouts += log.exercises.length
           monthlyData[monthKey].water += log.water_intake
+          monthlyData[monthKey].alcohol += (log.alcohol_drinks || 0)
           monthlyData[monthKey].meals += log.meals.length
           monthlyData[monthKey].count += 1
         })
@@ -138,6 +141,7 @@ export default function AnalyticsPage() {
           carbs: Math.round(data.carbs / data.count),
           fats: Math.round(data.fats / data.count),
           water: Math.round(data.water / data.count),
+          alcohol: Math.round((data.alcohol / data.count) * 100) / 100, // Round to 2 decimals
           workouts: data.workouts,
           meals: data.meals,
         }))
@@ -154,6 +158,7 @@ export default function AnalyticsPage() {
         fats: log.fats || 0,
         workouts: log.exercises.length,
         water: log.water_intake,
+        alcohol: log.alcohol_drinks || 0,
         meals: log.meals.length,
       }))
     },
@@ -169,11 +174,13 @@ export default function AnalyticsPage() {
   // Calculate statistics
   const logsArray: AnalyticsDataPoint[] = dailyLogs || []
   // Filter out days with no actual logged data (meals or exercises)
-  const daysWithData = logsArray.filter(log => log.meals > 0 || log.workouts > 0 || log.water > 0 || log.calories > 0)
+  const daysWithData = logsArray.filter(log => log.meals > 0 || log.workouts > 0 || log.water > 0 || log.calories > 0 || log.alcohol > 0)
   const stats = daysWithData.length > 0 ? {
     avgCalories: Math.round(daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.calories, 0) / daysWithData.length),
     avgProtein: Math.round(daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.protein, 0) / daysWithData.length),
     avgWater: Math.round(daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.water, 0) / daysWithData.length),
+    avgAlcohol: Math.round((daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.alcohol, 0) / daysWithData.length) * 100) / 100,
+    totalAlcohol: Math.round((daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.alcohol, 0)) * 100) / 100,
     totalWorkouts: daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.workouts, 0),
     totalCaloriesBurned: daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.caloriesBurned, 0),
     avgNetCalories: Math.round(daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.netCalories, 0) / daysWithData.length),
@@ -228,6 +235,45 @@ export default function AnalyticsPage() {
     refetchOnReconnect: true, // Refetch on reconnect
     retry: 1,
   })
+
+  // Alcohol impact analysis
+  const { data: alcoholImpact } = useQuery({
+    queryKey: ['alcoholImpact', timeRange, user?.id, profile?.goal, profile?.calorie_target],
+    queryFn: () => getAlcoholWeightImpact(
+      timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '3m' ? 90 : 365,
+      profile ? { goal: profile.goal, calorie_target: profile.calorie_target || profile.target_calories } : undefined
+    ),
+    enabled: !!(user && stats && stats.totalAlcohol > 0 && logsArray.length >= 7),
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  })
+
+  // Get today's daily log for immediate alcohol impact calculation
+  const todayDateString = format(new Date(), 'yyyy-MM-dd')
+  const { data: todayDailyLog } = useQuery({
+    queryKey: ['dailyLog', todayDateString],
+    queryFn: () => getDailyLog(todayDateString),
+    enabled: !!user,
+    staleTime: 1000 * 30, // 30 seconds
+    refetchOnMount: true,
+  })
+
+  // Calculate today's alcohol impact immediately from today's log
+  const todayAlcoholImpact = useMemo(() => {
+    if (!profile || !todayDailyLog) return null
+    const alcoholDrinks = todayDailyLog.alcohol_drinks || 0
+    if (alcoholDrinks === 0) return null
+    
+    return calculateAlcoholWeightImpact(
+      alcoholDrinks,
+      calorieTarget,
+      todayDailyLog.calories_consumed || 0,
+      profile.goal || 'maintain'
+    )
+  }, [todayDailyLog, profile, calorieTarget])
 
   return (
       <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
@@ -432,6 +478,19 @@ export default function AnalyticsPage() {
                 {Math.round((stats.avgWater / waterGoal) * 100)}% of goal
               </div>
             </div>
+
+            {stats.totalAlcohol > 0 && (
+              <div className="card-modern border-amber-500/30 dark:border-amber-500/30 p-3 md:p-4">
+                <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2">
+                  <Wine className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500 flex-shrink-0" />
+                  <span className="text-[10px] md:text-xs text-dim font-mono uppercase truncate">Avg Alcohol</span>
+                </div>
+                <div className="text-xl md:text-2xl font-bold text-amber-500 dark:text-text font-mono mb-1">{stats.avgAlcohol.toFixed(1)}</div>
+                <div className="text-[10px] md:text-xs text-dim font-mono">
+                  {stats.totalAlcohol.toFixed(1)} total drinks
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Calories Balance Chart */}
@@ -748,6 +807,123 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
+          {/* Alcohol Chart */}
+          {stats && stats.totalAlcohol > 0 && (
+            <div className="card-modern border-amber-500/30 dark:border-amber-500/30 p-4 md:p-6">
+              <div className="flex items-center justify-between mb-4 md:mb-6">
+                <div className="flex items-center gap-2 md:gap-3">
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-amber-500/20 dark:bg-amber-500/20 flex items-center justify-center border border-amber-500/30 dark:border-amber-500/30 flex-shrink-0">
+                    <Wine className="w-4 h-4 md:w-5 md:h-5 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500" />
+                  </div>
+                  <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Alcohol Consumption</h2>
+                </div>
+                <div className="text-[10px] md:text-xs text-dim font-mono">
+                  Avg: {stats.avgAlcohol.toFixed(1)} drinks/day • Total: {stats.totalAlcohol.toFixed(1)} drinks
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={240} className="md:h-[350px]">
+                <BarChart data={logsArray}>
+                  <XAxis 
+                    dataKey="date" 
+                    stroke="#525252" 
+                    tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                    axisLine={{ stroke: '#222' }}
+                  />
+                  <YAxis 
+                    stroke="#525252" 
+                    tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                    axisLine={{ stroke: '#222' }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#111',
+                      border: '1px solid #222',
+                      borderRadius: '4px',
+                      color: '#e5e5e5',
+                      fontFamily: 'JetBrains Mono',
+                      fontSize: '11px',
+                    }}
+                    formatter={(value: number) => [`${value.toFixed(1)} drinks`, 'Alcohol']}
+                  />
+                  <Bar 
+                    dataKey="alcohol" 
+                    fill="#f59e0b" 
+                    radius={[4, 4, 0, 0]}
+                    name="Alcohol (drinks)"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Alcohol Impact Analysis */}
+          {(todayAlcoholImpact || (stats && stats.totalAlcohol > 0 && alcoholImpact)) && (
+            <div className="card-modern border-amber-500/30 dark:border-amber-500/30 p-4 md:p-6">
+              <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
+                <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-amber-500/20 dark:bg-amber-500/20 flex items-center justify-center border border-amber-500/30 dark:border-amber-500/30 flex-shrink-0">
+                  <Wine className="w-4 h-4 md:w-5 md:h-5 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500" />
+                </div>
+                <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
+                  Alcohol Impact on Weight Goals
+                </h2>
+              </div>
+
+              {/* Today's Impact */}
+              {todayAlcoholImpact && (
+                <div className="mb-4 md:mb-6 p-3 md:p-4 bg-surface border border-border rounded-sm">
+                  <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-2">Today's Impact</div>
+                  <div className="text-sm md:text-base text-text font-mono mb-2">
+                    {todayAlcoholImpact.impactOnGoal}
+                  </div>
+                  <div className="text-xs md:text-sm text-dim font-mono mb-2">
+                    {todayAlcoholImpact.recommendation}
+                  </div>
+                  {todayAlcoholImpact.projectedWeeklyImpact && (
+                    <div className="text-xs md:text-sm text-amber-500 font-mono font-bold">
+                      {todayAlcoholImpact.projectedWeeklyImpact}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Historical Correlation */}
+              {alcoholImpact && alcoholImpact.data.length > 0 && (
+                <div className="space-y-3 md:space-y-4">
+                  <div className="p-3 md:p-4 bg-surface border border-border rounded-sm">
+                    <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-2">
+                      Correlation Analysis ({timeRange === '7d' ? '7 days' : timeRange === '30d' ? '30 days' : timeRange === '3m' ? '3 months' : '1 year'})
+                    </div>
+                    <div className="text-sm md:text-base text-text font-mono mb-2">
+                      {alcoholImpact.insight}
+                    </div>
+                    <div className="text-xs md:text-sm text-dim font-mono">
+                      Correlation: {(alcoholImpact.correlation * 100).toFixed(1)}%
+                      {alcoholImpact.correlation > 0.3 && (
+                        <span className="text-warning ml-2">⚠️ May be affecting weight loss</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {alcoholImpact.impactPrediction && (
+                    <div className="p-3 md:p-4 bg-acid/10 border border-acid/30 rounded-sm">
+                      <div className="text-[10px] md:text-xs text-acid font-mono uppercase mb-2">
+                        Personalized Prediction
+                      </div>
+                      <div className="text-xs md:text-sm text-text font-mono">
+                        {alcoholImpact.impactPrediction}
+                      </div>
+                      {alcoholImpact.averageAlcoholOnWeightGainDays > 0 && (
+                        <div className="text-xs text-dim font-mono mt-2">
+                          Avg alcohol on weight gain days: {alcoholImpact.averageAlcoholOnWeightGainDays.toFixed(1)} drinks
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Advanced Analytics - Insights */}
           {(goalAchievements || weeklyPatterns || weightPrediction) && (
             <div className="space-y-4 md:space-y-6">
@@ -849,42 +1025,6 @@ export default function AnalyticsPage() {
                 </div>
               )}
 
-              {/* Weight Prediction */}
-              {weightPrediction && (
-                <div className="card-modern border-acid/30 p-4 md:p-6">
-                  <div className="flex items-center gap-2 md:gap-3 mb-4">
-                    <TrendingUpIcon className="w-4 h-4 md:w-5 md:h-5 text-acid" />
-                    <h3 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
-                      Weight Prediction
-                    </h3>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-1">Current Weight</div>
-                      <div className="text-xl md:text-2xl font-bold text-text font-mono">
-                        {weightPrediction.currentValue.toFixed(1)} kg
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-1">Predicted (7 days)</div>
-                      <div className={`text-xl md:text-2xl font-bold font-mono ${
-                        weightPrediction.trend === 'decreasing' ? 'text-success' : 
-                        weightPrediction.trend === 'increasing' ? 'text-error' : 'text-text'
-                      }`}>
-                        {weightPrediction.predictedValue.toFixed(1)} kg
-                      </div>
-                    </div>
-                    {weightPrediction.daysToGoal && (
-                      <div>
-                        <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-1">Days to Goal</div>
-                        <div className="text-xl md:text-2xl font-bold text-acid font-mono">
-                          ~{weightPrediction.daysToGoal} days
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -896,7 +1036,8 @@ export default function AnalyticsPage() {
               </div>
               <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Weight Trends</h2>
             </div>
-            <WeightChart days={30} showBMI={true} showGoal={true} showDailyChange={true} />
+
+            <WeightChart days={30} showBMI={true} showGoal={true} showDailyChange={true} weightPrediction={weightPrediction || undefined} />
           </div>
         </div>
       ) : (

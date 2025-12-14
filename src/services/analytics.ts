@@ -1,5 +1,6 @@
 import { getDailyLog } from './dailyLogs'
 import { getWeightLogs } from './weightTracking'
+import { getAlcoholLogs } from './alcohol'
 import { format, subDays } from 'date-fns'
 
 export interface CorrelationData {
@@ -161,6 +162,259 @@ export async function getWeightCaloriesCorrelation(days: number = 30): Promise<{
   }
 
   return { correlation, data: correlationData, insight }
+}
+
+/**
+ * Get alcohol vs weight correlation and impact analysis
+ */
+export async function getAlcoholWeightImpact(
+  days: number = 30,
+  profile?: { goal?: string; calorie_target?: number }
+): Promise<{
+  correlation: number
+  data: CorrelationData[]
+  insight: string
+  averageAlcoholOnWeightGainDays: number
+  averageAlcoholOnWeightLossDays: number
+  impactPrediction: string
+}> {
+  const endDate = new Date()
+  const startDate = subDays(endDate, days)
+  
+  // Get weight logs
+  const weightLogs = await getWeightLogs(
+    format(subDays(startDate, 7), 'yyyy-MM-dd'),
+    format(endDate, 'yyyy-MM-dd')
+  )
+
+  const sortedWeightLogs = [...weightLogs].sort((a, b) => {
+    const dateA = new Date(a.date + 'T00:00:00').getTime()
+    const dateB = new Date(b.date + 'T00:00:00').getTime()
+    return dateA - dateB
+  })
+
+  const correlationData: CorrelationData[] = []
+  const alcoholAmounts: number[] = []
+  const weightChanges: number[] = [] // Use weight changes instead of absolute weight
+  const alcoholOnWeightGainDays: number[] = []
+  const alcoholOnWeightLossDays: number[] = []
+  const dailyData: Array<{ date: string; alcohol: number; weight: number | null; weightChange: number | null }> = []
+  
+  // First pass: collect all data (including days without alcohol) and calculate weight changes
+  let previousWeight: number | null = null
+  
+  for (let i = days - 1; i >= 0; i--) {
+    const date = format(subDays(endDate, i), 'yyyy-MM-dd')
+    const alcoholLogs = await getAlcoholLogs(date).catch(() => [])
+    const totalAlcohol = alcoholLogs.reduce((sum, log) => sum + log.amount, 0)
+    
+    // Find weight for this date
+    const currentDate = new Date(date + 'T00:00:00').getTime()
+    let currentWeight: number | null = null
+    
+    for (let j = sortedWeightLogs.length - 1; j >= 0; j--) {
+      const weightLogDateStr = sortedWeightLogs[j].date
+      if (!weightLogDateStr) continue
+      const weightLogDate = new Date(weightLogDateStr + 'T00:00:00').getTime()
+      if (!isNaN(weightLogDate) && weightLogDate <= currentDate) {
+        currentWeight = sortedWeightLogs[j].weight
+        break
+      }
+    }
+    
+    // Calculate weight change from previous day
+    const weightChange = previousWeight !== null && currentWeight !== null 
+      ? currentWeight - previousWeight 
+      : null
+    
+    dailyData.push({
+      date,
+      alcohol: totalAlcohol,
+      weight: currentWeight,
+      weightChange,
+    })
+    
+    if (currentWeight !== null && currentWeight > 0) {
+      previousWeight = currentWeight
+    }
+  }
+
+  // Second pass: calculate correlation using weight changes vs alcohol
+  // Include all days with weight changes, whether they have alcohol or not
+  // This gives a better correlation: does more alcohol correlate with more weight gain?
+  for (let i = 0; i < dailyData.length; i++) {
+    const day = dailyData[i]
+    if (day.weightChange !== null && day.weight !== null) {
+      correlationData.push({
+        x: day.alcohol, // Alcohol amount (0 if no alcohol)
+        y: day.weightChange, // Weight change (positive = gain, negative = loss)
+        date: day.date,
+      })
+      alcoholAmounts.push(day.alcohol)
+      weightChanges.push(day.weightChange)
+      
+      // Track alcohol on weight change days
+      if (day.alcohol > 0) {
+        if (day.weightChange > 0.1) {
+          alcoholOnWeightGainDays.push(day.alcohol)
+        } else if (day.weightChange < -0.1) {
+          alcoholOnWeightLossDays.push(day.alcohol)
+        }
+      }
+    }
+  }
+
+  // Calculate correlation between alcohol amount and weight change
+  // Positive correlation = more alcohol associated with weight gain
+  // Negative correlation = more alcohol associated with weight loss
+  const correlation = correlationData.length >= 3 
+    ? calculateCorrelation(alcoholAmounts, weightChanges)
+    : 0
+  
+  const avgAlcoholOnGain = alcoholOnWeightGainDays.length > 0
+    ? alcoholOnWeightGainDays.reduce((a, b) => a + b, 0) / alcoholOnWeightGainDays.length
+    : 0
+  const avgAlcoholOnLoss = alcoholOnWeightLossDays.length > 0
+    ? alcoholOnWeightLossDays.reduce((a, b) => a + b, 0) / alcoholOnWeightLossDays.length
+    : 0
+
+  // Calculate average alcohol consumption and calories from alcohol
+  const daysWithAlcohol = dailyData.filter(d => d.alcohol > 0)
+  const avgAlcoholPerDay = daysWithAlcohol.length > 0
+    ? daysWithAlcohol.reduce((sum, d) => sum + d.alcohol, 0) / daysWithAlcohol.length
+    : 0
+  const avgAlcoholPerWeek = avgAlcoholPerDay * 7
+  
+  // Get average calories from alcohol (120 cal per standard drink)
+  const caloriesPerDrink = 120
+  const avgAlcoholCaloriesPerDay = avgAlcoholPerDay * caloriesPerDrink
+  const avgAlcoholCaloriesPerWeek = avgAlcoholPerWeek * caloriesPerDrink
+
+  let insight = ''
+  let impactPrediction = ''
+  
+  // Generate personalized prediction based on user goals and actual consumption
+  if (profile?.goal && profile?.calorie_target && avgAlcoholPerDay > 0) {
+    // Use calculateAlcoholWeightImpact for personalized predictions
+    const impact = calculateAlcoholWeightImpact(
+      avgAlcoholPerDay,
+      profile.calorie_target,
+      profile.calorie_target * 0.8, // Estimate average daily calories consumed (80% of target)
+      profile.goal
+    )
+    
+    // Build personalized prediction based on correlation AND impact
+    if (correlation > 0.3) {
+      insight = 'Alcohol consumption shows a positive correlation with weight. Higher alcohol intake may be contributing to weight gain.'
+      impactPrediction = `On days with weight gain, you consumed ${avgAlcoholOnGain.toFixed(1)} drinks on average. Your typical ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories. ${impact.projectedWeeklyImpact}`
+    } else if (correlation < -0.3) {
+      insight = 'Alcohol consumption shows a negative correlation with weight. This may indicate alcohol is replacing meals or affecting metabolism.'
+      impactPrediction = `On days with weight loss, average alcohol was ${avgAlcoholOnLoss.toFixed(1)} drinks. Your typical ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories. ${impact.recommendation}`
+    } else if (correlation > 0.1) {
+      insight = 'Moderate positive correlation: Alcohol may be contributing to calorie surplus and weight gain.'
+      impactPrediction = `Your average ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories daily (${Math.round(avgAlcoholCaloriesPerWeek)} cal/week). ${impact.projectedWeeklyImpact || impact.recommendation}`
+    } else {
+      // Weak correlation - still provide personalized impact
+      insight = 'Weak correlation: Alcohol consumption doesn\'t show a strong direct relationship with weight changes in your data.'
+      if (profile.goal === 'lose_weight' || profile.goal === 'reduce_body_fat') {
+        impactPrediction = `Your average ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories. ${impact.projectedWeeklyImpact || 'Monitor your intake to stay within your calorie deficit for weight loss.'}`
+      } else if (profile.goal === 'gain_muscle' || profile.goal === 'gain_weight') {
+        impactPrediction = `Your average ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories toward your surplus, but alcohol lacks protein needed for muscle growth. ${impact.recommendation}`
+      } else {
+        impactPrediction = `Your average ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories (${Math.round(avgAlcoholCaloriesPerWeek)} cal/week). ${impact.recommendation}`
+      }
+    }
+  } else {
+    // Fallback to correlation-based predictions if no profile data
+    if (correlation > 0.3) {
+      insight = 'Alcohol consumption shows a positive correlation with weight. Higher alcohol intake may be contributing to weight gain.'
+      impactPrediction = `On days with weight gain, average alcohol was ${avgAlcoholOnGain.toFixed(1)} drinks. Consider reducing alcohol intake to support weight loss goals.`
+    } else if (correlation < -0.3) {
+      insight = 'Alcohol consumption shows a negative correlation with weight. This may indicate alcohol is replacing meals or affecting metabolism.'
+      impactPrediction = `On days with weight loss, average alcohol was ${avgAlcoholOnLoss.toFixed(1)} drinks. Monitor nutrition to ensure you're getting adequate nutrients.`
+    } else if (correlation > 0.1) {
+      insight = 'Moderate positive correlation: Alcohol may be contributing to calorie surplus and weight gain.'
+      impactPrediction = `Average alcohol on weight gain days: ${avgAlcoholOnGain.toFixed(1)} drinks. Alcohol adds empty calories that can hinder weight loss.`
+    } else {
+      insight = 'Weak correlation: Alcohol consumption doesn\'t show a strong direct relationship with weight changes in your data.'
+      if (avgAlcoholPerDay > 0) {
+        impactPrediction = `Your average ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories (${Math.round(avgAlcoholCaloriesPerWeek)} cal/week). Monitor your intake to stay within your calorie goals.`
+      } else {
+        impactPrediction = 'Alcohol adds calories (7 cal/g) that count toward your daily total. Monitor your intake to stay within calorie goals.'
+      }
+    }
+  }
+
+  return {
+    correlation,
+    data: correlationData,
+    insight,
+    averageAlcoholOnWeightGainDays: avgAlcoholOnGain,
+    averageAlcoholOnWeightLossDays: avgAlcoholOnLoss,
+    impactPrediction,
+  }
+}
+
+/**
+ * Calculate alcohol's impact on weight loss goals
+ */
+export function calculateAlcoholWeightImpact(
+  alcoholDrinks: number,
+  calorieTarget: number,
+  currentCalories: number,
+  goal: string
+): {
+  alcoholCalories: number
+  impactOnGoal: string
+  recommendation: string
+  projectedWeeklyImpact: string
+} {
+  // Average calories per standard drink (varies by type, but ~100-150 cal average)
+  const caloriesPerDrink = 120
+  const alcoholCalories = alcoholDrinks * caloriesPerDrink
+  
+  const totalWithAlcohol = currentCalories + alcoholCalories
+  const remainingCalories = calorieTarget - totalWithAlcohol
+  
+  let impactOnGoal = ''
+  let recommendation = ''
+  let projectedWeeklyImpact = ''
+  
+  if (goal === 'lose_weight' || goal === 'reduce_body_fat') {
+    const weeklyAlcoholCalories = alcoholDrinks * caloriesPerDrink * 7
+    const weeklyDeficitImpact = weeklyAlcoholCalories / 7700 // 7700 cal = 1kg
+    const monthlyImpact = weeklyDeficitImpact * 4.33
+    
+    if (remainingCalories < -500) {
+      impactOnGoal = `Alcohol adds ${alcoholCalories} calories, putting you ${Math.abs(remainingCalories)} over your target.`
+      recommendation = 'Consider reducing alcohol intake or adjusting meals to stay within your deficit.'
+    } else if (remainingCalories < 0) {
+      impactOnGoal = `Alcohol adds ${alcoholCalories} calories, slightly over your target.`
+      recommendation = 'Monitor your intake to maintain your calorie deficit for weight loss.'
+    } else {
+      impactOnGoal = `Alcohol adds ${alcoholCalories} calories. You have ${remainingCalories} calories remaining.`
+      recommendation = 'Good balance! Alcohol fits within your deficit.'
+    }
+    
+    if (weeklyAlcoholCalories > 0) {
+      projectedWeeklyImpact = `At this rate, alcohol could slow weight loss by ~${weeklyDeficitImpact.toFixed(2)}kg/week (${monthlyImpact.toFixed(2)}kg/month).`
+    }
+  } else if (goal === 'gain_muscle' || goal === 'gain_weight') {
+    impactOnGoal = `Alcohol adds ${alcoholCalories} calories toward your surplus goal.`
+    recommendation = 'Alcohol provides calories but lacks protein. Prioritize protein-rich foods for muscle gain.'
+    projectedWeeklyImpact = `Alcohol contributes calories but won't support muscle growth - focus on protein intake.`
+  } else {
+    impactOnGoal = `Alcohol adds ${alcoholCalories} calories to your daily total.`
+    recommendation = 'Moderate alcohol intake can fit into a balanced diet. Stay within your calorie target.'
+    projectedWeeklyImpact = 'Monitor alcohol intake to maintain your current weight.'
+  }
+  
+  return {
+    alcoholCalories,
+    impactOnGoal,
+    recommendation,
+    projectedWeeklyImpact,
+  }
 }
 
 /**

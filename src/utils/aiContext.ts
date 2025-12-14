@@ -175,6 +175,13 @@ export function buildPersonalizedContext(
     context += `- Calories: ${dailyLog.calories_consumed} / ${profile?.calorie_target || 2000} cal (${calorieProgress}%)\n`
     context += `- Protein: ${dailyLog.protein}g / ${profile?.protein_target || 150}g (${proteinProgress}%)\n`
     context += `- Water: ${dailyLog.water_intake}ml / ${profile?.water_goal || 2000}ml (${waterProgress}%)\n`
+    if (dailyLog.alcohol_drinks && dailyLog.alcohol_drinks > 0) {
+      context += `- Alcohol: ${dailyLog.alcohol_drinks.toFixed(1)} standard drinks\n`
+      if (dailyLog.alcohol_logs && dailyLog.alcohol_logs.length > 0) {
+        const alcoholCalories = dailyLog.alcohol_logs.reduce((sum, log) => sum + (log.calories || 0), 0)
+        context += `- Alcohol Calories: ${alcoholCalories} cal (included in total calories)\n`
+      }
+    }
     context += `- Calories Burned: ${dailyLog.calories_burned} cal\n`
     context += `- Net Calories: ${dailyLog.net_calories} cal\n`
     context += `- Meals Logged: ${dailyLog.meals.length}\n`
@@ -230,6 +237,25 @@ export function buildPersonalizedContext(
       
       if (dailyLog.water_intake < (profile.water_goal || 2000) * 0.7) {
         context += `- Water intake is low - remember to stay hydrated throughout the day\n`
+      }
+      
+      if (dailyLog.alcohol_drinks && dailyLog.alcohol_drinks > 0) {
+        const alcoholCalories = dailyLog.alcohol_logs?.reduce((sum, log) => sum + (log.calories || 0), 0) || 0
+        const totalWithAlcohol = dailyLog.calories_consumed
+        const remainingCalories = (profile?.calorie_target || 2000) - totalWithAlcohol
+        
+        if (dailyLog.alcohol_drinks > 2) {
+          context += `- Alcohol consumption is ${dailyLog.alcohol_drinks.toFixed(1)} drinks today (${alcoholCalories} cal) - consider moderation for your health goals\n`
+          if (profile && (profile.goal === 'lose_weight' || profile.goal === 'reduce_body_fat')) {
+            const weeklyImpact = (dailyLog.alcohol_drinks * 120 * 7) / 7700
+            context += `- At this rate, alcohol could slow weight loss by ~${weeklyImpact.toFixed(2)}kg/week\n`
+          }
+        } else if (dailyLog.alcohol_drinks > 0) {
+          context += `- Alcohol logged: ${dailyLog.alcohol_drinks.toFixed(1)} drinks (${alcoholCalories} cal) - remember alcohol calories count toward your daily total\n`
+          if (profile && (profile.goal === 'lose_weight' || profile.goal === 'reduce_body_fat') && remainingCalories < 0) {
+            context += `- Alcohol puts you ${Math.abs(remainingCalories)} calories over your target - consider reducing intake to maintain deficit\n`
+          }
+        }
       }
       context += `\n`
     }

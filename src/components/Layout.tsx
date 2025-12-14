@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Home, UtensilsCrossed, Dumbbell, MessageSquare, Calendar, BarChart3, User, MoreHorizontal, ChefHat, CalendarDays, ShoppingCart, Trophy } from 'lucide-react'
 import Logo from './Logo'
 import { IconChip } from './IconChip'
+import { NotificationsDropdown } from './NotificationsDropdown'
 
 export default function Layout() {
   const location = useLocation()
@@ -40,6 +41,7 @@ export default function Layout() {
     { path: '/history', icon: Calendar, label: 'History' },
     { path: '/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/achievements', icon: Trophy, label: 'Achievements' },
+    // Notifications removed from bottom nav - bell icon is in header
     { path: '/profile', icon: User, label: 'Profile' },
   ]
 
@@ -97,6 +99,9 @@ export default function Layout() {
             </nav>
             
             <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0 min-w-0">
+              {/* Notifications Bell - Show when logged in (user or guest) */}
+              {(user || isGuest) && <NotificationsDropdown />}
+              
               {isGuest && (
                 <>
                   <span className="hidden md:flex items-center justify-center h-8 px-2 md:px-3 text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider border border-border bg-panel whitespace-nowrap rounded-sm leading-none" style={{ minHeight: '2rem' }}>

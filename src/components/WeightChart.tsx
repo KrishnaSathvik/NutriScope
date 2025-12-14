@@ -10,9 +10,15 @@ interface WeightChartProps {
   showBMI?: boolean
   showGoal?: boolean
   showDailyChange?: boolean
+  weightPrediction?: {
+    currentValue: number
+    predictedValue: number
+    daysToGoal: number | null
+    trend: 'increasing' | 'decreasing' | 'stable'
+  } | null
 }
 
-export function WeightChart({ days = 30, showBMI = false, showGoal = false, showDailyChange = true }: WeightChartProps) {
+export function WeightChart({ days = 30, showBMI = false, showGoal = false, showDailyChange = true, weightPrediction = null }: WeightChartProps) {
   const { profile } = useAuth()
   const endDate = format(new Date(), 'yyyy-MM-dd')
   const startDate = format(subDays(new Date(), days), 'yyyy-MM-dd')
@@ -116,6 +122,29 @@ export function WeightChart({ days = 30, showBMI = false, showGoal = false, show
             <div className="text-[10px] md:text-xs text-dim font-mono mt-1">
               {getBMICategoryInfo(chartData[chartData.length - 1].bmi!).label}
             </div>
+          </div>
+        )}
+
+        {weightPrediction && (
+          <div className="card-modern border-acid/30 p-3 md:p-4">
+            <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2">
+              <TrendingUp className={`w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0 ${
+                weightPrediction.trend === 'decreasing' ? 'text-success' : 
+                weightPrediction.trend === 'increasing' ? 'text-error' : 'text-dim'
+              }`} />
+              <span className="text-[10px] md:text-xs text-dim font-mono uppercase truncate">Predicted (7d)</span>
+            </div>
+            <div className={`text-xl md:text-2xl font-bold font-mono ${
+              weightPrediction.trend === 'decreasing' ? 'text-success' : 
+              weightPrediction.trend === 'increasing' ? 'text-error' : 'text-text'
+            }`}>
+              {weightPrediction.predictedValue.toFixed(1)}kg
+            </div>
+            {weightPrediction.trend !== 'stable' && (
+              <div className="text-[10px] md:text-xs text-dim font-mono mt-1">
+                {weightPrediction.trend === 'decreasing' ? '↓ Decreasing' : '↑ Increasing'}
+              </div>
+            )}
           </div>
         )}
 

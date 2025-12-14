@@ -333,12 +333,18 @@ You can help users with:
    - Log water intake (e.g., "I drank 500ml of water")
    - Use action type: "log_water"
 
+8. **Alcohol Logging:**
+   - Log alcohol consumption (e.g., "I had 2 beers", "drank a glass of wine")
+   - Extract drink type (beer, wine, spirits, cocktail, other), drink name (optional), amount (standard drinks), alcohol content % (optional)
+   - Use action type: "log_alcohol"
+   - Standard drink = 14g pure alcohol (1 beer ≈ 1 drink, 1 glass wine ≈ 1 drink, 1 shot ≈ 1 drink)
+
 **Response Format:**
 Always respond with JSON:
 {
   "action": {
     "type": "log_meal_with_confirmation" | "update_meal" | "generate_recipe" | "save_recipe" | "add_to_meal_plan" | 
-            "add_to_grocery_list" | "answer_food_question" | "log_workout" | "log_water" | "none",
+            "add_to_grocery_list" | "answer_food_question" | "log_workout" | "log_water" | "log_alcohol" | "none",
     "data": { ... },
     "requires_confirmation": true/false,
     "confirmation_message": "Do you want me to log this?"
@@ -755,6 +761,30 @@ export async function executeAction(
         return { 
           success: true, 
           message: `✅ Done! I've logged ${waterText} of water.` 
+        }
+
+      case 'log_alcohol':
+        if (!action.data?.alcohol_amount && !action.data?.amount) {
+          return { success: false, message: 'Missing alcohol amount' }
+        }
+        const { createAlcoholLog } = await import('./alcohol')
+        const alcoholAmount = action.data.alcohol_amount || action.data.amount || 1
+        const drinkType = action.data.drink_type || 'other'
+        const drinkName = action.data.drink_name
+        const alcoholContent = action.data.alcohol_content
+        
+        await createAlcoholLog({
+          date,
+          drink_type: drinkType,
+          drink_name: drinkName,
+          amount: alcoholAmount,
+          alcohol_content: alcoholContent,
+          calories: 0, // Will be calculated
+        })
+        const drinkText = alcoholAmount === 1 ? 'drink' : 'drinks'
+        return { 
+          success: true, 
+          message: `✅ Done! I've logged ${alcoholAmount} ${drinkType} ${drinkText}${drinkName ? ` (${drinkName})` : ''}.` 
         }
 
       case 'generate_recipe':

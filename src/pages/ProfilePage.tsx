@@ -287,11 +287,13 @@ export default function ProfilePage() {
       
       return updateData
     },
-    onSuccess: () => {
-      // Invalidate profile query to trigger refetch and update UI immediately
+    onSuccess: async () => {
+      // Invalidate and refetch profile query to update UI immediately
       queryClient.invalidateQueries({ queryKey: ['profile'] })
-      // Also invalidate dailyLog so Dashboard recalculates TDEE/deficit when targets change
+      await queryClient.refetchQueries({ queryKey: ['profile'] })
+      // Also invalidate and refetch dailyLog so Dashboard recalculates TDEE/deficit when targets change
       queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
+      await queryClient.refetchQueries({ queryKey: ['dailyLog'] })
       setEditing(false)
       toast({
         title: "Profile updated",

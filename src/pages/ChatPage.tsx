@@ -330,21 +330,30 @@ export default function ChatPage() {
         }
       }
       
+      // Extract date from action data if provided, otherwise use today
+      const actionDate = actionToExecute.data?.date || today
       // Execute the action
-      const actionResult = await executeAction(actionToExecute, user.id, today)
+      const actionResult = await executeAction(actionToExecute, user.id, actionDate)
 
       if (actionResult.success) {
-        // Invalidate queries to refresh data
+        // Invalidate and refetch queries to refresh data immediately
         queryClient.invalidateQueries({ queryKey: ['meals'] })
+        queryClient.refetchQueries({ queryKey: ['meals'] })
         queryClient.invalidateQueries({ queryKey: ['exercises'] })
+        queryClient.refetchQueries({ queryKey: ['exercises'] })
         queryClient.invalidateQueries({ queryKey: ['waterIntake'] })
+        queryClient.refetchQueries({ queryKey: ['waterIntake'] })
         queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
+        queryClient.refetchQueries({ queryKey: ['dailyLog'] })
         // Force refetch recipes immediately after saving
         queryClient.invalidateQueries({ queryKey: ['recipes'] })
         queryClient.refetchQueries({ queryKey: ['recipes'] })
         queryClient.invalidateQueries({ queryKey: ['mealPlans'] })
+        queryClient.refetchQueries({ queryKey: ['mealPlans'] })
         queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
-        queryClient.invalidateQueries({ queryKey: ['streak'] }) // Update streak when actions are executed
+        queryClient.refetchQueries({ queryKey: ['groceryLists'] })
+        queryClient.invalidateQueries({ queryKey: ['streak'] })
+        queryClient.refetchQueries({ queryKey: ['streak'] })
 
         // Add confirmation message after successful action execution
         if (actionResult.message) {
@@ -471,21 +480,30 @@ export default function ChatPage() {
 
           // Execute action immediately if it doesn't require confirmation
           if (response.action && response.action.type !== 'none' && !response.action.requires_confirmation && user?.id) {
+            // Extract date from action data if provided, otherwise use today
+            const actionDate = response.action.data?.date || today
             // Execute action asynchronously
-            executeAction(response.action, user.id, today)
+            executeAction(response.action, user.id, actionDate)
               .then((actionResult) => {
                 if (actionResult.success) {
-                  // Invalidate queries to refresh data
+                  // Invalidate and refetch queries to refresh data immediately
                   queryClient.invalidateQueries({ queryKey: ['meals'] })
+                  queryClient.refetchQueries({ queryKey: ['meals'] })
                   queryClient.invalidateQueries({ queryKey: ['exercises'] })
+                  queryClient.refetchQueries({ queryKey: ['exercises'] })
                   queryClient.invalidateQueries({ queryKey: ['waterIntake'] })
+                  queryClient.refetchQueries({ queryKey: ['waterIntake'] })
                   queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
+                  queryClient.refetchQueries({ queryKey: ['dailyLog'] })
                   // Force refetch recipes immediately after saving
                   queryClient.invalidateQueries({ queryKey: ['recipes'] })
                   queryClient.refetchQueries({ queryKey: ['recipes'] })
                   queryClient.invalidateQueries({ queryKey: ['mealPlans'] })
+                  queryClient.refetchQueries({ queryKey: ['mealPlans'] })
                   queryClient.invalidateQueries({ queryKey: ['groceryLists'] })
-                  queryClient.invalidateQueries({ queryKey: ['streak'] }) // Update streak when actions are executed
+                  queryClient.refetchQueries({ queryKey: ['groceryLists'] })
+                  queryClient.invalidateQueries({ queryKey: ['streak'] })
+                  queryClient.refetchQueries({ queryKey: ['streak'] })
                   
                   // Add confirmation message
                   const confirmationMessage: ChatMessage = {

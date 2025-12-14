@@ -167,9 +167,78 @@ export function ReminderSettingsSection() {
               <input
                 type="checkbox"
                 checked={settings.enabled}
-                onChange={(e) =>
-                  setSettings({ ...settings, enabled: e.target.checked })
-                }
+                onChange={(e) => {
+                  const isEnabled = e.target.checked
+                  // When enabling, automatically enable all reminder types with default settings
+                  if (isEnabled) {
+                    setSettings({
+                      ...settings,
+                      enabled: true,
+                      meal_reminders: {
+                        ...settings.meal_reminders,
+                        enabled: true,
+                      },
+                      water_reminders: {
+                        ...settings.water_reminders,
+                        enabled: true,
+                      },
+                      workout_reminders: {
+                        ...settings.workout_reminders,
+                        enabled: true,
+                      },
+                      goal_reminders: {
+                        ...settings.goal_reminders,
+                        enabled: true,
+                      },
+                      weight_reminders: {
+                        ...settings.weight_reminders,
+                        enabled: true,
+                      },
+                      streak_reminders: {
+                        ...settings.streak_reminders,
+                        enabled: true,
+                      },
+                      summary_reminders: {
+                        ...settings.summary_reminders,
+                        enabled: true,
+                      },
+                    })
+                  } else {
+                    // When disabling, disable all reminder types
+                    setSettings({
+                      ...settings,
+                      enabled: false,
+                      meal_reminders: {
+                        ...settings.meal_reminders,
+                        enabled: false,
+                      },
+                      water_reminders: {
+                        ...settings.water_reminders,
+                        enabled: false,
+                      },
+                      workout_reminders: {
+                        ...settings.workout_reminders,
+                        enabled: false,
+                      },
+                      goal_reminders: {
+                        ...settings.goal_reminders,
+                        enabled: false,
+                      },
+                      weight_reminders: {
+                        ...settings.weight_reminders,
+                        enabled: false,
+                      },
+                      streak_reminders: {
+                        ...settings.streak_reminders,
+                        enabled: false,
+                      },
+                      summary_reminders: {
+                        ...settings.summary_reminders,
+                        enabled: false,
+                      },
+                    })
+                  }
+                }}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid"></div>
@@ -185,10 +254,12 @@ export function ReminderSettingsSection() {
                   <label className="text-sm font-bold text-text font-mono uppercase">
                     Meal Reminders
                   </label>
-                  <label className="relative inline-flex items-center cursor-pointer ml-auto">
+                  <span className="text-[9px] text-success font-mono uppercase px-1.5 py-0.5 bg-success/10 border border-success/30 rounded">Active</span>
+                  <label className={`relative inline-flex items-center cursor-pointer ml-auto ${!settings.enabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <input
                       type="checkbox"
-                      checked={settings.meal_reminders?.enabled}
+                      checked={settings.meal_reminders?.enabled || false}
+                      disabled={!settings.enabled}
                       onChange={(e) =>
                         setSettings({
                           ...settings,
@@ -200,7 +271,7 @@ export function ReminderSettingsSection() {
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid"></div>
+                    <div className={`w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid ${!settings.enabled ? 'opacity-50' : ''}`}></div>
                   </label>
                 </div>
 
@@ -312,10 +383,12 @@ export function ReminderSettingsSection() {
                   <label className="text-sm font-bold text-text font-mono uppercase">
                     Water Reminders
                   </label>
-                  <label className="relative inline-flex items-center cursor-pointer ml-auto">
+                  <span className="text-[9px] text-success font-mono uppercase px-1.5 py-0.5 bg-success/10 border border-success/30 rounded">Active</span>
+                  <label className={`relative inline-flex items-center cursor-pointer ml-auto ${!settings.enabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <input
                       type="checkbox"
-                      checked={settings.water_reminders?.enabled}
+                      checked={settings.water_reminders?.enabled || false}
+                      disabled={!settings.enabled}
                       onChange={(e) =>
                         setSettings({
                           ...settings,
@@ -327,7 +400,7 @@ export function ReminderSettingsSection() {
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid"></div>
+                    <div className={`w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid ${!settings.enabled ? 'opacity-50' : ''}`}></div>
                   </label>
                 </div>
 
@@ -404,10 +477,12 @@ export function ReminderSettingsSection() {
                   <label className="text-sm font-bold text-text font-mono uppercase">
                     Workout Reminders
                   </label>
-                  <label className="relative inline-flex items-center cursor-pointer ml-auto">
+                  <span className="text-[9px] text-success font-mono uppercase px-1.5 py-0.5 bg-success/10 border border-success/30 rounded">Active</span>
+                  <label className={`relative inline-flex items-center cursor-pointer ml-auto ${!settings.enabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <input
                       type="checkbox"
-                      checked={settings.workout_reminders?.enabled}
+                      checked={settings.workout_reminders?.enabled || false}
+                      disabled={!settings.enabled}
                       onChange={(e) =>
                         setSettings({
                           ...settings,
@@ -419,7 +494,7 @@ export function ReminderSettingsSection() {
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid"></div>
+                    <div className={`w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid ${!settings.enabled ? 'opacity-50' : ''}`}></div>
                   </label>
                 </div>
 
@@ -495,10 +570,12 @@ export function ReminderSettingsSection() {
                   <label className="text-sm font-bold text-text font-mono uppercase">
                     Goal Progress Reminders
                   </label>
-                  <label className="relative inline-flex items-center cursor-pointer ml-auto">
+                  <span className="text-[9px] text-success font-mono uppercase px-1.5 py-0.5 bg-success/10 border border-success/30 rounded">Active</span>
+                  <label className={`relative inline-flex items-center cursor-pointer ml-auto ${!settings.enabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <input
                       type="checkbox"
-                      checked={settings.goal_reminders?.enabled}
+                      checked={settings.goal_reminders?.enabled || false}
+                      disabled={!settings.enabled}
                       onChange={(e) =>
                         setSettings({
                           ...settings,
@@ -510,7 +587,7 @@ export function ReminderSettingsSection() {
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid"></div>
+                    <div className={`w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid ${!settings.enabled ? 'opacity-50' : ''}`}></div>
                   </label>
                 </div>
 
@@ -546,10 +623,12 @@ export function ReminderSettingsSection() {
                   <label className="text-sm font-bold text-text font-mono uppercase">
                     Weight Logging Reminders
                   </label>
-                  <label className="relative inline-flex items-center cursor-pointer ml-auto">
+                  <span className="text-[9px] text-success font-mono uppercase px-1.5 py-0.5 bg-success/10 border border-success/30 rounded">Active</span>
+                  <label className={`relative inline-flex items-center cursor-pointer ml-auto ${!settings.enabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <input
                       type="checkbox"
                       checked={settings.weight_reminders?.enabled || false}
+                      disabled={!settings.enabled}
                       onChange={(e) =>
                         setSettings({
                           ...settings,
@@ -561,7 +640,7 @@ export function ReminderSettingsSection() {
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid"></div>
+                    <div className={`w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid ${!settings.enabled ? 'opacity-50' : ''}`}></div>
                   </label>
                 </div>
 
@@ -637,10 +716,12 @@ export function ReminderSettingsSection() {
                   <label className="text-sm font-bold text-text font-mono uppercase">
                     Streak Reminders
                   </label>
-                  <label className="relative inline-flex items-center cursor-pointer ml-auto">
+                  <span className="text-[9px] text-success font-mono uppercase px-1.5 py-0.5 bg-success/10 border border-success/30 rounded">Active</span>
+                  <label className={`relative inline-flex items-center cursor-pointer ml-auto ${!settings.enabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <input
                       type="checkbox"
                       checked={settings.streak_reminders?.enabled || false}
+                      disabled={!settings.enabled}
                       onChange={(e) =>
                         setSettings({
                           ...settings,
@@ -652,7 +733,7 @@ export function ReminderSettingsSection() {
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid"></div>
+                    <div className={`w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid ${!settings.enabled ? 'opacity-50' : ''}`}></div>
                   </label>
                 </div>
 
@@ -728,10 +809,12 @@ export function ReminderSettingsSection() {
                   <label className="text-sm font-bold text-text font-mono uppercase">
                     Daily Summary Reminders
                   </label>
-                  <label className="relative inline-flex items-center cursor-pointer ml-auto">
+                  <span className="text-[9px] text-success font-mono uppercase px-1.5 py-0.5 bg-success/10 border border-success/30 rounded">Active</span>
+                  <label className={`relative inline-flex items-center cursor-pointer ml-auto ${!settings.enabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
                     <input
                       type="checkbox"
                       checked={settings.summary_reminders?.enabled || false}
+                      disabled={!settings.enabled}
                       onChange={(e) =>
                         setSettings({
                           ...settings,
@@ -743,7 +826,7 @@ export function ReminderSettingsSection() {
                       }
                       className="sr-only peer"
                     />
-                    <div className="w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid"></div>
+                    <div className={`w-11 h-6 bg-panel border border-border peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-acid/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-dim after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-acid ${!settings.enabled ? 'opacity-50' : ''}`}></div>
                   </label>
                 </div>
 
@@ -806,44 +889,20 @@ export function ReminderSettingsSection() {
           </div>
         </form>
       ) : (
-        <div className="space-y-4">
-          <div className="p-4 border border-border rounded-sm">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-bold text-text font-mono uppercase">
-                Reminders Status
-              </span>
-              <span
-                className={`text-xs font-mono px-2 py-1 rounded-sm ${
-                  settings.enabled
-                    ? 'bg-success/20 text-success border border-success/30'
-                    : 'bg-dim/20 text-dim border border-border'
-                }`}
-              >
-                {settings.enabled ? 'Enabled' : 'Disabled'}
-              </span>
-            </div>
-            {settings.enabled && (
-              <div className="mt-4 space-y-2 text-xs text-dim font-mono">
-                {settings.meal_reminders?.enabled && (
-                  <div>✓ Meal reminders configured</div>
-                )}
-                {settings.water_reminders?.enabled && (
-                  <div>
-                    ✓ Water reminders every{' '}
-                    {settings.water_reminders.interval_minutes} minutes
-                  </div>
-                )}
-                {settings.workout_reminders?.enabled && (
-                  <div>
-                    ✓ Workout reminders on{' '}
-                    {settings.workout_reminders.days?.length || 0} days/week
-                  </div>
-                )}
-                {settings.goal_reminders?.enabled && (
-                  <div>✓ Goal progress reminders enabled</div>
-                )}
-              </div>
-            )}
+        <div className="p-4 border border-border rounded-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-text font-mono uppercase">
+              Reminders
+            </span>
+            <span
+              className={`text-xs font-mono px-2 py-1 rounded-sm ${
+                settings.enabled
+                  ? 'bg-success/20 text-success border border-success/30'
+                  : 'bg-dim/20 text-dim border border-border'
+              }`}
+            >
+              {settings.enabled ? 'Enabled' : 'Disabled'}
+            </span>
           </div>
         </div>
       )}

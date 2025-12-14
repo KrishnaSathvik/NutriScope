@@ -298,6 +298,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const caloriesConsumed = dailyLog.calories_consumed ?? 0
       const protein = dailyLog.protein ?? 0
       const waterIntake = dailyLog.water_intake ?? 0
+      const alcoholDrinks = (dailyLog as any).alcohol_drinks ?? 0
+      const alcoholLogs = (dailyLog as any).alcohol_logs || []
+      const alcoholCalories = alcoholLogs.reduce((sum: number, log: any) => sum + (log.calories || 0), 0)
       const caloriesBurned = dailyLog.calories_burned ?? 0
       
       const calorieProgress = profile?.calorie_target ? Math.round((caloriesConsumed / profile.calorie_target) * 100) : 0
@@ -308,6 +311,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       context += `- Calories: ${caloriesConsumed} / ${profile?.calorie_target || 2000} cal (${calorieProgress}%)\n`
       context += `- Protein: ${protein}g / ${profile?.protein_target || 150}g (${proteinProgress}%)\n`
       context += `- Water: ${waterIntake}ml / ${profile?.water_goal || 2000}ml (${waterProgress}%)\n`
+      if (alcoholDrinks > 0) {
+        context += `- Alcohol: ${alcoholDrinks.toFixed(1)} standard drinks (${alcoholCalories} cal)\n`
+      }
       context += `- Calories Burned: ${caloriesBurned} cal\n`
       context += `\n`
     }
@@ -355,6 +361,7 @@ PERSONALIZATION RULES
    - protein: ${dailyLog?.protein ?? 0}
    - calories_burned: ${dailyLog?.calories_burned ?? 0}
    - water_intake: ${dailyLog?.water_intake ?? 0}
+   - alcohol_drinks: ${(dailyLog as any)?.alcohol_drinks ?? 0}${(dailyLog as any)?.alcohol_drinks && (dailyLog as any).alcohol_drinks > 0 ? ` (${((dailyLog as any).alcohol_logs || []).reduce((sum: number, log: any) => sum + (log.calories || 0), 0)} cal from alcohol)` : ''}
 
 3. Whenever you talk about goals, reference THEIR targets:
    - "Your target is ${profile?.calorie_target || 2000} calories / ${profile?.protein_target || 150} g protein"
@@ -480,6 +487,15 @@ You can help users with:
      • Set requires_confirmation: true and show summary of which meals will be updated
      • In confirmation_message, list ALL meals with their calculated values: "I'll update: Breakfast (X cal, Yg protein, Zg carbs, Wg fats), Lunch (...), Dinner (...)"
      • In your message, clearly state which meals you found and what values you calculated for each
+   - **DATE SUPPORT**: Users can log meals/workouts/water for previous days
+     • If user says "yesterday", "last Monday", "on [date]", "for [date]", extract the date
+     • Date format: 'YYYY-MM-DD' (e.g., '2024-01-15')
+     • Include date in action.data.date if user specifies a date
+     • If no date specified, log to today (current date)
+     • Examples:
+       - "I had chicken for lunch yesterday" → date: yesterday's date
+       - "Log breakfast for last Monday" → date: last Monday's date
+       - "Add workout for January 15th" → date: '2024-01-15'
    - Extract:
      • meal_type: MUST be one of these exact values: 'breakfast', 'lunch', 'dinner', 'morning_snack', 'evening_snack', 'pre_breakfast', 'post_dinner'
      • For snacks, ALWAYS use 'morning_snack' or 'evening_snack' - NEVER just 'snack'
@@ -559,11 +575,17 @@ You can help users with:
    - **User Provides Recipe**: If user says "I have this recipe" or provides recipe details directly, use action type "save_recipe" with requires_confirmation: false and save immediately.
    - **Confirmation Responses**: If the user says "yes", "yep", "sure", "ok", "okay", "save it", "add it", or similar affirmative responses after you've generated a recipe (generate_recipe action), automatically convert to "save_recipe" action with requires_confirmation: false and save immediately.
 
-4. **Meal Planning, Grocery Lists, Workouts, Water:**
+4. **Meal Planning, Grocery Lists, Workouts, Water, Alcohol:**
    - For workouts: If user explicitly says "log my workout", "I ran for 30 minutes", "add workout", set requires_confirmation: false and log directly
+     • Support date parameter: "I ran yesterday", "log workout for Monday" → include date in action.data.date
    - For meal plans: If user explicitly says "add to meal plan", "save to meal plan", set requires_confirmation: false and add directly
    - For grocery lists: If user explicitly says "add to grocery list", "add to shopping list", set requires_confirmation: false and add directly
    - For water: If user explicitly says "I drank water", "log water", set requires_confirmation: false and log directly
+     • Support date parameter: "I drank water yesterday", "log water for Monday" → include date in action.data.date
+   - For alcohol: If user explicitly says "I had a beer", "drank wine", "had 2 drinks", use action type "log_alcohol" with requires_confirmation: false
+     • Extract: drink_type ('beer', 'wine', 'spirits', 'cocktail', 'other'), drink_name (optional), amount (standard drinks), alcohol_content (optional %)
+     • Support date parameter: "I had wine yesterday", "drank beer on Friday" → include date in action.data.date
+     • Standard drink = 14g pure alcohol (1 beer ≈ 1 drink, 1 glass wine ≈ 1 drink, 1 shot ≈ 1 drink)
    - Only set requires_confirmation: true if the user's intent is unclear or they're asking a question about it
 
 ====================

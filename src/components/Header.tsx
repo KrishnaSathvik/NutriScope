@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 import Logo from './Logo'
+import { NotificationsDropdown } from './NotificationsDropdown'
 
 interface HeaderProps {
   user?: any
@@ -31,7 +32,7 @@ export function Header({ user: propUser }: HeaderProps) {
   // Debug: Log guest status
   // console.log('Header - isGuest:', isGuest, 'isAuthPage:', isAuthPage, 'user:', user)
 
-  // Dashboard routes where we show: Meals, Workouts, Chat, History, Analytics, Profile
+  // Dashboard routes where we show: Meals, Workouts, Chat, History, Analytics, Notifications, Profile
   const dashboardRoutes = [
     '/dashboard',
     '/meals',
@@ -40,6 +41,7 @@ export function Header({ user: propUser }: HeaderProps) {
     '/history',
     '/logs',
     '/analytics',
+    '/notifications',
     '/profile',
   ]
   const isDashboardRoute =
@@ -121,6 +123,14 @@ export function Header({ user: propUser }: HeaderProps) {
                       Analytics
                     </Link>
                     <Link
+                      to="/notifications"
+                      className={`hover:text-text transition-colors px-2 py-1.5 -mx-2 -my-1.5 rounded-sm relative ${
+                        location.pathname === '/notifications' ? 'text-acid' : ''
+                      }`}
+                    >
+                      Notifications
+                    </Link>
+                    <Link
                       to="/profile"
                       className={`hover:text-text transition-colors px-2 py-1.5 -mx-2 -my-1.5 rounded-sm ${
                         location.pathname === '/profile' ? 'text-acid' : ''
@@ -138,6 +148,9 @@ export function Header({ user: propUser }: HeaderProps) {
           <div className="flex items-center gap-2 sm:gap-2.5 md:gap-3 flex-shrink-0">
             {user || isGuest ? (
               <>
+                {/* Notifications Bell - Show whenever user/guest is logged in (except on landing/auth pages) */}
+                {!isLandingPage && !isAuthPage && <NotificationsDropdown />}
+                
                 {/* On landing page, footer pages, and auth page, show Dashboard link */}
                 {isLandingPage || isFooterPage || isAuthPage ? (
                   <>
