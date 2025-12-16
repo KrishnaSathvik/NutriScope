@@ -4,10 +4,10 @@ import { format, subDays, subMonths, differenceInDays } from 'date-fns'
 import { getDailyLog } from '@/services/dailyLogs'
 import { useAuth } from '@/contexts/AuthContext'
 import { XAxis, YAxis, Tooltip, ResponsiveContainer, Line, AreaChart, Area, ComposedChart, Legend, ReferenceLine, BarChart, Bar } from 'recharts'
-import { Flame, Target, Activity, Droplet, TrendingUp, TrendingDown, Minus, Cookie, Calendar, BarChart3, Scale, TrendingUp as TrendingUpIcon, Lightbulb, Beef, Wine } from 'lucide-react'
+import { Flame, Target, Activity, Droplet, TrendingUp, TrendingDown, Minus, Cookie, Calendar, BarChart3, Scale, TrendingUp as TrendingUpIcon, Lightbulb, Beef, Wine, Moon } from 'lucide-react'
 import { StatCardSkeleton, ChartSkeleton } from '@/components/LoadingSkeleton'
 import { WeightChart } from '@/components/WeightChart'
-import { getGoalAchievementInsightsFromData, getWeeklyPatternsFromData, predictWeight, getAlcoholWeightImpact, calculateAlcoholWeightImpact } from '@/services/analytics'
+import { getGoalAchievementInsightsFromData, getWeeklyPatternsFromData, predictWeight, getAlcoholWeightImpact, calculateAlcoholWeightImpact, getSleepWeightImpact, calculateSleepWeightImpact } from '@/services/analytics'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
 type TimeRange = '7d' | '30d' | '3m' | '1y' | 'custom'
@@ -20,6 +20,8 @@ export default function AnalyticsPage() {
   useUserRealtimeSubscription('exercises', ['analytics', 'dailyLog'], user?.id)
   useUserRealtimeSubscription('daily_logs', ['analytics', 'dailyLog'], user?.id)
   useUserRealtimeSubscription('weight_logs', ['weightLogs', 'correlations', 'predictions'], user?.id)
+  useUserRealtimeSubscription('sleep_logs', ['analytics', 'dailyLog', 'sleepImpact'], user?.id)
+  useUserRealtimeSubscription('alcohol_logs', ['analytics', 'dailyLog', 'alcoholImpact'], user?.id)
   const [timeRange, setTimeRange] = useState<TimeRange>('7d')
   const [customStart, setCustomStart] = useState<string>('')
   const [customEnd, setCustomEnd] = useState<string>('')
@@ -69,6 +71,7 @@ export default function AnalyticsPage() {
     workouts: number
     water: number
     alcohol: number // standard drinks
+    sleep: number | null // sleep hours
     meals: number
   }
 
@@ -114,6 +117,7 @@ export default function AnalyticsPage() {
               workouts: 0,
               water: 0,
               alcohol: 0,
+              sleep: null,
               meals: 0,
               count: 0,
             }
@@ -127,6 +131,7 @@ export default function AnalyticsPage() {
           monthlyData[monthKey].workouts += log.exercises.length
           monthlyData[monthKey].water += log.water_intake
           monthlyData[monthKey].alcohol += (log.alcohol_drinks || 0)
+          monthlyData[monthKey].sleep = monthlyData[monthKey].sleep === null ? (log.sleep_hours || null) : (monthlyData[monthKey].sleep || 0) + (log.sleep_hours || 0)
           monthlyData[monthKey].meals += log.meals.length
           monthlyData[monthKey].count += 1
         })
@@ -142,6 +147,7 @@ export default function AnalyticsPage() {
           fats: Math.round(data.fats / data.count),
           water: Math.round(data.water / data.count),
           alcohol: Math.round((data.alcohol / data.count) * 100) / 100, // Round to 2 decimals
+          sleep: data.sleep !== null ? Math.round((data.sleep / data.count) * 100) / 100 : null,
           workouts: data.workouts,
           meals: data.meals,
         }))
@@ -159,6 +165,7 @@ export default function AnalyticsPage() {
         workouts: log.exercises.length,
         water: log.water_intake,
         alcohol: log.alcohol_drinks || 0,
+        sleep: log.sleep_hours || null,
         meals: log.meals.length,
       }))
     },
@@ -174,13 +181,16 @@ export default function AnalyticsPage() {
   // Calculate statistics
   const logsArray: AnalyticsDataPoint[] = dailyLogs || []
   // Filter out days with no actual logged data (meals or exercises)
-  const daysWithData = logsArray.filter(log => log.meals > 0 || log.workouts > 0 || log.water > 0 || log.calories > 0 || log.alcohol > 0)
+  const daysWithData = logsArray.filter(log => log.meals > 0 || log.workouts > 0 || log.water > 0 || log.calories > 0 || log.alcohol > 0 || (log.sleep !== null && log.sleep > 0))
   const stats = daysWithData.length > 0 ? {
     avgCalories: Math.round(daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.calories, 0) / daysWithData.length),
     avgProtein: Math.round(daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.protein, 0) / daysWithData.length),
     avgWater: Math.round(daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.water, 0) / daysWithData.length),
     avgAlcohol: Math.round((daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.alcohol, 0) / daysWithData.length) * 100) / 100,
     totalAlcohol: Math.round((daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.alcohol, 0)) * 100) / 100,
+    avgSleep: daysWithData.filter(d => d.sleep !== null && d.sleep > 0).length > 0
+      ? Math.round((daysWithData.filter(d => d.sleep !== null && d.sleep > 0).reduce((sum: number, d: AnalyticsDataPoint) => sum + (d.sleep || 0), 0) / daysWithData.filter(d => d.sleep !== null && d.sleep > 0).length) * 100) / 100
+      : null,
     totalWorkouts: daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.workouts, 0),
     totalCaloriesBurned: daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.caloriesBurned, 0),
     avgNetCalories: Math.round(daysWithData.reduce((sum: number, d: AnalyticsDataPoint) => sum + d.netCalories, 0) / daysWithData.length),
@@ -251,6 +261,21 @@ export default function AnalyticsPage() {
     retry: 1,
   })
 
+  // Sleep impact analysis
+  const { data: sleepImpact } = useQuery({
+    queryKey: ['sleepImpact', timeRange, user?.id, profile?.goal],
+    queryFn: () => getSleepWeightImpact(
+      timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '3m' ? 90 : 365,
+      profile ? { goal: profile.goal, calorie_target: profile.calorie_target || profile.target_calories } : undefined
+    ),
+    enabled: !!(user && stats && stats.avgSleep !== null && stats.avgSleep > 0 && logsArray.length >= 7),
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  })
+
   // Get today's daily log for immediate alcohol impact calculation
   const todayDateString = format(new Date(), 'yyyy-MM-dd')
   const { data: todayDailyLog } = useQuery({
@@ -274,6 +299,16 @@ export default function AnalyticsPage() {
       profile.goal || 'maintain'
     )
   }, [todayDailyLog, profile, calorieTarget])
+
+  // Calculate today's sleep impact immediately from today's log
+  const todaySleepImpact = useMemo(() => {
+    if (!profile || !todayDailyLog || !todayDailyLog.sleep_hours) return null
+
+    return calculateSleepWeightImpact(
+      todayDailyLog.sleep_hours,
+      profile.goal || 'maintain'
+    )
+  }, [todayDailyLog, profile])
 
   return (
       <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
@@ -488,6 +523,19 @@ export default function AnalyticsPage() {
                 <div className="text-xl md:text-2xl font-bold text-amber-500 dark:text-text font-mono mb-1">{stats.avgAlcohol.toFixed(1)}</div>
                 <div className="text-[10px] md:text-xs text-dim font-mono">
                   {stats.totalAlcohol.toFixed(1)} total drinks
+                </div>
+              </div>
+            )}
+
+            {stats.avgSleep !== null && stats.avgSleep > 0 && (
+              <div className="card-modern border-indigo-500/30 dark:border-indigo-500/30 p-3 md:p-4">
+                <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2">
+                  <Moon className="w-3.5 h-3.5 md:w-4 md:h-4 text-indigo-500 fill-indigo-500 dark:text-indigo-500 dark:fill-indigo-500 flex-shrink-0" />
+                  <span className="text-[10px] md:text-xs text-dim font-mono uppercase truncate">Avg Sleep</span>
+                </div>
+                <div className="text-xl md:text-2xl font-bold text-indigo-500 dark:text-text font-mono mb-1">{stats.avgSleep.toFixed(1)}h</div>
+                <div className="text-[10px] md:text-xs text-dim font-mono">
+                  {stats.avgSleep >= 7 && stats.avgSleep <= 9 ? 'Optimal range' : stats.avgSleep < 7 ? 'Below recommended' : 'Above recommended'}
                 </div>
               </div>
             )}
@@ -856,81 +904,234 @@ export default function AnalyticsPage() {
             </div>
           )}
 
-          {/* Alcohol Impact Analysis */}
-          {(todayAlcoholImpact || (stats && stats.totalAlcohol > 0 && alcoholImpact)) && (
-            <div className="card-modern border-amber-500/30 dark:border-amber-500/30 p-4 md:p-6">
-              <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
-                <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-amber-500/20 dark:bg-amber-500/20 flex items-center justify-center border border-amber-500/30 dark:border-amber-500/30 flex-shrink-0">
-                  <Wine className="w-4 h-4 md:w-5 md:h-5 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500" />
+          {/* Sleep Chart */}
+          {stats && stats.avgSleep !== null && (
+            <div className="card-modern border-indigo-500/30 dark:border-indigo-500/30 p-4 md:p-6">
+              <div className="flex items-center justify-between mb-4 md:mb-6">
+                <div className="flex items-center gap-2 md:gap-3">
+                  <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-indigo-500/20 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 dark:border-indigo-500/30 flex-shrink-0">
+                    <Moon className="w-4 h-4 md:w-5 md:h-5 text-indigo-500 fill-indigo-500 dark:text-indigo-500 dark:fill-indigo-500" />
+                  </div>
+                  <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Sleep Duration</h2>
                 </div>
-                <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
-                  Alcohol Impact on Weight Goals
-                </h2>
+                <div className="text-[10px] md:text-xs text-dim font-mono">
+                  Avg: {stats.avgSleep?.toFixed(1)} hours/day
+                </div>
               </div>
+              <ResponsiveContainer width="100%" height={240} className="md:h-[350px]">
+                <BarChart data={logsArray.filter(d => d.sleep !== null && d.sleep > 0)}>
+                  <XAxis 
+                    dataKey="date" 
+                    stroke="#525252" 
+                    tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                    axisLine={{ stroke: '#222' }}
+                  />
+                  <YAxis 
+                    stroke="#525252" 
+                    tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                    axisLine={{ stroke: '#222' }}
+                    domain={[0, 12]}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#111',
+                      border: '1px solid #222',
+                      borderRadius: '4px',
+                      color: '#e5e5e5',
+                      fontFamily: 'JetBrains Mono',
+                      fontSize: '11px',
+                    }}
+                    formatter={(value: number) => [`${value.toFixed(1)} hours`, 'Sleep']}
+                  />
+                  <Bar 
+                    dataKey="sleep" 
+                    fill="#6366f1" 
+                    radius={[4, 4, 0, 0]}
+                    name="Sleep (hours)"
+                  />
+                  <ReferenceLine 
+                    y={7} 
+                    stroke="#525252" 
+                    strokeWidth={1}
+                    strokeDasharray="5 5"
+                    label={{ value: "Min", position: "right", fill: "#525252", fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                  />
+                  <ReferenceLine 
+                    y={9} 
+                    stroke="#525252" 
+                    strokeWidth={1}
+                    strokeDasharray="5 5"
+                    label={{ value: "Max", position: "right", fill: "#525252", fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
-              {/* Today's Impact */}
-              {todayAlcoholImpact && (
-                <div className="mb-4 md:mb-6 p-3 md:p-4 bg-surface border border-border rounded-sm">
-                  <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-2">Today's Impact</div>
-                  <div className="text-sm md:text-base text-text font-mono mb-2">
-                    {todayAlcoholImpact.impactOnGoal}
-                  </div>
-                  <div className="text-xs md:text-sm text-dim font-mono mb-2">
-                    {todayAlcoholImpact.recommendation}
-                  </div>
-                  {todayAlcoholImpact.projectedWeeklyImpact && (
-                    <div className="text-xs md:text-sm text-amber-500 font-mono font-bold">
-                      {todayAlcoholImpact.projectedWeeklyImpact}
-                    </div>
-                  )}
-                </div>
-              )}
+          {/* Unified Insights & Patterns Section */}
+          {(goalAchievements || weeklyPatterns || todaySleepImpact || (stats && stats.avgSleep !== null && stats.avgSleep > 0 && sleepImpact) || todayAlcoholImpact || (stats && stats.totalAlcohol > 0 && alcoholImpact)) && (
+            <div className="space-y-4 md:space-y-6">
+              <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono flex items-center gap-2">
+                <Lightbulb className="w-4 h-4 text-acid" />
+                Insights & Patterns
+              </h2>
 
-              {/* Historical Correlation */}
-              {alcoholImpact && alcoholImpact.data.length > 0 && (
-                <div className="space-y-3 md:space-y-4">
-                  <div className="p-3 md:p-4 bg-surface border border-border rounded-sm">
-                    <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-2">
-                      Correlation Analysis ({timeRange === '7d' ? '7 days' : timeRange === '30d' ? '30 days' : timeRange === '3m' ? '3 months' : '1 year'})
+              {/* Sleep Impact Analysis */}
+              {(todaySleepImpact || (stats && stats.avgSleep !== null && stats.avgSleep > 0 && sleepImpact)) && (
+                <div className="card-modern border-indigo-500/30 dark:border-indigo-500/30 p-4 md:p-6">
+                  <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
+                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-indigo-500/20 dark:bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 dark:border-indigo-500/30 flex-shrink-0">
+                      <Moon className="w-4 h-4 md:w-5 md:h-5 text-indigo-500 fill-indigo-500 dark:text-indigo-500 dark:fill-indigo-500" />
                     </div>
-                    <div className="text-sm md:text-base text-text font-mono mb-2">
-                      {alcoholImpact.insight}
-                    </div>
-                    <div className="text-xs md:text-sm text-dim font-mono">
-                      Correlation: {(alcoholImpact.correlation * 100).toFixed(1)}%
-                      {alcoholImpact.correlation > 0.3 && (
-                        <span className="text-warning ml-2">⚠️ May be affecting weight loss</span>
+                    <h3 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
+                      Sleep Impact on Weight Goals
+                    </h3>
+                  </div>
+
+                  {/* Today's Impact */}
+                  {todaySleepImpact && (
+                    <div className="mb-4 md:mb-6 p-3 md:p-4 bg-surface border border-border rounded-sm">
+                      <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-2">Today's Impact</div>
+                      <div className="text-sm md:text-base text-text font-mono mb-2">
+                        {todaySleepImpact.impactOnGoal}
+                      </div>
+                      <div className="text-xs md:text-sm text-dim font-mono mb-2">
+                        {todaySleepImpact.recommendation}
+                      </div>
+                      {todaySleepImpact.projectedImpact && (
+                        <div className="text-xs md:text-sm text-indigo-500 font-mono font-bold">
+                          {todaySleepImpact.projectedImpact}
+                        </div>
                       )}
                     </div>
-                  </div>
+                  )}
 
-                  {alcoholImpact.impactPrediction && (
-                    <div className="p-3 md:p-4 bg-acid/10 border border-acid/30 rounded-sm">
-                      <div className="text-[10px] md:text-xs text-acid font-mono uppercase mb-2">
-                        Personalized Prediction
+                  {/* Historical Correlation */}
+                  {sleepImpact && sleepImpact.data && sleepImpact.data.length > 0 && (
+                    <div className="space-y-3 md:space-y-4">
+                      <div className="p-3 md:p-4 bg-surface border border-border rounded-sm">
+                        <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-2">
+                          Correlation Analysis ({timeRange === '7d' ? '7 days' : timeRange === '30d' ? '30 days' : timeRange === '3m' ? '3 months' : '1 year'})
+                        </div>
+                        <div className="text-sm md:text-base text-text font-mono mb-2">
+                          {sleepImpact.insight}
+                        </div>
+                        <div className="text-xs md:text-sm text-dim font-mono">
+                          {sleepImpact.dataPointsCount !== undefined && sleepImpact.dataPointsCount < 5 ? (
+                            <>
+                              <span className="text-dim">Limited data: Only {sleepImpact.dataPointsCount} day{sleepImpact.dataPointsCount !== 1 ? 's' : ''} with sleep logged</span>
+                              <span className="text-dim ml-2">(Need 5+ days for reliable correlation)</span>
+                            </>
+                          ) : (
+                            <>
+                              Correlation: {(sleepImpact.correlation * 100).toFixed(1)}%
+                              {sleepImpact.correlation < -0.3 && (
+                                <span className="text-success ml-2">✓ Better sleep associated with weight loss</span>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-xs md:text-sm text-text font-mono">
-                        {alcoholImpact.impactPrediction}
-                      </div>
-                      {alcoholImpact.averageAlcoholOnWeightGainDays > 0 && (
-                        <div className="text-xs text-dim font-mono mt-2">
-                          Avg alcohol on weight gain days: {alcoholImpact.averageAlcoholOnWeightGainDays.toFixed(1)} drinks
+
+                      {sleepImpact.impactPrediction && (
+                        <div className="p-3 md:p-4 bg-acid/10 border border-acid/30 rounded-sm">
+                          <div className="text-[10px] md:text-xs text-acid font-mono uppercase mb-2">
+                            Personalized Prediction
+                          </div>
+                          <div className="text-xs md:text-sm text-text font-mono">
+                            {sleepImpact.impactPrediction}
+                          </div>
+                          {sleepImpact.averageSleepHours > 0 && (
+                            <div className="text-xs text-dim font-mono mt-2">
+                              Average sleep: {sleepImpact.averageSleepHours.toFixed(1)} hours/day
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
                   )}
                 </div>
               )}
-            </div>
-          )}
 
-          {/* Advanced Analytics - Insights */}
-          {(goalAchievements || weeklyPatterns || weightPrediction) && (
-            <div className="space-y-4 md:space-y-6">
-              <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono flex items-center gap-2">
-                <Lightbulb className="w-4 h-4 text-acid" />
-                Insights & Patterns
-              </h2>
+              {/* Alcohol Impact Analysis */}
+              {(todayAlcoholImpact || (stats && stats.totalAlcohol > 0 && alcoholImpact)) && (
+                <div className="card-modern border-amber-500/30 dark:border-amber-500/30 p-4 md:p-6">
+                  <div className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
+                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-sm bg-amber-500/20 dark:bg-amber-500/20 flex items-center justify-center border border-amber-500/30 dark:border-amber-500/30 flex-shrink-0">
+                      <Wine className="w-4 h-4 md:w-5 md:h-5 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500" />
+                    </div>
+                    <h3 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">
+                      Alcohol Impact on Weight Goals
+                    </h3>
+                  </div>
+
+                  {/* Today's Impact */}
+                  {todayAlcoholImpact && (
+                    <div className="mb-4 md:mb-6 p-3 md:p-4 bg-surface border border-border rounded-sm">
+                      <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-2">Today's Impact</div>
+                      <div className="text-sm md:text-base text-text font-mono mb-2">
+                        {todayAlcoholImpact.impactOnGoal}
+                      </div>
+                      <div className="text-xs md:text-sm text-dim font-mono mb-2">
+                        {todayAlcoholImpact.recommendation}
+                      </div>
+                      {todayAlcoholImpact.projectedWeeklyImpact && (
+                        <div className="text-xs md:text-sm text-amber-500 font-mono font-bold">
+                          {todayAlcoholImpact.projectedWeeklyImpact}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Historical Correlation */}
+                  {alcoholImpact && alcoholImpact.data && alcoholImpact.data.length > 0 && (
+                    <div className="space-y-3 md:space-y-4">
+                      <div className="p-3 md:p-4 bg-surface border border-border rounded-sm">
+                        <div className="text-[10px] md:text-xs text-dim font-mono uppercase mb-2">
+                          Correlation Analysis ({timeRange === '7d' ? '7 days' : timeRange === '30d' ? '30 days' : timeRange === '3m' ? '3 months' : '1 year'})
+                        </div>
+                        <div className="text-sm md:text-base text-text font-mono mb-2">
+                          {alcoholImpact.insight}
+                        </div>
+                        <div className="text-xs md:text-sm text-dim font-mono">
+                          {alcoholImpact.dataPointsCount !== undefined && alcoholImpact.dataPointsCount < 5 ? (
+                            <>
+                              <span className="text-dim">Limited data: Only {alcoholImpact.dataPointsCount} day{alcoholImpact.dataPointsCount !== 1 ? 's' : ''} with alcohol consumption</span>
+                              <span className="text-dim ml-2">(Need 5+ days for reliable correlation)</span>
+                            </>
+                          ) : (
+                            <>
+                              Correlation: {(alcoholImpact.correlation * 100).toFixed(1)}%
+                              {alcoholImpact.correlation > 0.3 && (
+                                <span className="text-warning ml-2">⚠️ May be affecting weight loss</span>
+                              )}
+                              {alcoholImpact.correlation < -0.3 && (
+                                <span className="text-dim ml-2">(More alcohol → Less weight)</span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {alcoholImpact.impactPrediction && (
+                        <div className="p-3 md:p-4 bg-acid/10 border border-acid/30 rounded-sm">
+                          <div className="text-[10px] md:text-xs text-acid font-mono uppercase mb-2">
+                            Personalized Prediction
+                          </div>
+                          <div className="text-xs md:text-sm text-text font-mono">
+                            {alcoholImpact.impactPrediction}
+                          </div>
+                          {alcoholImpact.averageAlcoholOnWeightGainDays > 0 && (
+                            <div className="text-xs text-dim font-mono mt-2">
+                              Avg alcohol on weight gain days: {alcoholImpact.averageAlcoholOnWeightGainDays.toFixed(1)} drinks
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Goal Achievement */}
               {goalAchievements && goalAchievements.totalDays > 0 && (

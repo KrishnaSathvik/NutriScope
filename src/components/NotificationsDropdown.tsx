@@ -54,6 +54,7 @@ export function NotificationsDropdown() {
 
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'NOTIFICATION_SHOWN') {
+        console.log('[NotificationsDropdown] Received NOTIFICATION_SHOWN message:', event.data)
         const newNotification: StoredNotification = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
           type: event.data.notificationType || 'goal',
@@ -63,9 +64,13 @@ export function NotificationsDropdown() {
           read: false,
           actionUrl: event.data.url,
         }
-        const updated = [newNotification, ...notifications]
-        setNotifications(updated)
-        saveNotifications(updated)
+        
+        // Use functional update to avoid dependency on notifications
+        setNotifications((prevNotifications) => {
+          const updated = [newNotification, ...prevNotifications]
+          saveNotifications(updated)
+          return updated
+        })
         
         // Trigger pulse animation for new notification
         setHasNewNotification(true)
@@ -74,10 +79,13 @@ export function NotificationsDropdown() {
     }
 
     navigator.serviceWorker.addEventListener('message', handleMessage)
+    console.log('[NotificationsDropdown] Message listener registered')
+    
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleMessage)
+      console.log('[NotificationsDropdown] Message listener removed')
     }
-  }, [notifications])
+  }, []) // Empty dependency array - listener stays active
 
   // Close dropdown when clicking outside
   useEffect(() => {

@@ -1,6 +1,10 @@
+-- ============================================================================
+-- Migration 022: Create Grocery Items Table
+-- Creates grocery_items table for autocomplete/search functionality
+-- ============================================================================
+
 -- Grocery Items Database Table
 -- Stores common grocery items for autocomplete/search functionality
-
 CREATE TABLE IF NOT EXISTS grocery_items (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL UNIQUE,

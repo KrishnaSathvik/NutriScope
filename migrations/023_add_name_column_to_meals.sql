@@ -1,7 +1,6 @@
 -- ============================================================================
--- ADD 'name' COLUMN TO MEALS TABLE
--- Fixes 400 Bad Request error when creating meals
--- Run this in Supabase SQL Editor
+-- Migration 023: Add Name Column to Meals Table
+-- Adds optional name column to meals table for better meal identification
 -- ============================================================================
 
 -- Add name column to meals table if it doesn't exist

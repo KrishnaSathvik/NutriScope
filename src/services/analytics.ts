@@ -1,6 +1,7 @@
 import { getDailyLog } from './dailyLogs'
 import { getWeightLogs } from './weightTracking'
 import { getAlcoholLogs } from './alcohol'
+import { getSleepLogs } from './sleep'
 import { format, subDays } from 'date-fns'
 
 export interface CorrelationData {
@@ -177,6 +178,8 @@ export async function getAlcoholWeightImpact(
   averageAlcoholOnWeightGainDays: number
   averageAlcoholOnWeightLossDays: number
   impactPrediction: string
+  hasEnoughData?: boolean
+  dataPointsCount?: number
 }> {
   const endDate = new Date()
   const startDate = subDays(endDate, days)
@@ -193,9 +196,6 @@ export async function getAlcoholWeightImpact(
     return dateA - dateB
   })
 
-  const correlationData: CorrelationData[] = []
-  const alcoholAmounts: number[] = []
-  const weightChanges: number[] = [] // Use weight changes instead of absolute weight
   const alcoholOnWeightGainDays: number[] = []
   const alcoholOnWeightLossDays: number[] = []
   const dailyData: Array<{ date: string; alcohol: number; weight: number | null; weightChange: number | null }> = []
@@ -240,20 +240,16 @@ export async function getAlcoholWeightImpact(
   }
 
   // Second pass: calculate correlation using weight changes vs alcohol
-  // Include all days with weight changes, whether they have alcohol or not
-  // This gives a better correlation: does more alcohol correlate with more weight gain?
+  // Only include days that actually have alcohol consumption for meaningful correlation
+  // Also track alcohol on weight change days for averages
+  const correlationData: CorrelationData[] = []
+  const alcoholAmountsForCorrelation: number[] = []
+  const weightChangesForCorrelation: number[] = []
+  
   for (let i = 0; i < dailyData.length; i++) {
     const day = dailyData[i]
     if (day.weightChange !== null && day.weight !== null) {
-      correlationData.push({
-        x: day.alcohol, // Alcohol amount (0 if no alcohol)
-        y: day.weightChange, // Weight change (positive = gain, negative = loss)
-        date: day.date,
-      })
-      alcoholAmounts.push(day.alcohol)
-      weightChanges.push(day.weightChange)
-      
-      // Track alcohol on weight change days
+      // Track alcohol on weight change days (for averages)
       if (day.alcohol > 0) {
         if (day.weightChange > 0.1) {
           alcoholOnWeightGainDays.push(day.alcohol)
@@ -261,15 +257,32 @@ export async function getAlcoholWeightImpact(
           alcoholOnWeightLossDays.push(day.alcohol)
         }
       }
+      
+      // Only include days WITH alcohol for correlation calculation
+      // This gives a meaningful correlation: does more alcohol correlate with weight changes?
+      if (day.alcohol > 0) {
+        correlationData.push({
+          x: day.alcohol,
+          y: day.weightChange,
+          date: day.date,
+        })
+        alcoholAmountsForCorrelation.push(day.alcohol)
+        weightChangesForCorrelation.push(day.weightChange)
+      }
     }
   }
 
   // Calculate correlation between alcohol amount and weight change
+  // Only calculate if we have at least 5 days with alcohol (meaningful sample size)
   // Positive correlation = more alcohol associated with weight gain
   // Negative correlation = more alcohol associated with weight loss
-  const correlation = correlationData.length >= 3 
-    ? calculateCorrelation(alcoholAmounts, weightChanges)
-    : 0
+  const hasEnoughDataForCorrelation = correlationData.length >= 5
+  const hasLimitedDataForCorrelation = correlationData.length >= 3 && correlationData.length < 5
+  const correlation = correlationData.length >= 5 
+    ? calculateCorrelation(alcoholAmountsForCorrelation, weightChangesForCorrelation)
+    : correlationData.length >= 3
+    ? calculateCorrelation(alcoholAmountsForCorrelation, weightChangesForCorrelation) // Allow 3+ but mark as limited
+    : null // Not enough data for meaningful correlation
   
   const avgAlcoholOnGain = alcoholOnWeightGainDays.length > 0
     ? alcoholOnWeightGainDays.reduce((a, b) => a + b, 0) / alcoholOnWeightGainDays.length
@@ -304,18 +317,59 @@ export async function getAlcoholWeightImpact(
     )
     
     // Build personalized prediction based on correlation AND impact
-    if (correlation > 0.3) {
+    // Only use correlation if we have enough data points
+    if (correlation !== null && correlation > 0.3) {
       insight = 'Alcohol consumption shows a positive correlation with weight. Higher alcohol intake may be contributing to weight gain.'
-      impactPrediction = `On days with weight gain, you consumed ${avgAlcoholOnGain.toFixed(1)} drinks on average. Your typical ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories. ${impact.projectedWeeklyImpact}`
-    } else if (correlation < -0.3) {
-      insight = 'Alcohol consumption shows a negative correlation with weight. This may indicate alcohol is replacing meals or affecting metabolism.'
-      impactPrediction = `On days with weight loss, average alcohol was ${avgAlcoholOnLoss.toFixed(1)} drinks. Your typical ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories. ${impact.recommendation}`
-    } else if (correlation > 0.1) {
+      if (avgAlcoholOnGain > 0) {
+        impactPrediction = `On days with weight gain, you consumed ${avgAlcoholOnGain.toFixed(1)} drinks on average. Your typical ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories. ${impact.projectedWeeklyImpact}`
+      } else {
+        impactPrediction = `Your typical ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories. ${impact.projectedWeeklyImpact}`
+      }
+    } else if (correlation !== null && correlation < -0.3) {
+      // Negative correlation: more alcohol associated with weight loss
+      // This could mean alcohol is replacing meals (calorie deficit) or other factors
+      if (profile.goal === 'lose_weight' || profile.goal === 'reduce_body_fat') {
+        insight = 'Alcohol consumption shows a negative correlation with weight. More alcohol is associated with weight loss in your data, which may indicate alcohol is replacing meals and creating a calorie deficit.'
+      } else {
+        insight = 'Alcohol consumption shows a negative correlation with weight. This may indicate alcohol is replacing meals or affecting metabolism.'
+      }
+      if (avgAlcoholOnLoss > 0 && avgAlcoholOnLoss < avgAlcoholPerDay) {
+        // Weight loss days had less alcohol than average - reducing alcohol helps
+        impactPrediction = `On days with weight loss, you consumed ${avgAlcoholOnLoss.toFixed(1)} drinks on average (less than your typical ${avgAlcoholPerDay.toFixed(1)} drinks/day). Reducing alcohol intake may support your weight loss goals. ${impact.recommendation}`
+      } else if (avgAlcoholOnLoss === 0 && avgAlcoholPerDay > 0) {
+        // Weight loss days had no alcohol - not drinking helps
+        impactPrediction = `On days with weight loss, you had no alcohol, while your typical consumption is ${avgAlcoholPerDay.toFixed(1)} drinks/day (~${Math.round(avgAlcoholCaloriesPerDay)} calories). Reducing alcohol intake may support your weight loss goals.`
+      } else if (avgAlcoholOnLoss >= avgAlcoholPerDay && avgAlcoholPerDay > 0) {
+        // Negative correlation but weight loss days had MORE alcohol - alcohol may be replacing meals
+        if (profile.goal === 'lose_weight' || profile.goal === 'reduce_body_fat') {
+          impactPrediction = `On days with weight loss, you consumed ${avgAlcoholOnLoss.toFixed(1)} drinks on average. While this correlation suggests alcohol may be creating a calorie deficit by replacing meals, alcohol lacks essential nutrients. Focus on nutrient-dense foods for sustainable weight loss.`
+        } else {
+          impactPrediction = `On days with weight loss, average alcohol was ${avgAlcoholOnLoss.toFixed(1)} drinks. This correlation may indicate alcohol is replacing meals, but ensure you're getting adequate nutrients from food.`
+        }
+      } else {
+        // Negative correlation but similar consumption - focus on overall impact
+        impactPrediction = `Your typical ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories. ${impact.recommendation}`
+      }
+    } else if (correlation !== null && correlation > 0.1) {
       insight = 'Moderate positive correlation: Alcohol may be contributing to calorie surplus and weight gain.'
       impactPrediction = `Your average ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories daily (${Math.round(avgAlcoholCaloriesPerWeek)} cal/week). ${impact.projectedWeeklyImpact || impact.recommendation}`
-    } else {
+    } else if (correlation !== null) {
       // Weak correlation - still provide personalized impact
-      insight = 'Weak correlation: Alcohol consumption doesn\'t show a strong direct relationship with weight changes in your data.'
+      insight = hasLimitedDataForCorrelation 
+        ? 'Limited data: Alcohol consumption shows a weak correlation with weight changes. More data needed for reliable analysis.'
+        : 'Weak correlation: Alcohol consumption doesn\'t show a strong direct relationship with weight changes in your data.'
+      if (profile.goal === 'lose_weight' || profile.goal === 'reduce_body_fat') {
+        impactPrediction = `Your average ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories. ${impact.projectedWeeklyImpact || 'Monitor your intake to stay within your calorie deficit for weight loss.'}`
+      } else if (profile.goal === 'gain_muscle' || profile.goal === 'gain_weight') {
+        impactPrediction = `Your average ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories toward your surplus, but alcohol lacks protein needed for muscle growth. ${impact.recommendation}`
+      } else {
+        impactPrediction = `Your average ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories (${Math.round(avgAlcoholCaloriesPerWeek)} cal/week). ${impact.recommendation}`
+      }
+    } else {
+      // Not enough data for correlation - provide general impact
+      insight = correlationData.length > 0
+        ? `Limited data: Only ${correlationData.length} day${correlationData.length !== 1 ? 's' : ''} with alcohol consumption. More data needed for correlation analysis.`
+        : 'Insufficient data: Need at least 3 days with alcohol consumption for correlation analysis.'
       if (profile.goal === 'lose_weight' || profile.goal === 'reduce_body_fat') {
         impactPrediction = `Your average ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories. ${impact.projectedWeeklyImpact || 'Monitor your intake to stay within your calorie deficit for weight loss.'}`
       } else if (profile.goal === 'gain_muscle' || profile.goal === 'gain_weight') {
@@ -326,17 +380,42 @@ export async function getAlcoholWeightImpact(
     }
   } else {
     // Fallback to correlation-based predictions if no profile data
-    if (correlation > 0.3) {
+    if (correlation !== null && correlation > 0.3) {
       insight = 'Alcohol consumption shows a positive correlation with weight. Higher alcohol intake may be contributing to weight gain.'
       impactPrediction = `On days with weight gain, average alcohol was ${avgAlcoholOnGain.toFixed(1)} drinks. Consider reducing alcohol intake to support weight loss goals.`
-    } else if (correlation < -0.3) {
-      insight = 'Alcohol consumption shows a negative correlation with weight. This may indicate alcohol is replacing meals or affecting metabolism.'
-      impactPrediction = `On days with weight loss, average alcohol was ${avgAlcoholOnLoss.toFixed(1)} drinks. Monitor nutrition to ensure you're getting adequate nutrients.`
-    } else if (correlation > 0.1) {
+    } else if (correlation !== null && correlation < -0.3) {
+      // Negative correlation: more alcohol associated with weight loss
+      insight = 'Alcohol consumption shows a negative correlation with weight. More alcohol is associated with weight loss in your data, which may indicate alcohol is replacing meals and creating a calorie deficit.'
+      if (avgAlcoholOnLoss === 0 && avgAlcoholPerDay > 0) {
+        impactPrediction = `On days with weight loss, you had no alcohol, while your typical consumption is ${avgAlcoholPerDay.toFixed(1)} drinks/day. Reducing alcohol intake may support your weight loss goals.`
+      } else if (avgAlcoholOnLoss > 0 && avgAlcoholOnLoss < avgAlcoholPerDay) {
+        impactPrediction = `On days with weight loss, average alcohol was ${avgAlcoholOnLoss.toFixed(1)} drinks (less than your typical ${avgAlcoholPerDay.toFixed(1)} drinks/day). Reducing alcohol intake may support your weight loss goals.`
+      } else if (avgAlcoholOnLoss >= avgAlcoholPerDay && avgAlcoholPerDay > 0) {
+        impactPrediction = `On days with weight loss, average alcohol was ${avgAlcoholOnLoss.toFixed(1)} drinks. While this correlation suggests alcohol may be creating a calorie deficit by replacing meals, alcohol lacks essential nutrients. Focus on nutrient-dense foods for sustainable weight loss.`
+      } else {
+        impactPrediction = `On days with weight loss, average alcohol was ${avgAlcoholOnLoss.toFixed(1)} drinks. This correlation may indicate alcohol is replacing meals, but ensure you're getting adequate nutrients from food.`
+      }
+    } else if (correlation !== null && correlation > 0.1) {
       insight = 'Moderate positive correlation: Alcohol may be contributing to calorie surplus and weight gain.'
-      impactPrediction = `Average alcohol on weight gain days: ${avgAlcoholOnGain.toFixed(1)} drinks. Alcohol adds empty calories that can hinder weight loss.`
+      if (avgAlcoholOnGain > 0) {
+        impactPrediction = `Average alcohol on weight gain days: ${avgAlcoholOnGain.toFixed(1)} drinks. Alcohol adds empty calories that can hinder weight loss.`
+      } else {
+        impactPrediction = `Your average ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories. Alcohol adds empty calories that can hinder weight loss.`
+      }
+    } else if (correlation !== null) {
+      insight = hasLimitedDataForCorrelation
+        ? `Limited data: Only ${correlationData.length} day${correlationData.length !== 1 ? 's' : ''} with alcohol consumption. More data needed for reliable correlation analysis.`
+        : 'Weak correlation: Alcohol consumption doesn\'t show a strong direct relationship with weight changes in your data.'
+      if (avgAlcoholPerDay > 0) {
+        impactPrediction = `Your average ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories (${Math.round(avgAlcoholCaloriesPerWeek)} cal/week). Monitor your intake to stay within your calorie goals.`
+      } else {
+        impactPrediction = 'Alcohol adds calories (7 cal/g) that count toward your daily total. Monitor your intake to stay within calorie goals.'
+      }
     } else {
-      insight = 'Weak correlation: Alcohol consumption doesn\'t show a strong direct relationship with weight changes in your data.'
+      // Not enough data for correlation
+      insight = correlationData.length > 0
+        ? `Limited data: Only ${correlationData.length} day${correlationData.length !== 1 ? 's' : ''} with alcohol consumption. Need at least 5 days for meaningful correlation analysis.`
+        : 'Insufficient data: Need at least 3 days with alcohol consumption for correlation analysis.'
       if (avgAlcoholPerDay > 0) {
         impactPrediction = `Your average ${avgAlcoholPerDay.toFixed(1)} drinks/day adds ~${Math.round(avgAlcoholCaloriesPerDay)} calories (${Math.round(avgAlcoholCaloriesPerWeek)} cal/week). Monitor your intake to stay within your calorie goals.`
       } else {
@@ -346,12 +425,14 @@ export async function getAlcoholWeightImpact(
   }
 
   return {
-    correlation,
+    correlation: correlation || 0, // Return 0 if null for backward compatibility
     data: correlationData,
     insight,
     averageAlcoholOnWeightGainDays: avgAlcoholOnGain,
     averageAlcoholOnWeightLossDays: avgAlcoholOnLoss,
     impactPrediction,
+    hasEnoughData: hasEnoughDataForCorrelation,
+    dataPointsCount: correlationData.length,
   }
 }
 
@@ -414,6 +495,289 @@ export function calculateAlcoholWeightImpact(
     impactOnGoal,
     recommendation,
     projectedWeeklyImpact,
+  }
+}
+
+/**
+ * Get sleep vs weight correlation and impact analysis
+ */
+export async function getSleepWeightImpact(
+  days: number = 30,
+  profile?: { goal?: string; calorie_target?: number }
+): Promise<{
+  correlation: number
+  data: CorrelationData[]
+  insight: string
+  averageSleepOnWeightGainDays: number
+  averageSleepOnWeightLossDays: number
+  impactPrediction: string
+  averageSleepHours: number
+  hasEnoughData?: boolean
+  dataPointsCount?: number
+}> {
+  const endDate = new Date()
+  const startDate = subDays(endDate, days)
+  
+  // Get weight logs
+  const weightLogs = await getWeightLogs(
+    format(subDays(startDate, 7), 'yyyy-MM-dd'),
+    format(endDate, 'yyyy-MM-dd')
+  )
+
+  const sortedWeightLogs = [...weightLogs].sort((a, b) => {
+    const dateA = new Date(a.date + 'T00:00:00').getTime()
+    const dateB = new Date(b.date + 'T00:00:00').getTime()
+    return dateA - dateB
+  })
+
+  const correlationData: CorrelationData[] = []
+  const sleepHours: number[] = []
+  const weightChanges: number[] = []
+  const sleepOnWeightGainDays: number[] = []
+  const sleepOnWeightLossDays: number[] = []
+  const dailyData: Array<{ date: string; sleep: number | null; weight: number | null; weightChange: number | null }> = []
+  
+  // First pass: collect all data and calculate weight changes
+  let previousWeight: number | null = null
+  
+  for (let i = days - 1; i >= 0; i--) {
+    const date = format(subDays(endDate, i), 'yyyy-MM-dd')
+    const sleepLogs = await getSleepLogs(date).catch(() => [])
+    const totalSleep = sleepLogs.length > 0 ? sleepLogs[0].sleep_duration : null
+    
+    // Find weight for this date
+    const currentDate = new Date(date + 'T00:00:00').getTime()
+    let currentWeight: number | null = null
+    
+    for (let j = sortedWeightLogs.length - 1; j >= 0; j--) {
+      const weightLogDateStr = sortedWeightLogs[j].date
+      if (!weightLogDateStr) continue
+      const weightLogDate = new Date(weightLogDateStr + 'T00:00:00').getTime()
+      if (!isNaN(weightLogDate) && weightLogDate <= currentDate) {
+        currentWeight = sortedWeightLogs[j].weight
+        break
+      }
+    }
+    
+    // Calculate weight change from previous day
+    const weightChange = previousWeight !== null && currentWeight !== null 
+      ? currentWeight - previousWeight 
+      : null
+    
+    dailyData.push({
+      date,
+      sleep: totalSleep,
+      weight: currentWeight,
+      weightChange,
+    })
+    
+    if (currentWeight !== null && currentWeight > 0) {
+      previousWeight = currentWeight
+    }
+  }
+
+  // Second pass: calculate correlation using weight changes vs sleep
+  for (let i = 0; i < dailyData.length; i++) {
+    const day = dailyData[i]
+    if (day.weightChange !== null && day.sleep !== null && day.sleep > 0) {
+      correlationData.push({
+        x: day.sleep,
+        y: day.weightChange,
+        date: day.date,
+      })
+      sleepHours.push(day.sleep)
+      weightChanges.push(day.weightChange)
+      
+      // Track sleep on weight change days
+      if (day.weightChange > 0.1) {
+        sleepOnWeightGainDays.push(day.sleep)
+      } else if (day.weightChange < -0.1) {
+        sleepOnWeightLossDays.push(day.sleep)
+      }
+    }
+  }
+
+  // Calculate correlation (negative correlation = more sleep associated with weight loss)
+  // Only calculate if we have at least 5 days with sleep (meaningful sample size)
+  const hasEnoughDataForCorrelation = correlationData.length >= 5
+  const hasLimitedDataForCorrelation = correlationData.length >= 3 && correlationData.length < 5
+  const correlation = correlationData.length >= 5 
+    ? calculateCorrelation(sleepHours, weightChanges)
+    : correlationData.length >= 3
+    ? calculateCorrelation(sleepHours, weightChanges) // Allow 3+ but mark as limited
+    : null // Not enough data for meaningful correlation
+  
+  const avgSleepOnGain = sleepOnWeightGainDays.length > 0
+    ? sleepOnWeightGainDays.reduce((a, b) => a + b, 0) / sleepOnWeightGainDays.length
+    : 0
+  const avgSleepOnLoss = sleepOnWeightLossDays.length > 0
+    ? sleepOnWeightLossDays.reduce((a, b) => a + b, 0) / sleepOnWeightLossDays.length
+    : 0
+
+  // Calculate average sleep hours
+  const daysWithSleep = dailyData.filter(d => d.sleep !== null && d.sleep > 0)
+  const avgSleepHours = daysWithSleep.length > 0
+    ? daysWithSleep.reduce((sum, d) => sum + (d.sleep || 0), 0) / daysWithSleep.length
+    : 0
+
+  let insight = ''
+  let impactPrediction = ''
+  
+  // Generate personalized prediction based on user goals and actual sleep patterns
+  if (profile?.goal === 'lose_weight' || profile?.goal === 'reduce_body_fat') {
+    if (correlation !== null && correlation < -0.3) {
+      insight = 'Sleep shows a strong negative correlation with weight. More sleep is associated with better weight loss results.'
+      impactPrediction = `On days with weight loss, average sleep was ${avgSleepOnLoss.toFixed(1)} hours. Getting adequate sleep (7-9 hours) supports your weight loss goals by regulating hormones and reducing cravings.`
+    } else if (correlation !== null && correlation < -0.1) {
+      insight = 'Sleep shows a moderate negative correlation with weight. Better sleep may support your weight loss journey.'
+      impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Aim for 7-9 hours per night to optimize metabolism and reduce stress-related eating.`
+    } else if (correlation !== null) {
+      // Weak correlation - still provide personalized impact
+      insight = hasLimitedDataForCorrelation
+        ? 'Limited data: Sleep shows a weak correlation with weight changes. More data needed for reliable analysis.'
+        : 'Sleep patterns show a weak correlation with weight changes in your data.'
+      if (avgSleepHours < 7) {
+        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours, which is below the recommended 7-9 hours. Poor sleep can increase cortisol, affect hunger hormones, and slow metabolism.`
+      } else if (avgSleepHours > 9) {
+        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Good sleep helps regulate hormones that control appetite and metabolism.`
+      } else {
+        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Maintaining consistent sleep (7-9 hours) supports overall health and weight management.`
+      }
+    } else {
+      // Not enough data for correlation - provide general impact
+      insight = correlationData.length > 0
+        ? `Limited data: Only ${correlationData.length} day${correlationData.length !== 1 ? 's' : ''} with sleep logged. More data needed for correlation analysis.`
+        : 'Insufficient data: Need at least 3 days with sleep logged for correlation analysis.'
+      if (avgSleepHours < 7) {
+        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours, which is below the recommended 7-9 hours. Poor sleep can increase cortisol, affect hunger hormones, and slow metabolism.`
+      } else if (avgSleepHours > 9) {
+        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Good sleep helps regulate hormones that control appetite and metabolism.`
+      } else if (avgSleepHours > 0) {
+        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Aim for 7-9 hours per night for optimal health and weight management.`
+      } else {
+        impactPrediction = 'Adequate sleep (7-9 hours) supports healthy metabolism, hormone regulation, and weight management.'
+      }
+    }
+  } else {
+    // Fallback to correlation-based predictions if no profile data
+    if (correlation !== null && correlation < -0.3) {
+      insight = 'Sleep shows a strong negative correlation with weight. More sleep is associated with weight loss.'
+      impactPrediction = `On days with weight loss, average sleep was ${avgSleepOnLoss.toFixed(1)} hours. Adequate sleep supports healthy weight management.`
+    } else if (correlation !== null && correlation > 0.3) {
+      insight = 'Sleep shows a positive correlation with weight. This may indicate sleep quality issues or other factors affecting both sleep and weight.'
+      impactPrediction = `On days with weight gain, average sleep was ${avgSleepOnGain.toFixed(1)} hours. Consider improving sleep quality and duration.`
+    } else if (correlation !== null) {
+      insight = hasLimitedDataForCorrelation
+        ? `Limited data: Only ${correlationData.length} day${correlationData.length !== 1 ? 's' : ''} with sleep logged. More data needed for reliable correlation analysis.`
+        : 'Sleep patterns show a weak correlation with weight changes in your data.'
+      if (avgSleepHours > 0) {
+        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Aim for 7-9 hours per night for optimal health and weight management.`
+      } else {
+        impactPrediction = 'Adequate sleep (7-9 hours) supports healthy metabolism, hormone regulation, and weight management.'
+      }
+    } else {
+      // Not enough data for correlation
+      insight = correlationData.length > 0
+        ? `Limited data: Only ${correlationData.length} day${correlationData.length !== 1 ? 's' : ''} with sleep logged. Need at least 5 days for meaningful correlation analysis.`
+        : 'Insufficient data: Need at least 3 days with sleep logged for correlation analysis.'
+      if (avgSleepHours < 7) {
+        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Aim for 7-9 hours per night for optimal health and weight management.`
+      } else if (avgSleepHours > 0) {
+        impactPrediction = 'Adequate sleep (7-9 hours) supports healthy metabolism, hormone regulation, and weight management.'
+      } else {
+        impactPrediction = 'Adequate sleep (7-9 hours) supports healthy metabolism, hormone regulation, and weight management.'
+      }
+    }
+  }
+
+  return {
+    correlation: correlation || 0, // Return 0 if null for backward compatibility
+    data: correlationData,
+    insight,
+    averageSleepOnWeightGainDays: avgSleepOnGain,
+    averageSleepOnWeightLossDays: avgSleepOnLoss,
+    impactPrediction,
+    averageSleepHours: avgSleepHours,
+    hasEnoughData: hasEnoughDataForCorrelation,
+    dataPointsCount: correlationData.length,
+  }
+}
+
+/**
+ * Calculate sleep's impact on weight loss goals
+ */
+export function calculateSleepWeightImpact(
+  sleepHours: number,
+  goal: string
+): {
+  sleepStatus: string
+  impactOnGoal: string
+  recommendation: string
+  projectedImpact: string
+} {
+  let sleepStatus = ''
+  let impactOnGoal = ''
+  let recommendation = ''
+  let projectedImpact = ''
+  
+  // Sleep quality categories
+  const isOptimal = sleepHours >= 7 && sleepHours <= 9
+  const isInsufficient = sleepHours < 7
+  const isExcessive = sleepHours > 9
+  
+  if (goal === 'lose_weight' || goal === 'reduce_body_fat') {
+    if (isOptimal) {
+      sleepStatus = 'Optimal'
+      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep, which is optimal for weight loss.`
+      recommendation = 'Maintain this sleep schedule. Adequate sleep helps regulate hormones that control appetite and metabolism.'
+      projectedImpact = 'Optimal sleep supports healthy weight loss by reducing cortisol, improving insulin sensitivity, and regulating hunger hormones.'
+    } else if (isInsufficient) {
+      sleepStatus = 'Insufficient'
+      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep, which is below the recommended 7-9 hours.`
+      recommendation = 'Aim for 7-9 hours of sleep per night. Poor sleep can increase cortisol, affect hunger hormones (ghrelin/leptin), and slow metabolism.'
+      projectedImpact = 'Insufficient sleep may slow weight loss progress by increasing stress hormones and cravings. Improving sleep could accelerate your results.'
+    } else if (isExcessive) {
+      sleepStatus = 'Excessive'
+      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep, which is above the recommended range.`
+      recommendation = 'While adequate sleep is important, excessive sleep may indicate other health issues. Aim for 7-9 hours consistently.'
+      projectedImpact = 'Very long sleep durations may be associated with underlying health conditions. Consult a healthcare provider if this persists.'
+    }
+  } else if (goal === 'gain_muscle') {
+    if (isOptimal) {
+      sleepStatus = 'Optimal'
+      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep, which is optimal for muscle recovery and growth.`
+      recommendation = 'Maintain this sleep schedule. Sleep is crucial for muscle protein synthesis and recovery.'
+      projectedImpact = 'Optimal sleep supports muscle growth by maximizing growth hormone release and recovery.'
+    } else if (isInsufficient) {
+      sleepStatus = 'Insufficient'
+      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep, which may limit muscle recovery.`
+      recommendation = 'Aim for 7-9 hours of sleep. Muscle growth occurs during sleep, so adequate rest is essential.'
+      projectedImpact = 'Insufficient sleep may slow muscle growth by reducing growth hormone production and recovery.'
+    } else {
+      sleepStatus = 'Good'
+      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep.`
+      recommendation = 'Sleep supports muscle recovery and growth. Maintain consistent sleep patterns.'
+      projectedImpact = 'Adequate sleep is essential for optimal muscle protein synthesis and recovery.'
+    }
+  } else {
+    if (isOptimal) {
+      sleepStatus = 'Optimal'
+      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep, which is optimal for overall health.`
+      recommendation = 'Maintain this sleep schedule for optimal health and well-being.'
+      projectedImpact = 'Optimal sleep supports overall health, cognitive function, and metabolism.'
+    } else {
+      sleepStatus = 'Needs Improvement'
+      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep.`
+      recommendation = 'Aim for 7-9 hours of sleep per night for optimal health and well-being.'
+      projectedImpact = 'Adequate sleep supports overall health, immune function, and metabolism.'
+    }
+  }
+  
+  return {
+    sleepStatus,
+    impactOnGoal,
+    recommendation,
+    projectedImpact,
   }
 }
 
@@ -745,4 +1109,5 @@ function getDatesBetween(start: string, end: string): string[] {
   
   return dates
 }
+
 

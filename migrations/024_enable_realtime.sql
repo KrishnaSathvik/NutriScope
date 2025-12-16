@@ -1,6 +1,6 @@
 -- ============================================================================
--- ENABLE SUPABASE REALTIME REPLICATION
--- Run this in Supabase SQL Editor to enable realtime subscriptions
+-- Migration 024: Enable Supabase Realtime Replication
+-- Enables realtime subscriptions for all tables that need realtime updates
 -- ============================================================================
 
 -- Enable replication for all tables that need realtime updates
@@ -15,7 +15,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE chat_conversations;
 ALTER PUBLICATION supabase_realtime ADD TABLE achievements;
 ALTER PUBLICATION supabase_realtime ADD TABLE user_profiles;
 ALTER PUBLICATION supabase_realtime ADD TABLE meal_templates;
-
--- Verify replication is enabled (optional check)
--- SELECT schemaname, tablename FROM pg_publication_tables WHERE pubname = 'supabase_realtime';
+ALTER PUBLICATION supabase_realtime ADD TABLE exercise_library;
+ALTER PUBLICATION supabase_realtime ADD TABLE alcohol_logs;
+ALTER PUBLICATION supabase_realtime ADD TABLE sleep_logs;
+ALTER PUBLICATION supabase_realtime ADD TABLE reminders;
 

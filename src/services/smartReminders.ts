@@ -99,6 +99,23 @@ class SmartReminderService {
           : [8, 0]
 
         const days = reminder.daysOfWeek || [1, 2, 3, 4, 5] // Default weekdays
+        
+        // CRITICAL: If all 7 days are selected, treat as daily reminder
+        const allDaysSelected = days && days.length === 7 && days.every(d => [0,1,2,3,4,5,6].includes(d))
+        
+        if (allDaysSelected) {
+          // Treat as daily - schedule for tomorrow if time passed today
+          const nextTrigger = new Date(currentTime)
+          nextTrigger.setHours(hours, minutes, 0, 0)
+          
+          if (nextTrigger.getTime() <= now) {
+            nextTrigger.setDate(nextTrigger.getDate() + 1)
+          }
+          
+          return nextTrigger.getTime()
+        }
+
+        // Regular weekly logic
         const currentDay = currentTime.getDay()
 
         // Find next occurrence
@@ -115,9 +132,18 @@ class SmartReminderService {
         nextTrigger.setDate(nextTrigger.getDate() + daysUntilNext)
         nextTrigger.setHours(hours, minutes, 0, 0)
 
-        // If same day but time passed, schedule for next week
+        // If same day but time passed, find next day in the array (not necessarily next week)
         if (daysUntilNext === 0 && nextTrigger.getTime() <= now) {
-          nextTrigger.setDate(nextTrigger.getDate() + 7)
+          // Find the next day in the array
+          const sortedDays = [...days].sort((a, b) => a - b)
+          let nextDayIndex = sortedDays.findIndex(d => d > currentDay)
+          if (nextDayIndex === -1) nextDayIndex = 0 // Wrap around to first day
+          const nextDay = sortedDays[nextDayIndex]
+          
+          let daysToAdd = nextDay - currentDay
+          if (daysToAdd <= 0) daysToAdd += 7
+          
+          nextTrigger.setDate(nextTrigger.getDate() + daysToAdd)
         }
 
         return nextTrigger.getTime()
@@ -129,9 +155,12 @@ class SmartReminderService {
         }
 
         const intervalMs = reminder.intervalMinutes * 60 * 1000
-        const lastTriggered = reminder.lastTriggered || reminder.scheduledTime
-
-        // Calculate next trigger based on interval
+        
+        // For recurring reminders, maintain alignment with the scheduled time
+        // Calculate next trigger from the last trigger time, maintaining interval alignment
+        const lastTriggered = reminder.lastTriggered || reminder.scheduledTime || now
+        
+        // Calculate next trigger based on interval from last triggered time
         let nextTrigger = lastTriggered + intervalMs
 
         // Apply start/end time constraints
@@ -181,16 +210,25 @@ class SmartReminderService {
     userId: string,
     settings: ReminderSettings
   ): Promise<void> {
+    console.log(`[SmartReminders] createReminderFromSettings called for user ${userId}`)
+    console.log(`[SmartReminders] Settings enabled: ${settings.enabled}`)
+    
     await reminderStorage.init()
+    console.log('[SmartReminders] IndexedDB initialized')
 
     // Clear existing reminders for this user
+    const existingReminders = await reminderStorage.getUserReminders(userId)
+    console.log(`[SmartReminders] Found ${existingReminders.length} existing reminders, clearing...`)
     await reminderStorage.deleteUserReminders(userId)
+    console.log('[SmartReminders] Existing reminders cleared')
 
     if (!settings.enabled) {
+      console.log('[SmartReminders] Reminders disabled in settings, skipping creation')
       return
     }
 
     const reminders: StoredReminder[] = []
+    console.log('[SmartReminders] Starting to create reminders from settings...')
 
     // Meal reminders
     if (settings.meal_reminders?.enabled) {
@@ -297,6 +335,74 @@ class SmartReminderService {
           updatedAt: Date.now(),
         })
       }
+
+      if (mealReminders.morning_snack) {
+        reminders.push({
+          id: `meal-morning-snack-${userId}`,
+          type: 'daily',
+          scheduledTime: Date.now(),
+          nextTriggerTime: this.calculateNextTriggerTime(
+            {
+              id: '',
+              type: 'daily',
+              scheduledTime: Date.now(),
+              nextTriggerTime: 0,
+              options: { title: '', body: '', data: { time: mealReminders.morning_snack } },
+              enabled: true,
+              triggerCount: 0,
+              userId: '',
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            },
+            new Date()
+          ),
+          options: {
+            title: 'Morning Snack Time! 🍎',
+            body: 'Time for your morning snack.',
+            tag: 'meal-morning-snack',
+            data: { url: '/meals', time: mealReminders.morning_snack },
+          },
+          enabled: true,
+          triggerCount: 0,
+          userId,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })
+      }
+
+      if (mealReminders.evening_snack) {
+        reminders.push({
+          id: `meal-evening-snack-${userId}`,
+          type: 'daily',
+          scheduledTime: Date.now(),
+          nextTriggerTime: this.calculateNextTriggerTime(
+            {
+              id: '',
+              type: 'daily',
+              scheduledTime: Date.now(),
+              nextTriggerTime: 0,
+              options: { title: '', body: '', data: { time: mealReminders.evening_snack } },
+              enabled: true,
+              triggerCount: 0,
+              userId: '',
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            },
+            new Date()
+          ),
+          options: {
+            title: 'Evening Snack Time! 🍪',
+            body: 'Time for your evening snack.',
+            tag: 'meal-evening-snack',
+            data: { url: '/meals', time: mealReminders.evening_snack },
+          },
+          enabled: true,
+          triggerCount: 0,
+          userId,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })
+      }
     }
 
     // Water reminders
@@ -306,28 +412,38 @@ class SmartReminderService {
       const startTime = waterReminders.start_time || '08:00'
       const endTime = waterReminders.end_time || '22:00'
 
+      // Calculate initial trigger time aligned to start time and interval
+      const now = new Date()
+      const [startHour, startMin] = startTime.split(':').map(Number)
+      const [endHour, endMin] = endTime.split(':').map(Number)
+      const startTimeToday = new Date(now)
+      startTimeToday.setHours(startHour, startMin, 0, 0)
+      
+      const intervalMs = intervalMinutes * 60 * 1000
+      let initialTriggerTime = startTimeToday.getTime()
+      
+      // If start time has passed today, calculate next interval from start time
+      if (initialTriggerTime <= now.getTime()) {
+        const timeSinceStart = now.getTime() - initialTriggerTime
+        const intervalsPassed = Math.floor(timeSinceStart / intervalMs) + 1
+        initialTriggerTime = initialTriggerTime + (intervalsPassed * intervalMs)
+        
+        // Check if we've exceeded end time
+        const endTimeToday = new Date(now)
+        endTimeToday.setHours(endHour, endMin, 0, 0)
+        
+        if (initialTriggerTime > endTimeToday.getTime()) {
+          // Schedule for next day's start time
+          startTimeToday.setDate(startTimeToday.getDate() + 1)
+          initialTriggerTime = startTimeToday.getTime()
+        }
+      }
+
       reminders.push({
         id: `water-${userId}`,
         type: 'recurring',
-        scheduledTime: Date.now(),
-        nextTriggerTime: this.calculateNextTriggerTime(
-          {
-            id: '',
-            type: 'recurring',
-            scheduledTime: Date.now(),
-            nextTriggerTime: 0,
-            intervalMinutes,
-            startTime,
-            endTime,
-            options: { title: '', body: '' },
-            enabled: true,
-            triggerCount: 0,
-            userId: '',
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          },
-          new Date()
-        ),
+        scheduledTime: startTimeToday.getTime(), // Use start time as base for alignment
+        nextTriggerTime: initialTriggerTime,
         intervalMinutes,
         startTime,
         endTime,
@@ -429,18 +545,21 @@ class SmartReminderService {
       const weightReminders = settings.weight_reminders
       const time = weightReminders.time || '08:00'
       const days = weightReminders.days || [1, 2, 3, 4, 5, 6, 0] // Daily by default
+      
+      // If all 7 days are selected, treat as daily reminder
+      const isDaily = days.length === 7 && days.every(d => [0,1,2,3,4,5,6].includes(d))
 
       reminders.push({
         id: `weight-${userId}`,
-        type: 'weekly',
+        type: isDaily ? 'daily' : 'weekly',
         scheduledTime: Date.now(),
         nextTriggerTime: this.calculateNextTriggerTime(
           {
             id: '',
-            type: 'weekly',
+            type: isDaily ? 'daily' : 'weekly',
             scheduledTime: Date.now(),
             nextTriggerTime: 0,
-            daysOfWeek: days,
+            daysOfWeek: isDaily ? undefined : days,
             options: { title: '', body: '', data: { time } },
             enabled: true,
             triggerCount: 0,
@@ -450,7 +569,7 @@ class SmartReminderService {
           },
           new Date()
         ),
-        daysOfWeek: days,
+        daysOfWeek: isDaily ? undefined : days,
         options: {
           title: 'Log Your Weight! ⚖️',
           body: "Don't forget to track your weight today.",
@@ -544,17 +663,76 @@ class SmartReminderService {
       })
     }
 
-    // Save all reminders
+    // Save all reminders to IndexedDB (main thread)
+    console.log(`[SmartReminders] Saving ${reminders.length} reminders for user ${userId}`)
     for (const reminder of reminders) {
       await reminderStorage.saveReminder(reminder)
+      console.log(`[SmartReminders] Saved reminder ${reminder.id} (${reminder.options.title}) - next trigger: ${new Date(reminder.nextTriggerTime).toLocaleString()}`)
     }
 
-    // Notify service worker to reschedule
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({
-        type: 'SCHEDULE_REMINDERS',
-        userId,
-      })
+    // CRITICAL: Wait for all IndexedDB transactions to complete before notifying service worker
+    // IndexedDB transactions are asynchronous, so we need to wait for them to finish
+    await new Promise(resolve => setTimeout(resolve, 300))
+
+    // CRITICAL: Notify service worker to refresh reminders from IndexedDB
+    // IndexedDB is shared, so the service worker can read directly, but we need to notify it
+    // to refresh its cache and check for updated reminders immediately
+    await this.sendRemindersToServiceWorker(userId, reminders)
+  }
+
+  /**
+   * Notify service worker about reminders
+   * NOTE: IndexedDB IS shared between main thread and service worker!
+   * The service worker can read reminders directly from IndexedDB.
+   * This function just notifies the SW to refresh its cache.
+   */
+  private async sendRemindersToServiceWorker(userId: string, reminders: StoredReminder[]): Promise<void> {
+    console.log('[SmartReminders] 💡 IndexedDB is SHARED - service worker can read reminders directly!')
+    console.log('[SmartReminders] 🔄 Notifying service worker to refresh reminders...')
+    
+    if (!('serviceWorker' in navigator)) {
+      console.warn('[SmartReminders] ⚠️ Service workers not supported')
+      return
+    }
+
+    // Try to notify service worker, but don't fail if controller isn't available
+    // The service worker will read from IndexedDB directly when it checks reminders
+    try {
+      const registration = await navigator.serviceWorker.ready.catch(() => null)
+      if (registration) {
+        const controller = navigator.serviceWorker.controller
+        if (controller) {
+          console.log('[SmartReminders] ✅ Notifying service worker to refresh reminders')
+          console.log('[SmartReminders] Reminder details:', reminders.map(r => ({
+            id: r.id,
+            title: r.options.title,
+            nextTrigger: new Date(r.nextTriggerTime).toLocaleString()
+          })))
+          controller.postMessage({
+            type: 'REFRESH_REMINDERS',
+            userId,
+            reminderCount: reminders.length,
+            // Include updated reminder IDs so service worker knows which ones changed
+            reminderIds: reminders.map(r => r.id),
+          })
+          
+          // Also send SCHEDULE_REMINDERS to force immediate check
+          setTimeout(() => {
+            if (navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({
+                type: 'SCHEDULE_REMINDERS',
+                userId,
+              })
+            }
+          }, 200)
+        } else {
+          console.log('[SmartReminders] ℹ️ No controller, but reminders are saved in shared IndexedDB')
+          console.log('[SmartReminders] ℹ️ Service worker will read them directly on next check')
+        }
+      }
+    } catch (error) {
+      console.warn('[SmartReminders] ⚠️ Could not notify service worker:', error)
+      console.log('[SmartReminders] ℹ️ Reminders are saved - service worker will read from IndexedDB')
     }
   }
 

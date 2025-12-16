@@ -2,6 +2,7 @@ import { supabase, isUsingDummyClient } from '@/lib/supabase'
 import { DailyLog } from '@/types'
 import { getWaterIntake } from './water'
 import { getAlcoholLogs } from './alcohol'
+import { getSleepLogs } from './sleep'
 import { handleSupabaseError } from '@/lib/errors'
 
 export async function getDailyLog(date: string): Promise<DailyLog> {
@@ -45,6 +46,10 @@ export async function getDailyLog(date: string): Promise<DailyLog> {
   const alcohol_logs = await getAlcoholLogs(date).catch(() => [])
   const alcohol_drinks = alcohol_logs.reduce((sum, log) => sum + log.amount, 0)
 
+  // Get sleep logs
+  const sleep_logs = await getSleepLogs(date).catch(() => [])
+  const sleep_hours = sleep_logs.length > 0 ? sleep_logs[0].sleep_duration : undefined
+
   const calories_consumed = meals?.reduce((sum, meal) => sum + (meal.calories || 0), 0) || 0
   const alcohol_calories = alcohol_logs.reduce((sum, log) => sum + (log.calories || 0), 0)
   const total_calories_consumed = calories_consumed + alcohol_calories
@@ -63,10 +68,12 @@ export async function getDailyLog(date: string): Promise<DailyLog> {
     fats,
     water_intake,
     alcohol_drinks,
+    sleep_hours,
     meals: meals || [],
     exercises: exercises || [],
     water_logs: [], // Empty array for backward compatibility
     alcohol_logs,
+    sleep_logs,
   }
 }
 

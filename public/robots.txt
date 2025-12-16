@@ -1,0 +1,29 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /auth
+Disallow: /dashboard
+Disallow: /meals
+Disallow: /workouts
+Disallow: /chat
+Disallow: /history
+Disallow: /analytics
+Disallow: /summary
+Disallow: /recipes
+Disallow: /meal-planning
+Disallow: /grocery-lists
+Disallow: /achievements
+Disallow: /notifications
+Disallow: /profile
+
+# Public pages
+Allow: /about
+Allow: /product
+Allow: /documentation
+Allow: /help
+Allow: /privacy
+Allow: /terms
+Allow: /cookies
+
+Sitemap: https://nutriscope.app/sitemap.xml
+

@@ -337,14 +337,17 @@ export default function ChatPage() {
 
       if (actionResult.success) {
         // Invalidate and refetch queries to refresh data immediately
-        queryClient.invalidateQueries({ queryKey: ['meals'] })
-        queryClient.refetchQueries({ queryKey: ['meals'] })
+        // IMPORTANT: Invalidate with date-specific keys for meals
+        queryClient.invalidateQueries({ queryKey: ['meals'] }) // Invalidate all meals queries
+        queryClient.invalidateQueries({ queryKey: ['meals', actionDate] }) // Invalidate specific date
+        queryClient.refetchQueries({ queryKey: ['meals', actionDate] }) // Refetch specific date
         queryClient.invalidateQueries({ queryKey: ['exercises'] })
         queryClient.refetchQueries({ queryKey: ['exercises'] })
         queryClient.invalidateQueries({ queryKey: ['waterIntake'] })
         queryClient.refetchQueries({ queryKey: ['waterIntake'] })
         queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
-        queryClient.refetchQueries({ queryKey: ['dailyLog'] })
+        queryClient.invalidateQueries({ queryKey: ['dailyLog', actionDate] }) // Invalidate specific date
+        queryClient.refetchQueries({ queryKey: ['dailyLog', actionDate] }) // Refetch specific date
         // Force refetch recipes immediately after saving
         queryClient.invalidateQueries({ queryKey: ['recipes'] })
         queryClient.refetchQueries({ queryKey: ['recipes'] })
@@ -487,14 +490,17 @@ export default function ChatPage() {
               .then((actionResult) => {
                 if (actionResult.success) {
                   // Invalidate and refetch queries to refresh data immediately
-                  queryClient.invalidateQueries({ queryKey: ['meals'] })
-                  queryClient.refetchQueries({ queryKey: ['meals'] })
+                  // IMPORTANT: Invalidate with date-specific keys for meals
+                  queryClient.invalidateQueries({ queryKey: ['meals'] }) // Invalidate all meals queries
+                  queryClient.invalidateQueries({ queryKey: ['meals', actionDate] }) // Invalidate specific date
+                  queryClient.refetchQueries({ queryKey: ['meals', actionDate] }) // Refetch specific date
                   queryClient.invalidateQueries({ queryKey: ['exercises'] })
                   queryClient.refetchQueries({ queryKey: ['exercises'] })
                   queryClient.invalidateQueries({ queryKey: ['waterIntake'] })
                   queryClient.refetchQueries({ queryKey: ['waterIntake'] })
                   queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
-                  queryClient.refetchQueries({ queryKey: ['dailyLog'] })
+                  queryClient.invalidateQueries({ queryKey: ['dailyLog', actionDate] }) // Invalidate specific date
+                  queryClient.refetchQueries({ queryKey: ['dailyLog', actionDate] }) // Refetch specific date
                   // Force refetch recipes immediately after saving
                   queryClient.invalidateQueries({ queryKey: ['recipes'] })
                   queryClient.refetchQueries({ queryKey: ['recipes'] })

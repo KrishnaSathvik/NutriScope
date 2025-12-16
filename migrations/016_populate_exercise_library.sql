@@ -1,11 +1,7 @@
 -- ============================================================================
--- EXERCISE LIBRARY SAMPLE DATA
--- Populate exercise_library with common exercises
--- Run this after exercise_library_schema.sql
+-- Migration 016: Populate Exercise Library with Sample Data
+-- Populates exercise_library with 150+ common exercises with MET values
 -- ============================================================================
-
--- Clear existing data (optional - comment out if you want to keep existing)
--- TRUNCATE TABLE exercise_library;
 
 -- Cardio Exercises
 INSERT INTO exercise_library (name, type, met_value, muscle_groups, equipment) VALUES
@@ -146,17 +142,6 @@ INSERT INTO exercise_library (name, type, met_value, muscle_groups, equipment) V
 ('Gardening, general', 'other', 3.8, ARRAY['full body'], ARRAY[]::TEXT[]),
 ('Yard work, general', 'other', 4.0, ARRAY['full body'], ARRAY[]::TEXT[]),
 ('Cleaning, heavy', 'other', 3.5, ARRAY['full body'], ARRAY[]::TEXT[]),
-('Moving furniture', 'other', 6.0, ARRAY['full body'], ARRAY[]::TEXT[]);
-
-DO $$
-BEGIN
-  RAISE NOTICE '✅ Exercise Library populated with sample data!';
-  RAISE NOTICE '📊 Total exercises inserted: ~150+';
-  RAISE NOTICE '🏃 Cardio exercises: Walking, Running, Cycling, Swimming, etc.';
-  RAISE NOTICE '💪 Strength exercises: Push-ups, Squats, Deadlifts, etc.';
-  RAISE NOTICE '🧘 Yoga exercises: Hatha, Vinyasa, Power, etc.';
-  RAISE NOTICE '⚽ Sports exercises: Basketball, Soccer, Tennis, etc.';
-  RAISE NOTICE '';
-  RAISE NOTICE 'You can now use the Exercise Library in your app!';
-END $$;
+('Moving furniture', 'other', 6.0, ARRAY['full body'], ARRAY[]::TEXT[])
+ON CONFLICT DO NOTHING;
 

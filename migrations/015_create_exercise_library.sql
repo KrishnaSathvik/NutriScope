@@ -1,6 +1,6 @@
 -- ============================================================================
--- EXERCISE LIBRARY SCHEMA
--- Add this to your Supabase SQL Editor after running the main schema
+-- Migration 015: Create Exercise Library Table
+-- Creates exercise_library table with MET values for calorie calculations
 -- ============================================================================
 
 -- Exercise Library Table
@@ -66,15 +66,4 @@ $$ LANGUAGE plpgsql;
 COMMENT ON TABLE exercise_library IS 'Reference library of exercises with MET values for calorie calculation';
 COMMENT ON COLUMN exercise_library.met_value IS 'Metabolic Equivalent of Task - used to calculate calories burned';
 COMMENT ON FUNCTION calculate_calories_from_mets IS 'Calculates calories burned: METs × Weight (kg) × Duration (hours)';
-
-DO $$
-BEGIN
-  RAISE NOTICE '✅ Exercise Library schema created successfully!';
-  RAISE NOTICE '📋 Table: exercise_library';
-  RAISE NOTICE '⚡ Indexes created for fast searches';
-  RAISE NOTICE '🔒 RLS policies enabled (public read, authenticated write)';
-  RAISE NOTICE '🧮 Function: calculate_calories_from_mets()';
-  RAISE NOTICE '';
-  RAISE NOTICE 'Next: Run exercise_library_data.sql to populate with sample exercises';
-END $$;
 

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect, useMemo } from 'react'
 import { format } from 'date-fns'
 import { calculateLoggingStreak } from '@/services/streak'
@@ -23,17 +23,20 @@ function getStreakMessage(streak: number): string {
 
 export function StreakWidget() {
   const { user } = useAuth()
+  const queryClient = useQueryClient()
   const [showFallback, setShowFallback] = useState(false)
   
   // Get today's date string for cache invalidation
   const today = format(new Date(), 'yyyy-MM-dd')
 
-  // Phase 2: Load cached streak data from DB if available
+  // Get cached data from React Query cache synchronously for immediate display
+  // Only use today's cache, not yesterday's, to avoid showing stale streak data
   const cachedStreakData = useMemo<StreakData | undefined>(() => {
     if (!user?.id) return undefined
-    // Try to get from DB synchronously (will be async, but useQuery handles it)
-    return undefined // Will be loaded via useQuery
-  }, [user?.id])
+    // Only use today's cache - don't use yesterday's as streak might have changed
+    const cachedData = queryClient.getQueryData<StreakData>(['streak', user.id, today])
+    return cachedData
+  }, [user?.id, today, queryClient])
   
   const { data: streakData, isLoading, error } = useQuery({
     queryKey: ['streak', user?.id, today], // Include date in query key so it refetches on new day
@@ -47,30 +50,35 @@ export function StreakWidget() {
         }
       }
       
-      // Phase 2: Try to get from DB first
+      // Phase 2: Try to get from DB first, but only if it's from today
+      // Don't use yesterday's DB data as streak might have changed
       const dbStreak = await getUserStreak(user.id)
       if (dbStreak && dbStreak.lastLoggedDate) {
-        const lastLogged = new Date(dbStreak.lastLoggedDate)
-        const todayDate = new Date(today)
-        const yesterdayDate = new Date(today)
-        yesterdayDate.setDate(yesterdayDate.getDate() - 1)
-        const daysDiff = Math.floor((todayDate.getTime() - lastLogged.getTime()) / (1000 * 60 * 60 * 24))
-        // Use DB streak if it's from today or yesterday (streak might still be active)
-        if (daysDiff <= 1 && dbStreak.currentStreak > 0) {
-        return dbStreak
+        const todayDate = new Date(today + 'T00:00:00') // Use start of day for comparison
+        const lastLoggedDate = new Date(dbStreak.lastLoggedDate + 'T00:00:00')
+        const daysDiff = Math.floor((todayDate.getTime() - lastLoggedDate.getTime()) / (1000 * 60 * 60 * 24))
+        
+        // Only use DB streak if it's from today (daysDiff === 0)
+        // If it's from yesterday or older, recalculate to get accurate current streak
+        if (daysDiff === 0 && dbStreak.currentStreak > 0) {
+          console.log('[StreakWidget] Using DB streak from today:', dbStreak)
+          return dbStreak
+        } else {
+          console.log(`[StreakWidget] DB streak is ${daysDiff} days old, recalculating...`)
         }
       }
       
       // Calculate fresh streak (will also save to DB)
+      console.log('[StreakWidget] Calculating fresh streak...')
       const result = await calculateLoggingStreak()
+      console.log('[StreakWidget] Calculated streak:', result)
       return result
     },
     enabled: !!user, // Only run if user exists (including guest users)
     refetchOnWindowFocus: false,
-    refetchOnMount: true, // Refetch on mount to ensure fresh data
+    refetchOnMount: false, // Don't refetch on mount if data exists - use cached data immediately
     refetchOnReconnect: true, // Refetch on reconnect
-    staleTime: 1000 * 60 * 5, // Consider data stale after 5 minutes
-    // Note: invalidateQueries will still trigger refetch even with staleTime: Infinity
+    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes (allows immediate display of cached data)
     retry: 1,
     gcTime: 24 * 60 * 60 * 1000, // Keep in cache for 24 hours
     // Use cached data immediately if available to avoid loading state
@@ -127,12 +135,12 @@ export function StreakWidget() {
     return <DefaultState />
   }
 
-  // Prioritize fetched data (most up-to-date), fall back to cached only if no data yet
-  // This ensures we show fresh data immediately after invalidation
-  const displayData = streakData ?? cachedStreakData
+  // Use streakData (which includes placeholderData) - this shows cached data immediately
+  // placeholderData makes streakData available even while loading
+  const displayData = streakData
   
-  // Show loading state only if we have no cached data
-  // If we have cached data, show it immediately even if fetching in background
+  // Show loading state only if we have no data at all (not even placeholder)
+  // placeholderData ensures streakData is available immediately from cache
   const hasNoData = !displayData
   
   if (isLoading && hasNoData) {
@@ -151,6 +159,7 @@ export function StreakWidget() {
     )
   }
 
+  // Show default state only if we truly have no streak data
   if (!displayData || displayData.currentStreak === 0) {
     return (
       <div className="card-modern p-3 md:p-4">

@@ -36,6 +36,32 @@ export default function WorkoutsPage() {
 
   const createMutation = useMutation({
     mutationFn: createExercise,
+    onMutate: async (variables) => {
+      const workoutDate = variables.date
+      const today = format(new Date(), 'yyyy-MM-dd')
+      
+      // Optimistically update streak immediately
+      const currentStreak = queryClient.getQueryData<{ currentStreak: number; longestStreak: number; lastLoggedDate: string | null; isActive: boolean }>(['streak', user?.id, today])
+      if (currentStreak && workoutDate === today && user?.id) {
+        const lastLogged = currentStreak.lastLoggedDate ? new Date(currentStreak.lastLoggedDate) : null
+        const todayDate = new Date(today)
+        const daysSinceLastLog = lastLogged 
+          ? Math.floor((todayDate.getTime() - lastLogged.getTime()) / (1000 * 60 * 60 * 24))
+          : 999
+
+        if (daysSinceLastLog >= 1) {
+          const optimisticStreak = {
+            currentStreak: daysSinceLastLog === 1 ? currentStreak.currentStreak + 1 : 1,
+            longestStreak: Math.max(currentStreak.longestStreak || 0, daysSinceLastLog === 1 ? currentStreak.currentStreak + 1 : 1),
+            lastLoggedDate: today,
+            isActive: true,
+          }
+          queryClient.setQueryData(['streak', user.id, today], optimisticStreak)
+        } else if (daysSinceLastLog === 0 && !currentStreak.isActive) {
+          queryClient.setQueryData(['streak', user.id, today], { ...currentStreak, isActive: true })
+        }
+      }
+    },
     onSuccess: async (_, variables) => {
       const workoutDate = variables.date
       // Close dialog immediately
@@ -54,7 +80,7 @@ export default function WorkoutsPage() {
       queryClient.invalidateQueries({ queryKey: ['analytics'] })
       // Invalidate weekLogs (which includes this date)
       queryClient.invalidateQueries({ queryKey: ['weekLogs'] })
-      // Update streak when workout is logged
+      // Update streak when workout is logged (will refetch to get accurate data)
       queryClient.invalidateQueries({ queryKey: ['streak'] })
       
       // Check for new achievements in the background (don't block dialog closing)

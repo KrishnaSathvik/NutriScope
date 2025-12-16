@@ -184,6 +184,13 @@ export function buildPersonalizedContext(
     }
     context += `- Calories Burned: ${dailyLog.calories_burned} cal\n`
     context += `- Net Calories: ${dailyLog.net_calories} cal\n`
+    if (dailyLog.sleep_hours) {
+      context += `- Sleep: ${dailyLog.sleep_hours.toFixed(1)} hours`
+      if (dailyLog.sleep_logs && dailyLog.sleep_logs.length > 0 && dailyLog.sleep_logs[0].sleep_quality) {
+        context += ` (Quality: ${dailyLog.sleep_logs[0].sleep_quality}/5)`
+      }
+      context += `\n`
+    }
     context += `- Meals Logged: ${dailyLog.meals.length}\n`
     context += `- Workouts Logged: ${dailyLog.exercises.length}\n`
     
@@ -255,6 +262,28 @@ export function buildPersonalizedContext(
           if (profile && (profile.goal === 'lose_weight' || profile.goal === 'reduce_body_fat') && remainingCalories < 0) {
             context += `- Alcohol puts you ${Math.abs(remainingCalories)} calories over your target - consider reducing intake to maintain deficit\n`
           }
+        }
+      }
+      
+      if (dailyLog.sleep_hours) {
+        const sleepHours = dailyLog.sleep_hours
+        const isOptimal = sleepHours >= 7 && sleepHours <= 9
+        const isInsufficient = sleepHours < 7
+        
+        if (isInsufficient) {
+          context += `- Sleep logged: ${sleepHours.toFixed(1)} hours (below recommended 7-9 hours) - insufficient sleep can affect metabolism, hunger hormones, and weight loss progress\n`
+          if (profile && (profile.goal === 'lose_weight' || profile.goal === 'reduce_body_fat')) {
+            context += `- Poor sleep increases cortisol and affects ghrelin/leptin hormones, which can slow weight loss and increase cravings\n`
+          }
+        } else if (isOptimal) {
+          context += `- Sleep logged: ${sleepHours.toFixed(1)} hours (optimal range) - good sleep supports metabolism and weight management\n`
+        } else if (sleepHours > 9) {
+          context += `- Sleep logged: ${sleepHours.toFixed(1)} hours (above recommended range) - very long sleep may indicate other health factors\n`
+        }
+      } else {
+        // No sleep logged today
+        if (profile && (profile.goal === 'lose_weight' || profile.goal === 'reduce_body_fat')) {
+          context += `- Sleep not logged today - adequate sleep (7-9 hours) is crucial for weight loss as it regulates hormones that control appetite and metabolism\n`
         }
       }
       context += `\n`

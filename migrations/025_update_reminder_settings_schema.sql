@@ -1,7 +1,6 @@
 -- ============================================================================
--- UPDATE REMINDER SETTINGS SCHEMA (FIXED - No JSON Syntax Errors)
+-- Migration 025: Update Reminder Settings Schema
 -- Add new reminder types: weight_reminders, streak_reminders, summary_reminders
--- Run this in Supabase SQL Editor
 -- ============================================================================
 
 -- Update the default value for reminder_settings to include new reminder types
@@ -81,26 +80,3 @@ WHERE reminder_settings IS NOT NULL
     OR reminder_settings->'summary_reminders' IS NULL
   );
 
--- ============================================================================
--- VERIFICATION
--- ============================================================================
-
--- Check if update was successful
-DO $$
-DECLARE
-  updated_count INTEGER;
-  total_count INTEGER;
-BEGIN
-  SELECT COUNT(*) INTO updated_count
-  FROM user_profiles
-  WHERE reminder_settings->'weight_reminders' IS NOT NULL
-    AND reminder_settings->'streak_reminders' IS NOT NULL
-    AND reminder_settings->'summary_reminders' IS NOT NULL;
-  
-  SELECT COUNT(*) INTO total_count
-  FROM user_profiles
-  WHERE reminder_settings IS NOT NULL;
-  
-  RAISE NOTICE '✅ Reminder settings schema updated successfully!';
-  RAISE NOTICE '📊 Updated % out of % user profiles with new reminder types', updated_count, total_count;
-END $$;

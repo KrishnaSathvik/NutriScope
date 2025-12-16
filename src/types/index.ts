@@ -90,6 +90,19 @@ export interface AlcoholLog {
   updated_at: string
 }
 
+export interface SleepLog {
+  id: string
+  user_id: string
+  date: string
+  bedtime?: string // HH:mm format
+  wake_time?: string // HH:mm format
+  sleep_duration: number // in hours (e.g., 7.5 for 7 hours 30 minutes)
+  sleep_quality?: number // 1-5 scale (optional)
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
 export interface DailyLog {
   date: string
   calories_consumed: number
@@ -100,10 +113,12 @@ export interface DailyLog {
   fats: number
   water_intake: number
   alcohol_drinks?: number // total standard drinks
+  sleep_hours?: number // total sleep hours for the day
   meals: Meal[]
   exercises: Exercise[]
   water_logs: WaterLog[]
   alcohol_logs?: AlcoholLog[]
+  sleep_logs?: SleepLog[]
 }
 
 // Individual goal types - users can select multiple

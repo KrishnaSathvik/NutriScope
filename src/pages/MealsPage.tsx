@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, subDays, parseISO, addDays } from 'date-fns'
 import { getMeals, createMeal, updateMeal, deleteMeal } from '@/services/meals'
@@ -29,14 +29,36 @@ export default function MealsPage() {
     carbs?: number
     fats?: number
   } | null>(null)
-  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'))
+  // Get today's date in local timezone (not UTC) to avoid timezone issues
+  const getTodayLocal = () => {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  
+  // Initialize selectedDate with today's date using function initializer to ensure it's calculated at render time
+  const [selectedDate, setSelectedDate] = useState<string>(() => getTodayLocal())
   const [showCopyDialog, setShowCopyDialog] = useState(false)
   const [copySourceDate, setCopySourceDate] = useState<string>('')
   const [selectedMealIds, setSelectedMealIds] = useState<Set<string>>(new Set())
-  const { user } = useAuth()
-  const today = format(new Date(), 'yyyy-MM-dd')
-  const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
+  const { user, profile } = useAuth()
   const queryClient = useQueryClient()
+
+  // Calculate today's date - recalculate on every render to ensure it's always current
+  const today = getTodayLocal()
+  const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
+
+  // Ensure selectedDate is set to today on mount (in case of timezone or initialization issues)
+  useEffect(() => {
+    const currentToday = getTodayLocal()
+    const currentYesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd')
+    // If selectedDate is empty, yesterday, or doesn't match today, update it
+    if (!selectedDate || selectedDate === currentYesterday || selectedDate !== currentToday) {
+      setSelectedDate(currentToday)
+    }
+  }, []) // Only run on mount - eslint-disable-line react-hooks/exhaustive-deps
 
   // Set up realtime subscription for meals
   useUserRealtimeSubscription('meals', ['meals', 'dailyLog', 'aiInsights'], user?.id)
@@ -56,6 +78,32 @@ export default function MealsPage() {
 
   const createMutation = useMutation({
     mutationFn: (mealData: { date: string; name?: string; meal_type: MealType; calories: number; protein: number; carbs?: number; fats?: number; food_items?: any[] }) => createMeal(mealData),
+    onMutate: async (variables) => {
+      const mealDate = variables.date
+      const today = format(new Date(), 'yyyy-MM-dd')
+      
+      // Optimistically update streak immediately
+      const currentStreak = queryClient.getQueryData<{ currentStreak: number; longestStreak: number; lastLoggedDate: string | null; isActive: boolean }>(['streak', user?.id, today])
+      if (currentStreak && mealDate === today && user?.id) {
+        const lastLogged = currentStreak.lastLoggedDate ? new Date(currentStreak.lastLoggedDate) : null
+        const todayDate = new Date(today)
+        const daysSinceLastLog = lastLogged 
+          ? Math.floor((todayDate.getTime() - lastLogged.getTime()) / (1000 * 60 * 60 * 24))
+          : 999
+
+        if (daysSinceLastLog >= 1) {
+          const optimisticStreak = {
+            currentStreak: daysSinceLastLog === 1 ? currentStreak.currentStreak + 1 : 1,
+            longestStreak: Math.max(currentStreak.longestStreak || 0, daysSinceLastLog === 1 ? currentStreak.currentStreak + 1 : 1),
+            lastLoggedDate: today,
+            isActive: true,
+          }
+          queryClient.setQueryData(['streak', user.id, today], optimisticStreak)
+        } else if (daysSinceLastLog === 0 && !currentStreak.isActive) {
+          queryClient.setQueryData(['streak', user.id, today], { ...currentStreak, isActive: true })
+        }
+      }
+    },
     onSuccess: async (_, variables) => {
       const mealDate = variables.date
       // Close dialog immediately

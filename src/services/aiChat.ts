@@ -84,6 +84,8 @@ export async function chatWithAI(
               protein: dailyLog.protein,
               calories_burned: dailyLog.calories_burned,
               water_intake: dailyLog.water_intake,
+              alcohol_drinks: dailyLog.alcohol_drinks,
+              sleep_hours: dailyLog.sleep_hours,
               meals: dailyLog.meals.slice(0, 5).map(meal => ({
                 id: meal.id,
                 meal_id: meal.id, // Include meal_id for updates
@@ -97,6 +99,8 @@ export async function chatWithAI(
                 food_items: meal.food_items, // Include food_items for calculation
               })),
               exercises: dailyLog.exercises.slice(0, 3),
+              alcohol_logs: dailyLog.alcohol_logs?.slice(0, 3) || [],
+              sleep_logs: dailyLog.sleep_logs?.slice(0, 1) || [],
             } : undefined,
             imageUrl,
             userId,

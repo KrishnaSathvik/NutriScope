@@ -1,5 +1,7 @@
--- Alcohol Tracking Schema
--- Run this in your Supabase SQL Editor
+-- ============================================================================
+-- Migration 019: Create Alcohol Tracking Tables
+-- Creates alcohol_logs table for tracking alcohol consumption
+-- ============================================================================
 
 -- Alcohol Logs Table
 CREATE TABLE IF NOT EXISTS alcohol_logs (
@@ -69,4 +71,10 @@ BEGIN
   RETURN ROUND((volume_ml * alcohol_percent / 100) / 14, 2);
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Trigger for updated_at
+CREATE TRIGGER update_alcohol_logs_updated_at
+  BEFORE UPDATE ON alcohol_logs
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
 

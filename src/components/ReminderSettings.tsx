@@ -74,9 +74,17 @@ export function ReminderSettingsSection() {
         .eq('id', user.id)
       if (error) throw error
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ['profile'] })
       setEditing(false)
+      
+      // Notify service worker to reschedule reminders
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SCHEDULE_REMINDERS',
+        })
+      }
+      
       toast({
         title: 'Reminder settings saved',
         description: 'Your reminder preferences have been updated.',
@@ -87,9 +95,16 @@ export function ReminderSettingsSection() {
   const handleRequestPermission = async () => {
     const permission = await notificationService.requestPermission()
     if (permission === 'granted') {
+      // Test notification immediately to verify it works
+      await notificationService.showNotification({
+        title: '✅ Notifications Enabled!',
+        body: 'You will now receive smart reminders. This is a test notification.',
+        tag: 'test-notification',
+      })
+      
       toast({
         title: 'Notifications enabled',
-        description: 'You will now receive reminders.',
+        description: 'Test notification sent! Check if you received it.',
       })
       setSettings({ ...settings, enabled: true })
     } else {
@@ -99,6 +114,39 @@ export function ReminderSettingsSection() {
         variant: 'destructive',
       })
     }
+  }
+
+  const handleTestNotification = async () => {
+    const permission = await notificationService.requestPermission()
+    if (permission !== 'granted') {
+      toast({
+        title: 'Permission required',
+        description: 'Please enable notifications first.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    // Test notification via service worker if available
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'TEST_NOTIFICATION',
+        title: '🧪 Test Notification',
+        body: 'If you see this, notifications are working!',
+      })
+    } else {
+      // Fallback to direct notification
+      await notificationService.showNotification({
+        title: '🧪 Test Notification',
+        body: 'If you see this, notifications are working!',
+        tag: 'test-notification',
+      })
+    }
+    
+    toast({
+      title: 'Test notification sent',
+      description: 'Check if you received a notification.',
+    })
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -142,12 +190,22 @@ export function ReminderSettingsSection() {
           <p className="text-sm text-text font-mono mb-3">
             Enable browser notifications to receive reminders.
           </p>
-          <button
-            onClick={handleRequestPermission}
-            className="btn-primary text-xs"
-          >
-            Enable Notifications
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleRequestPermission}
+              className="btn-primary text-xs"
+            >
+              Enable Notifications
+            </button>
+            {notificationService.hasPermission() && (
+              <button
+                onClick={handleTestNotification}
+                className="btn-secondary text-xs"
+              >
+                Test Notification
+              </button>
+            )}
+          </div>
         </div>
       )}
 

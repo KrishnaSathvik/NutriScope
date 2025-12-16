@@ -57,6 +57,7 @@ export default function NotificationsPage() {
 
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'NOTIFICATION_SHOWN') {
+        console.log('[NotificationsPage] Received NOTIFICATION_SHOWN message:', event.data)
         const newNotification: StoredNotification = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
           type: event.data.notificationType || 'goal',
@@ -66,17 +67,24 @@ export default function NotificationsPage() {
           read: false,
           actionUrl: event.data.url,
         }
-        const updated = [newNotification, ...notifications]
-        setNotifications(updated)
-        saveNotifications(updated)
+        
+        // Use functional update to avoid dependency on notifications
+        setNotifications((prevNotifications) => {
+          const updated = [newNotification, ...prevNotifications]
+          saveNotifications(updated)
+          return updated
+        })
       }
     }
 
     navigator.serviceWorker.addEventListener('message', handleMessage)
+    console.log('[NotificationsPage] Message listener registered')
+    
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleMessage)
+      console.log('[NotificationsPage] Message listener removed')
     }
-  }, [notifications])
+  }, []) // Empty dependency array - listener stays active
 
   const markAsRead = (id: string) => {
     const updated = notifications.map((n) =>

@@ -14,7 +14,7 @@ export function QuickWeightEntry() {
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'))
 
   // Get latest weight for quick reference
-  const { data: latestWeight, refetch: refetchLatestWeight } = useQuery({
+  const { data: latestWeight } = useQuery({
     queryKey: ['latestWeight'],
     queryFn: getLatestWeight,
     refetchOnWindowFocus: true,
@@ -67,28 +67,58 @@ export function QuickWeightEntry() {
 
   const weightMutation = useMutation({
     mutationFn: createWeightLog,
+    onMutate: async (newWeight) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['latestWeight'] })
+      
+      // Snapshot previous value
+      const previousWeight = queryClient.getQueryData(['latestWeight'])
+      
+      // Optimistically update the cache immediately
+      const optimisticWeight = {
+        id: `temp-${Date.now()}`,
+        user_id: '',
+        date: newWeight.date,
+        weight: newWeight.weight,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      
+      queryClient.setQueryData(['latestWeight'], optimisticWeight)
+      
+      // Also invalidate related queries to trigger updates
+      queryClient.invalidateQueries({ queryKey: ['weightLogs'] })
+      queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
+      
+      // Close form immediately
+      setIsOpen(false)
+      setWeight('')
+      
+      return { previousWeight }
+    },
     onSuccess: async () => {
-      // Invalidate and refetch queries
+      // Refetch to get the actual data from server
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['weightLogs'] }),
         queryClient.invalidateQueries({ queryKey: ['latestWeight'] }),
         queryClient.invalidateQueries({ queryKey: ['dailyLog'] }),
       ])
-      // Explicitly refetch latest weight to ensure UI updates
-      await refetchLatestWeight()
-      setIsOpen(false)
-      setWeight('')
       toast({
         title: 'Weight logged!',
         description: 'Your weight has been recorded.',
       })
     },
-    onError: (error) => {
+    onError: (error, _newWeight, context) => {
+      // Rollback optimistic update on error
+      if (context?.previousWeight) {
+        queryClient.setQueryData(['latestWeight'], context.previousWeight)
+      }
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to log weight',
         variant: 'destructive',
       })
+      setIsOpen(true) // Reopen form on error
     },
   })
 

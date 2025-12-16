@@ -7,6 +7,7 @@ import { getWaterIntake } from '@/services/water'
 import { generateQuickTip } from '@/services/aiInsights'
 import { QuickWeightEntry } from '@/components/QuickWeightEntry'
 import { QuickAlcoholEntry } from '@/components/QuickAlcoholEntry'
+import { QuickSleepEntry } from '@/components/QuickSleepEntry'
 import { StreakWidget } from '@/components/StreakWidget'
 import { Droplet, Flame, Activity, Beef, Sparkles, Loader2, Info } from 'lucide-react'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
@@ -19,9 +20,9 @@ export default function Dashboard() {
   const queryClient = useQueryClient()
 
   // Set up realtime subscriptions for automatic updates
-  useUserRealtimeSubscription('meals', ['meals', 'dailyLog', 'aiInsights'], user?.id)
-  useUserRealtimeSubscription('exercises', ['exercises', 'dailyLog', 'aiInsights'], user?.id)
-  useUserRealtimeSubscription('daily_logs', ['dailyLog', 'waterIntake'], user?.id)
+  useUserRealtimeSubscription('meals', ['meals', 'dailyLog', 'aiInsights', 'streak'], user?.id)
+  useUserRealtimeSubscription('exercises', ['exercises', 'dailyLog', 'aiInsights', 'streak'], user?.id)
+  useUserRealtimeSubscription('daily_logs', ['dailyLog', 'waterIntake', 'streak'], user?.id)
   useUserRealtimeSubscription('weight_logs', ['weightLogs', 'latestWeight'], user?.id)
 
   const { data: dailyLog } = useQuery({
@@ -97,11 +98,35 @@ export default function Dashboard() {
       const { addWaterIntake } = await import('@/services/water')
       return addWaterIntake(user.id, today, amount)
     },
+    onMutate: async () => {
+      // Optimistically update streak immediately
+      if (!user?.id) return
+      const currentStreak = queryClient.getQueryData<{ currentStreak: number; longestStreak: number; lastLoggedDate: string | null; isActive: boolean }>(['streak', user.id, today])
+      if (currentStreak) {
+        const lastLogged = currentStreak.lastLoggedDate ? new Date(currentStreak.lastLoggedDate) : null
+        const todayDate = new Date(today)
+        const daysSinceLastLog = lastLogged 
+          ? Math.floor((todayDate.getTime() - lastLogged.getTime()) / (1000 * 60 * 60 * 24))
+          : 999
+
+        if (daysSinceLastLog >= 1) {
+          const optimisticStreak = {
+            currentStreak: daysSinceLastLog === 1 ? currentStreak.currentStreak + 1 : 1,
+            longestStreak: Math.max(currentStreak.longestStreak || 0, daysSinceLastLog === 1 ? currentStreak.currentStreak + 1 : 1),
+            lastLoggedDate: today,
+            isActive: true,
+          }
+          queryClient.setQueryData(['streak', user.id, today], optimisticStreak)
+        } else if (daysSinceLastLog === 0 && !currentStreak.isActive) {
+          queryClient.setQueryData(['streak', user.id, today], { ...currentStreak, isActive: true })
+        }
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['waterIntake'] })
       queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
       queryClient.invalidateQueries({ queryKey: ['aiInsights'] })
-      queryClient.invalidateQueries({ queryKey: ['streak'] }) // Update streak when water is logged
+      queryClient.invalidateQueries({ queryKey: ['streak'] }) // Update streak when water is logged (will refetch to get accurate data)
     },
   })
 
@@ -144,6 +169,9 @@ export default function Dashboard() {
 
       {/* Quick Alcohol Entry */}
       <QuickAlcoholEntry />
+
+      {/* Quick Sleep Entry */}
+      <QuickSleepEntry />
 
       {/* Coach Tip Card */}
       {aiInsight && (

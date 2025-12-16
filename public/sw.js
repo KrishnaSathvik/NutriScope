@@ -1,7 +1,7 @@
 // Service Worker for NutriScope PWA
-const CACHE_NAME = 'nutriscope-v8'
-const RUNTIME_CACHE = 'nutriscope-runtime-v8'
-const REMINDER_CHECK_INTERVAL = 60000 // Check every minute
+const CACHE_NAME = 'nutriscope-v10'
+const RUNTIME_CACHE = 'nutriscope-runtime-v10'
+const REMINDER_CHECK_INTERVAL = 30000 // Check every 30 seconds for more accurate timing
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
@@ -11,11 +11,17 @@ const PRECACHE_ASSETS = [
   '/manifest.json',
 ]
 
-// Reminder storage
+// Reminder storage (legacy IndexedDB - kept for backward compatibility)
 const DB_NAME = 'NutriScopeReminders'
 const DB_VERSION = 1
 const STORE_NAME = 'reminders'
 let reminderCheckInterval = null
+
+// Supabase configuration (will be set from main app)
+let SUPABASE_URL = null
+let SUPABASE_ANON_KEY = null
+let currentUserId = null
+let currentAccessToken = null
 
 // Install event - cache assets
 self.addEventListener('install', (event) => {
@@ -29,6 +35,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches and initialize reminders
 self.addEventListener('activate', (event) => {
+  console.log('[SW] Service worker activating...')
   event.waitUntil(
     Promise.all([
       // Clean up old caches
@@ -43,12 +50,20 @@ self.addEventListener('activate', (event) => {
             })
         )
       }),
+      // CRITICAL: Claim clients immediately so we can receive messages
+      self.clients.claim().then(() => {
+        console.log('[SW] ✅ Service worker claimed all clients')
+        return self.clients.matchAll().then(clients => {
+          console.log(`[SW] Controlling ${clients.length} client(s)`)
+        })
+      }),
       // Initialize reminder checking
       Promise.resolve().then(() => {
+        console.log('[SW] Initializing reminder checking...')
         initReminderChecking()
       }),
     ]).then(() => {
-      self.clients.claim()
+      console.log('[SW] ✅ Service worker activated and ready')
     })
   )
 })
@@ -159,7 +174,7 @@ function initReminderChecking() {
   // Check reminders immediately
   checkReminders()
   
-  // Then check every minute
+  // Then check every 30 seconds for more accurate timing
   if (reminderCheckInterval) {
     clearInterval(reminderCheckInterval)
   }
@@ -169,18 +184,294 @@ function initReminderChecking() {
   }, REMINDER_CHECK_INTERVAL)
 }
 
+// Fetch reminders from Supabase
+async function fetchRemindersFromSupabase(userId, accessToken) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !userId || !accessToken) {
+    console.log('[SW] ⚠️ Supabase not configured or user not authenticated, falling back to IndexedDB')
+    return null
+  }
+
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/rpc/get_upcoming_reminders`
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify({
+        p_user_id: userId,
+        p_window_minutes: 30, // Increased window to catch overdue reminders (30 minutes past and 30 minutes future)
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[SW] ❌ Error fetching reminders from Supabase:', response.status, errorText)
+      return null
+    }
+
+    const reminders = await response.json()
+    console.log(`[SW] ✅ Fetched ${reminders.length} reminders from Supabase`)
+    if (reminders.length > 0) {
+      reminders.forEach(r => {
+        const triggerTime = r.next_trigger_time ? new Date(r.next_trigger_time).toLocaleString() : 'unknown'
+        console.log(`[SW]   - ${r.id}: ${r.title} at ${triggerTime}`)
+      })
+    }
+    return reminders
+  } catch (error) {
+    console.error('[SW] ❌ Error fetching reminders from Supabase:', error)
+    return null
+  }
+}
+
+// Update reminder in Supabase after triggering
+async function updateReminderInSupabase(reminderId, nextTriggerTime, currentTriggerCount, accessToken) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !accessToken) {
+    return false
+  }
+
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/reminders?id=eq.${encodeURIComponent(reminderId)}`
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${accessToken}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        last_triggered: new Date().toISOString(),
+        next_trigger_time: nextTriggerTime.toISOString(),
+        trigger_count: currentTriggerCount + 1,
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[SW] ❌ Error updating reminder in Supabase:', response.status, errorText)
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error('[SW] ❌ Error updating reminder in Supabase:', error)
+    return false
+  }
+}
+
+// Calculate next trigger time for a reminder (same logic as SupabaseReminderService)
+function calculateNextTriggerTime(reminder, currentTime = new Date()) {
+  const now = currentTime.getTime()
+
+  switch (reminder.reminder_type) {
+    case 'daily': {
+      const time = reminder.data?.time || '08:00'
+      const [hours, minutes] = time.split(':').map(Number)
+      const nextTrigger = new Date(currentTime)
+      nextTrigger.setHours(hours, minutes, 0, 0)
+
+      if (nextTrigger.getTime() <= now) {
+        nextTrigger.setDate(nextTrigger.getDate() + 1)
+      }
+
+      return nextTrigger
+    }
+
+    case 'weekly': {
+      const time = reminder.data?.time || '08:00'
+      const [hours, minutes] = time.split(':').map(Number)
+      const days = reminder.days_of_week || [1, 2, 3, 4, 5]
+      
+      const allDaysSelected = days.length === 7 && days.every(d => [0,1,2,3,4,5,6].includes(d))
+      
+      if (allDaysSelected) {
+        const nextTrigger = new Date(currentTime)
+        nextTrigger.setHours(hours, minutes, 0, 0)
+        
+        if (nextTrigger.getTime() <= now) {
+          nextTrigger.setDate(nextTrigger.getDate() + 1)
+        }
+        
+        return nextTrigger
+      }
+
+      const currentDay = currentTime.getDay()
+      let daysUntilNext = 7
+      
+      for (const day of days) {
+        let daysDiff = day - currentDay
+        if (daysDiff < 0) daysDiff += 7
+        if (daysDiff < daysUntilNext) {
+          daysUntilNext = daysDiff
+        }
+      }
+
+      const nextTrigger = new Date(currentTime)
+      nextTrigger.setDate(nextTrigger.getDate() + daysUntilNext)
+      nextTrigger.setHours(hours, minutes, 0, 0)
+
+      if (daysUntilNext === 0 && nextTrigger.getTime() <= now) {
+        const sortedDays = [...days].sort((a, b) => a - b)
+        let nextDayIndex = sortedDays.findIndex(d => d > currentDay)
+        if (nextDayIndex === -1) nextDayIndex = 0
+        const nextDay = sortedDays[nextDayIndex]
+        
+        let daysToAdd = nextDay - currentDay
+        if (daysToAdd <= 0) daysToAdd += 7
+        
+        nextTrigger.setDate(nextTrigger.getDate() + daysToAdd)
+      }
+
+      return nextTrigger
+    }
+
+    case 'recurring': {
+      if (!reminder.interval_minutes || !reminder.start_time || !reminder.end_time) {
+        return new Date(now + 60 * 60 * 1000)
+      }
+
+      const [startHour, startMin] = reminder.start_time.split(':').map(Number)
+      const [endHour, endMin] = reminder.end_time.split(':').map(Number)
+      
+      const startTimeToday = new Date(currentTime)
+      startTimeToday.setHours(startHour, startMin, 0, 0)
+      
+      const intervalMs = reminder.interval_minutes * 60 * 1000
+      let initialTriggerTime = startTimeToday.getTime()
+      
+      if (initialTriggerTime <= now) {
+        const timeSinceStart = now - initialTriggerTime
+        const intervalsPassed = Math.floor(timeSinceStart / intervalMs)
+        const nextIntervalTime = initialTriggerTime + ((intervalsPassed + 1) * intervalMs)
+        
+        // If we're within 30 seconds of the current interval boundary, use that instead
+        const currentIntervalTime = initialTriggerTime + (intervalsPassed * intervalMs)
+        const timeUntilCurrentInterval = currentIntervalTime - now
+        
+        if (timeUntilCurrentInterval >= -30000 && timeUntilCurrentInterval <= 30000) {
+          initialTriggerTime = currentIntervalTime
+        } else {
+          initialTriggerTime = nextIntervalTime
+        }
+        
+        const endTimeToday = new Date(currentTime)
+        endTimeToday.setHours(endHour, endMin, 0, 0)
+        
+        if (initialTriggerTime > endTimeToday.getTime()) {
+          startTimeToday.setDate(startTimeToday.getDate() + 1)
+          initialTriggerTime = startTimeToday.getTime()
+        }
+      }
+
+      return new Date(initialTriggerTime)
+    }
+
+    default:
+      return new Date(now + 60 * 60 * 1000)
+  }
+}
+
 // Check and trigger reminders
 async function checkReminders() {
   try {
-    const db = await openReminderDB()
-    if (!db) return
+    // Check notification permission status
+    try {
+      const registration = self.registration
+      if (registration) {
+        const notifications = await registration.getNotifications()
+        console.log(`[SW] Current notification permission check: ${notifications.length} active notifications`)
+      }
+    } catch (permError) {
+      console.warn('[SW] Could not check notification permission:', permError)
+    }
+    
+    // Try Supabase first, fall back to IndexedDB
+    let reminders = null
+    
+    if (currentUserId && currentAccessToken) {
+      console.log(`[SW] Fetching reminders from Supabase for user ${currentUserId}`)
+      reminders = await fetchRemindersFromSupabase(currentUserId, currentAccessToken)
+    } else {
+      console.log(`[SW] ⚠️ Cannot fetch from Supabase - userId: ${currentUserId ? 'set' : 'not set'}, accessToken: ${currentAccessToken ? 'set' : 'not set'}`)
+    }
+    
+    // Fallback to IndexedDB if Supabase fails
+    if (!reminders || reminders.length === 0) {
+      console.log('[SW] Falling back to IndexedDB for reminders')
+      const db = await openReminderDB()
+      if (!db) {
+        console.log('[SW] No reminder DB available')
+        return
+      }
+      reminders = await getUpcomingReminders(db)
+    }
+    
+    if (!reminders || reminders.length === 0) {
+      console.log('[SW] ⚠️ No reminders found from Supabase or IndexedDB')
+      return
+    }
 
-    const reminders = await getUpcomingReminders(db)
     const now = Date.now()
+    console.log(`[SW] Checking ${reminders.length} reminders at ${new Date(now).toLocaleString()}`)
 
     for (const reminder of reminders) {
-      if (reminder.enabled && reminder.nextTriggerTime <= now) {
-        await triggerReminder(reminder, db)
+      // Handle both Supabase and IndexedDB formats
+      const nextTriggerTime = reminder.next_trigger_time 
+        ? new Date(reminder.next_trigger_time).getTime() 
+        : reminder.nextTriggerTime
+      const reminderId = reminder.id
+      const enabled = reminder.enabled !== false
+      
+      const timeUntilTrigger = nextTriggerTime - now
+      const secondsUntil = Math.round(timeUntilTrigger / 1000)
+      const minutesUntil = Math.round(timeUntilTrigger / 1000 / 60)
+      const isOverdue = timeUntilTrigger < 0
+
+      // Log each reminder being checked
+      console.log(`[SW] Checking reminder ${reminderId}: enabled=${enabled}, nextTrigger=${new Date(nextTriggerTime).toLocaleString()}, timeUntil=${minutesUntil}m (${secondsUntil}s), overdue=${isOverdue}`)
+
+      // Trigger if reminder time has passed or is within the next 30 seconds
+      // Also catch reminders that are up to 30 minutes overdue (in case we missed them)
+      if (enabled && nextTriggerTime <= now + 30000 && nextTriggerTime >= now - (30 * 60 * 1000)) {
+        console.log(`[SW] 🔔 Triggering reminder: ${reminderId} at ${new Date(nextTriggerTime).toLocaleString()}`)
+        console.log(`[SW] Time until trigger: ${secondsUntil} seconds ${isOverdue ? '(OVERDUE)' : ''}`)
+        
+        // Show notification
+        const title = reminder.title || reminder.options?.title || 'Reminder'
+        const body = reminder.body || reminder.options?.body || ''
+        const tag = reminder.tag || reminder.options?.tag || reminderId
+        const data = reminder.data || reminder.options?.data || {}
+        
+        await self.registration.showNotification(title, {
+          body,
+          icon: reminder.icon || reminder.options?.icon || '/favicon.ico',
+          badge: reminder.badge || reminder.options?.badge || '/favicon.ico',
+          tag,
+          data,
+          requireInteraction: false,
+          vibrate: [200, 100, 200],
+        })
+        
+        // Update reminder in Supabase or IndexedDB
+        if (reminder.next_trigger_time) {
+          // Supabase reminder - calculate next trigger and update
+          const nextTrigger = calculateNextTriggerTime(reminder, new Date())
+          const triggerCount = reminder.trigger_count || 0
+          await updateReminderInSupabase(reminderId, nextTrigger, triggerCount, currentAccessToken)
+        } else {
+          // IndexedDB reminder - use existing update logic
+          const db = await openReminderDB()
+          if (db) {
+            await triggerReminder(reminder, db)
+          }
+        }
+      } else if (enabled) {
+        console.log(`[SW] ⏰ Reminder ${reminderId} scheduled for ${new Date(nextTriggerTime).toLocaleString()} (in ${Math.round(timeUntilTrigger / 1000 / 60)} minutes, ${secondsUntil}s)`)
       }
     }
   } catch (error) {
@@ -214,21 +505,21 @@ function openReminderDB() {
   })
 }
 
-// Get upcoming reminders
-function getUpcomingReminders(db) {
+// Get ALL reminders (for debugging)
+function getAllReminders(db) {
   return new Promise((resolve, reject) => {
     const transaction = db.transaction([STORE_NAME], 'readonly')
     const store = transaction.objectStore(STORE_NAME)
-    const index = store.index('nextTriggerTime')
-    const maxTime = Date.now() + REMINDER_CHECK_INTERVAL * 2 // Check next 2 minutes
-    const range = IDBKeyRange.upperBound(maxTime)
-    const request = index.getAll(range)
+    const request = store.getAll()
 
     request.onsuccess = () => {
-      const reminders = (request.result || []).filter(
-        (r) => r.enabled && r.nextTriggerTime <= Date.now() + REMINDER_CHECK_INTERVAL
-      )
-      resolve(reminders)
+      console.log(`[SW] Total reminders in DB: ${request.result?.length || 0}`)
+      if (request.result && request.result.length > 0) {
+        request.result.forEach(r => {
+          console.log(`[SW] Reminder: ${r.id}, enabled: ${r.enabled}, nextTrigger: ${new Date(r.nextTriggerTime).toLocaleString()}, userId: ${r.userId}`)
+        })
+      }
+      resolve(request.result || [])
     }
 
     request.onerror = () => {
@@ -237,33 +528,180 @@ function getUpcomingReminders(db) {
   })
 }
 
+// Get upcoming reminders
+function getUpcomingReminders(db) {
+  return new Promise((resolve, reject) => {
+    // CRITICAL: IndexedDB IS shared between main thread and service worker!
+    // So we can read reminders directly from IndexedDB without postMessage
+    const transaction = db.transaction([STORE_NAME], 'readonly')
+    const store = transaction.objectStore(STORE_NAME)
+    
+    // First, get ALL reminders to see what's in the DB
+    const getAllRequest = store.getAll()
+    
+    getAllRequest.onsuccess = () => {
+      const allReminders = getAllRequest.result || []
+      console.log(`[SW] 📊 Total reminders in IndexedDB: ${allReminders.length}`)
+      
+      if (allReminders.length > 0) {
+        console.log('[SW] 📋 All reminders in DB:')
+        allReminders.forEach((r, i) => {
+          console.log(`[SW]   ${i + 1}. ${r.id}: ${r.options?.title || 'no title'}, enabled: ${r.enabled}, nextTrigger: ${new Date(r.nextTriggerTime).toLocaleString()}, userId: ${r.userId}`)
+        })
+      }
+      
+      // Now filter for upcoming reminders
+      const now = Date.now()
+      // CRITICAL: Use a wider time window to catch reminders that should trigger
+      // Check reminders that should have triggered in the last 5 minutes (to catch missed ones)
+      // and reminders that will trigger in the next 5 minutes
+      const pastWindow = now - (5 * 60 * 1000) // 5 minutes ago
+      const futureWindow = now + (5 * 60 * 1000) // 5 minutes from now
+      
+      // Filter all reminders to find ones that should trigger
+      const reminders = allReminders.filter((r) => {
+        if (!r.enabled) return false
+        
+        // Check if reminder should trigger (within 5 minutes before or after now)
+        const shouldTrigger = r.nextTriggerTime >= pastWindow && r.nextTriggerTime <= futureWindow
+        
+        if (shouldTrigger) {
+          const timeUntil = r.nextTriggerTime - now
+          const minutesUntil = Math.round(timeUntil / 1000 / 60)
+          const secondsUntil = Math.round(timeUntil / 1000)
+          console.log(`[SW] 🎯 Reminder ${r.id}: nextTriggerTime=${new Date(r.nextTriggerTime).toLocaleString()}, now=${new Date(now).toLocaleString()}, timeUntil=${secondsUntil}s (${minutesUntil}m)`)
+        }
+        
+        return shouldTrigger
+      })
+      
+      console.log(`[SW] ✅ Found ${reminders.length} reminders to check out of ${allReminders.length} total`)
+      
+      if (reminders.length > 0) {
+        reminders.forEach(r => {
+          const timeUntil = r.nextTriggerTime - now
+          const secondsUntil = Math.round(timeUntil / 1000)
+          console.log(`[SW] 🎯 Will trigger: ${r.id} (${r.options?.title || 'no title'}) in ${secondsUntil} seconds`)
+        })
+      } else if (allReminders.length > 0) {
+        console.log(`[SW] ⚠️ No reminders in time window (±5 minutes), but ${allReminders.length} reminders exist in DB`)
+        // Show next trigger times
+        allReminders.forEach(r => {
+          const timeUntil = r.nextTriggerTime - now
+          const minutesUntil = Math.round(timeUntil / 1000 / 60)
+          const secondsUntil = Math.round(timeUntil / 1000)
+          console.log(`[SW]   - ${r.id}: triggers in ${secondsUntil}s (${minutesUntil}m) - ${new Date(r.nextTriggerTime).toLocaleString()}`)
+        })
+      }
+      
+      resolve(reminders)
+    }
+
+    getAllRequest.onerror = () => {
+      reject(getAllRequest.error)
+    }
+  })
+}
+
 // Trigger a reminder notification
 async function triggerReminder(reminder, db) {
   try {
-    // Show notification
     const title = reminder.options.title || 'Reminder'
     const options = {
+      ...reminder.options,
       body: reminder.options.body || '',
-      icon: reminder.options.icon || '/favicon.ico',
-      badge: reminder.options.badge || '/favicon.ico',
-      tag: reminder.options.tag || reminder.id,
-      data: reminder.options.data || {},
-      requireInteraction: false,
-      silent: false,
+      icon: reminder.options.icon || '/favicon.svg',
+      badge: reminder.options.badge || '/favicon.svg',
+      tag: reminder.id,
+      requireInteraction: true, // Keep notification until user dismisses
+      vibrate: [200, 100, 200], // Vibration pattern
+      actions: [
+        { action: 'view', title: 'View' },
+        { action: 'dismiss', title: 'Dismiss' }
+      ],
+      data: {
+        reminderId: reminder.id,
+        url: reminder.options.url || '/dashboard',
+      },
     }
+    
+    console.log(`[SW] 🔔 Attempting to show notification: ${title}`)
+    console.log(`[SW] Service worker registration available: ${!!self.registration}`)
+    console.log(`[SW] Notification options:`, JSON.stringify(options, null, 2))
 
-    await self.registration.showNotification(title, options)
+    try {
+      // Show the notification
+      await self.registration.showNotification(title, options)
+      console.log(`[SW] ✅ Notification API call succeeded: ${title}`)
+      
+      // Verify notification was actually shown by checking if it exists
+      await new Promise(resolve => setTimeout(resolve, 200)) // Delay to ensure notification is registered
+      const allNotifications = await self.registration.getNotifications()
+      const matchingNotifications = allNotifications.filter(n => n.tag === options.tag)
+      
+      console.log(`[SW] 📊 Total active notifications: ${allNotifications.length}`)
+      console.log(`[SW] 📊 Matching notifications (tag: ${options.tag}): ${matchingNotifications.length}`)
+      
+      if (matchingNotifications.length > 0) {
+        console.log(`[SW] ✅ Notification confirmed visible: ${title}`)
+        matchingNotifications.forEach(n => {
+          console.log(`[SW]   - Title: ${n.title}, Body: ${n.body}, Tag: ${n.tag}`)
+        })
+      } else {
+        console.warn(`[SW] ⚠️ Notification API succeeded but notification not found in list`)
+        console.warn(`[SW] ⚠️ This usually means the browser/OS is blocking notifications`)
+        console.warn(`[SW] 💡 Check: Browser settings → Notifications → Site settings`)
+        console.warn(`[SW] 💡 Check: OS Do Not Disturb / Focus mode`)
+        console.warn(`[SW] 💡 Check: Browser notification center (click bell icon in address bar)`)
+        
+        // Notify client about potential blocking
+        const clients = await self.clients.matchAll()
+        clients.forEach(client => {
+          client.postMessage({
+            type: 'NOTIFICATION_BLOCKED',
+            reminderId: reminder.id,
+            title: title,
+            message: 'Notification was triggered but may be blocked by browser/OS settings',
+          })
+        })
+      }
+    } catch (error) {
+      // If notification fails (e.g., permission denied), log but don't throw
+      console.error('[SW] ❌ Failed to show notification:', error)
+      console.error('[SW] Error details:', error.message, error.stack)
+      // Notify client to request permission
+      const clients = await self.clients.matchAll()
+      clients.forEach(client => {
+        client.postMessage({
+          type: 'NOTIFICATION_PERMISSION_DENIED',
+          reminderId: reminder.id,
+          error: error.message,
+        })
+      })
+      return // Don't update reminder if notification failed
+    }
 
     // Send message to all clients to add notification to UI
     const clients = await self.clients.matchAll()
-    clients.forEach(client => {
-      client.postMessage({
-        type: 'NOTIFICATION_SHOWN',
-        notificationType: reminder.type || 'goal',
-        title: title,
-        body: options.body,
-        url: options.data?.url,
-      })
+    console.log(`[SW] 📤 Sending NOTIFICATION_SHOWN to ${clients.length} client(s)`)
+    
+    const messageData = {
+      type: 'NOTIFICATION_SHOWN',
+      notificationType: reminder.type || 'goal',
+      title: title,
+      body: options.body,
+      url: options.data?.url,
+    }
+    
+    console.log(`[SW] Message data:`, JSON.stringify(messageData, null, 2))
+    
+    clients.forEach((client, index) => {
+      try {
+        client.postMessage(messageData)
+        console.log(`[SW] ✅ Message sent to client ${index + 1}/${clients.length}`)
+      } catch (error) {
+        console.error(`[SW] ❌ Failed to send message to client ${index + 1}:`, error)
+      }
     })
 
     // Calculate next trigger time
@@ -305,6 +743,23 @@ function calculateNextTriggerTime(reminder) {
         : [8, 0]
 
       const days = reminder.daysOfWeek || [1, 2, 3, 4, 5]
+      
+      // CRITICAL: If all 7 days are selected, treat as daily reminder
+      const allDaysSelected = days && days.length === 7 && days.every(d => [0,1,2,3,4,5,6].includes(d))
+      
+      if (allDaysSelected) {
+        // Treat as daily - schedule for tomorrow if time passed today
+        const nextTrigger = new Date(currentTime)
+        nextTrigger.setHours(hours, minutes, 0, 0)
+        
+        if (nextTrigger.getTime() <= now) {
+          nextTrigger.setDate(nextTrigger.getDate() + 1)
+        }
+        
+        return nextTrigger.getTime()
+      }
+      
+      // Regular weekly logic
       const currentDay = currentTime.getDay()
 
       let daysUntilNext = 7
@@ -320,8 +775,18 @@ function calculateNextTriggerTime(reminder) {
       nextTrigger.setDate(nextTrigger.getDate() + daysUntilNext)
       nextTrigger.setHours(hours, minutes, 0, 0)
 
+      // If same day but time passed, find next day in the array (not necessarily next week)
       if (daysUntilNext === 0 && nextTrigger.getTime() <= now) {
-        nextTrigger.setDate(nextTrigger.getDate() + 7)
+        // Find the next day in the array
+        const sortedDays = [...days].sort((a, b) => a - b)
+        let nextDayIndex = sortedDays.findIndex(d => d > currentDay)
+        if (nextDayIndex === -1) nextDayIndex = 0 // Wrap around to first day
+        const nextDay = sortedDays[nextDayIndex]
+        
+        let daysToAdd = nextDay - currentDay
+        if (daysToAdd <= 0) daysToAdd += 7
+        
+        nextTrigger.setDate(nextTrigger.getDate() + daysToAdd)
       }
 
       return nextTrigger.getTime()
@@ -388,12 +853,188 @@ function updateReminderNextTrigger(db, id, nextTriggerTime) {
   })
 }
 
+// Save reminders to IndexedDB (service worker context)
+async function saveRemindersToSW(reminders) {
+  console.log(`[SW] saveRemindersToSW called with ${reminders?.length || 0} reminders`)
+  
+  if (!reminders || reminders.length === 0) {
+    console.warn('[SW] ⚠️ No reminders provided to save')
+    return
+  }
+  
+  console.log('[SW] Sample reminder:', reminders[0] ? {
+    id: reminders[0].id,
+    title: reminders[0].options?.title,
+    nextTriggerTime: new Date(reminders[0].nextTriggerTime).toLocaleString(),
+    enabled: reminders[0].enabled
+  } : 'none')
+  
+  const db = await openReminderDB()
+  if (!db) {
+    console.error('[SW] ❌ Cannot save reminders - DB not available')
+    return
+  }
+  
+  console.log('[SW] ✅ Database opened successfully')
+
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readwrite')
+    const store = transaction.objectStore(STORE_NAME)
+    let saved = 0
+    let errors = []
+
+    console.log(`[SW] Starting transaction to save ${reminders.length} reminders`)
+
+    reminders.forEach((reminder, index) => {
+      console.log(`[SW] Saving reminder ${index + 1}/${reminders.length}: ${reminder.id}`)
+      const request = store.put(reminder)
+      
+      request.onsuccess = () => {
+        saved++
+        console.log(`[SW] ✅ Saved reminder ${saved}/${reminders.length}: ${reminder.id} (${reminder.options?.title || 'no title'})`)
+        if (saved === reminders.length) {
+          console.log(`[SW] ✅ All ${saved} reminders saved successfully`)
+          resolve()
+        }
+      }
+      
+      request.onerror = () => {
+        const error = request.error
+        errors.push({ reminderId: reminder.id, error })
+        console.error(`[SW] ❌ Failed to save reminder ${reminder.id}:`, error)
+        if (errors.length === reminders.length) {
+          reject(new Error(`Failed to save all reminders: ${errors.map(e => e.error.message).join(', ')}`))
+        }
+      }
+    })
+
+    transaction.oncomplete = () => {
+      console.log(`[SW] ✅ Transaction completed: ${saved}/${reminders.length} reminders saved`)
+      if (saved === reminders.length) {
+        resolve()
+      } else {
+        reject(new Error(`Only saved ${saved} out of ${reminders.length} reminders`))
+      }
+    }
+    
+    transaction.onerror = () => {
+      const error = transaction.error
+      console.error('[SW] ❌ Transaction error saving reminders:', error)
+      reject(error)
+    }
+    
+    // Timeout safety
+    setTimeout(() => {
+      if (saved < reminders.length) {
+        console.warn(`[SW] ⚠️ Timeout: Only saved ${saved}/${reminders.length} reminders`)
+        if (saved > 0) {
+          resolve() // Resolve anyway if some were saved
+        } else {
+          reject(new Error('Timeout saving reminders'))
+        }
+      }
+    }, 5000)
+  })
+}
+
 // Handle messages from main app
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SCHEDULE_REMINDERS') {
-    // Reschedule reminders
-    checkReminders()
+self.addEventListener('message', async (event) => {
+  console.log('[SW] Received message:', event.data)
+  
+  if (event.data && event.data.type === 'SAVE_REMINDERS') {
+    // Legacy support - save reminders if sent via message
+    console.log(`[SW] ✅ Received SAVE_REMINDERS message`)
+    console.log(`[SW] Reminder count: ${event.data.reminders?.length || 0}`)
+    
+    if (event.data.reminders && event.data.reminders.length > 0) {
+      try {
+        await saveRemindersToSW(event.data.reminders)
+        console.log('[SW] ✅ Reminders saved via message')
+        await checkReminders()
+      } catch (error) {
+        console.error('[SW] ❌ Error saving reminders:', error)
+      }
+    }
+  }
+  
+  if (event.data && event.data.type === 'REFRESH_REMINDERS') {
+    // Legacy IndexedDB approach
+    console.log(`[SW] ✅ Received REFRESH_REMINDERS message (legacy IndexedDB)`)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    await checkReminders()
     initReminderChecking()
+  }
+  
+  if (event.data && event.data.type === 'REFRESH_REMINDERS_FROM_SUPABASE') {
+    // New Supabase approach
+    console.log(`[SW] ✅ Received REFRESH_REMINDERS_FROM_SUPABASE message`)
+    console.log(`[SW] User ID: ${event.data.userId}`)
+    console.log(`[SW] Reminder count: ${event.data.reminderCount || 'unknown'}`)
+    
+    // Check reminders immediately from Supabase
+    await checkReminders()
+    
+    // Re-initialize checking to ensure we're checking regularly
+    console.log('[SW] Re-initializing reminder checking after refresh...')
+    initReminderChecking()
+  }
+  
+  if (event.data && event.data.type === 'SET_SUPABASE_CONFIG') {
+    // Set Supabase configuration from main app
+    SUPABASE_URL = event.data.supabaseUrl
+    SUPABASE_ANON_KEY = event.data.supabaseAnonKey
+    currentUserId = event.data.userId
+    currentAccessToken = event.data.accessToken
+    console.log('[SW] ✅ Supabase configuration set')
+    console.log(`[SW] Supabase URL: ${SUPABASE_URL ? 'configured' : 'not set'}`)
+    console.log(`[SW] User ID: ${currentUserId || 'not set'}`)
+    
+    // Check reminders immediately with new config
+    await checkReminders()
+  }
+  
+  if (event.data && event.data.type === 'SCHEDULE_REMINDERS') {
+    console.log('[SW] Rescheduling reminders for user:', event.data.userId)
+    // Check reminders immediately
+    await checkReminders()
+    // Re-initialize checking to ensure we're checking regularly
+    initReminderChecking()
+    console.log('[SW] Reminder checking re-initialized')
+  }
+  
+  if (event.data && event.data.type === 'TEST_NOTIFICATION') {
+    console.log('[SW] Test notification requested')
+    try {
+      await self.registration.showNotification(event.data.title || 'Test Notification', {
+        body: event.data.body || 'This is a test notification',
+        icon: '/favicon.ico',
+        badge: '/favicon.ico',
+        tag: 'test-notification',
+        requireInteraction: true,
+        vibrate: [200, 100, 200],
+      })
+      console.log('[SW] ✅ Test notification shown')
+    } catch (error) {
+      console.error('[SW] ❌ Failed to show test notification:', error)
+    }
+  }
+  
+  if (event.data && event.data.type === 'DEBUG_REMINDERS') {
+    console.log('[SW] 🔍 DEBUG: Checking reminder status...')
+    const db = await openReminderDB()
+    if (db) {
+      const allReminders = await getAllReminders(db)
+      console.log(`[SW] 🔍 DEBUG: Total reminders in DB: ${allReminders.length}`)
+      if (allReminders.length > 0) {
+        console.log('[SW] 🔍 DEBUG: Reminder details:')
+        allReminders.forEach((r, i) => {
+          console.log(`[SW] 🔍 ${i + 1}. ${r.id}: ${r.options?.title || 'no title'}, enabled: ${r.enabled}, nextTrigger: ${new Date(r.nextTriggerTime).toLocaleString()}`)
+        })
+      }
+      await checkReminders()
+    } else {
+      console.error('[SW] 🔍 DEBUG: Cannot open DB')
+    }
   }
 })
 

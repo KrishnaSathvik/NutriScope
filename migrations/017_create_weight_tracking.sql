@@ -1,6 +1,6 @@
 -- ============================================================================
--- WEIGHT TRACKING SCHEMA
--- Add this to your Supabase SQL Editor
+-- Migration 017: Create Weight Tracking Tables and Functions
+-- Creates weight_logs table with BMI calculation functions
 -- ============================================================================
 
 -- Weight Logs Table
@@ -131,15 +131,4 @@ COMMENT ON COLUMN weight_logs.body_fat_percentage IS 'Body fat percentage (optio
 COMMENT ON COLUMN weight_logs.muscle_mass IS 'Muscle mass in kilograms (optional)';
 COMMENT ON FUNCTION calculate_bmi IS 'Calculates BMI: weight (kg) / height (m)²';
 COMMENT ON FUNCTION get_bmi_category IS 'Returns BMI category: underweight, normal, overweight, obese';
-
-DO $$
-BEGIN
-  RAISE NOTICE '✅ Weight Tracking schema created successfully!';
-  RAISE NOTICE '📋 Table: weight_logs';
-  RAISE NOTICE '⚡ Indexes created for fast queries';
-  RAISE NOTICE '🔒 RLS policies enabled';
-  RAISE NOTICE '🧮 Functions: calculate_bmi(), get_bmi_category(), get_latest_weight(), get_weight_change()';
-  RAISE NOTICE '';
-  RAISE NOTICE 'You can now track weight and body composition!';
-END $$;
 

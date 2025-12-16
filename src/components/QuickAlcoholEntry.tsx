@@ -110,22 +110,63 @@ export function QuickAlcoholEntry() {
 
   const createMutation = useMutation({
     mutationFn: createAlcoholLog,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['alcoholLogs'] })
-      await queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
-      await refetch()
+    onMutate: async (newAlcohol) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['alcoholLogs', selectedDate] })
+      
+      // Snapshot previous value
+      const previousLogs = queryClient.getQueryData<AlcoholLog[]>(['alcoholLogs', selectedDate])
+      
+      // Optimistically update the cache immediately
+      const optimisticLog: AlcoholLog = {
+        id: `temp-${Date.now()}`,
+        user_id: user?.id || '',
+        date: newAlcohol.date,
+        time: newAlcohol.time || undefined,
+        drink_type: newAlcohol.drink_type,
+        drink_name: newAlcohol.drink_name || undefined,
+        amount: newAlcohol.amount,
+        alcohol_content: newAlcohol.alcohol_content || undefined,
+        calories: newAlcohol.calories || 0,
+        notes: newAlcohol.notes || undefined,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      
+      const updatedLogs = [...(previousLogs || []), optimisticLog]
+      queryClient.setQueryData(['alcoholLogs', selectedDate], updatedLogs)
+      
+      // Also invalidate related queries to trigger updates
+      queryClient.invalidateQueries({ queryKey: ['alcoholLogs'] })
+      queryClient.invalidateQueries({ queryKey: ['dailyLog'] })
+      
+      // Close form immediately
       setIsOpen(false)
+      
+      return { previousLogs }
+    },
+    onSuccess: async () => {
+      // Refetch to get the actual data from server
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['alcoholLogs'] }),
+        queryClient.invalidateQueries({ queryKey: ['dailyLog'] }),
+      ])
       toast({
         title: 'Alcohol logged!',
         description: 'Your drink has been recorded.',
       })
     },
-    onError: (error) => {
+    onError: (error, _newAlcohol, context) => {
+      // Rollback optimistic update on error
+      if (context?.previousLogs !== undefined) {
+        queryClient.setQueryData(['alcoholLogs', selectedDate], context.previousLogs)
+      }
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to log alcohol',
         variant: 'destructive',
       })
+      setIsOpen(true) // Reopen form on error
     },
   })
 

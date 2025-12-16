@@ -302,6 +302,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const alcoholLogs = (dailyLog as any).alcohol_logs || []
       const alcoholCalories = alcoholLogs.reduce((sum: number, log: any) => sum + (log.calories || 0), 0)
       const caloriesBurned = dailyLog.calories_burned ?? 0
+      const sleepHours = (dailyLog as any).sleep_hours
+      const sleepLogs = (dailyLog as any).sleep_logs || []
+      const sleepQuality = sleepLogs.length > 0 ? sleepLogs[0].sleep_quality : undefined
       
       const calorieProgress = profile?.calorie_target ? Math.round((caloriesConsumed / profile.calorie_target) * 100) : 0
       const proteinProgress = profile?.protein_target ? Math.round((protein / profile.protein_target) * 100) : 0
@@ -313,6 +316,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       context += `- Water: ${waterIntake}ml / ${profile?.water_goal || 2000}ml (${waterProgress}%)\n`
       if (alcoholDrinks > 0) {
         context += `- Alcohol: ${alcoholDrinks.toFixed(1)} standard drinks (${alcoholCalories} cal)\n`
+      }
+      if (sleepHours !== undefined && sleepHours !== null) {
+        context += `- Sleep: ${sleepHours.toFixed(1)} hours${sleepQuality ? ` (Quality: ${sleepQuality}/5)` : ''}\n`
       }
       context += `- Calories Burned: ${caloriesBurned} cal\n`
       context += `\n`
@@ -362,6 +368,7 @@ PERSONALIZATION RULES
    - calories_burned: ${dailyLog?.calories_burned ?? 0}
    - water_intake: ${dailyLog?.water_intake ?? 0}
    - alcohol_drinks: ${(dailyLog as any)?.alcohol_drinks ?? 0}${(dailyLog as any)?.alcohol_drinks && (dailyLog as any).alcohol_drinks > 0 ? ` (${((dailyLog as any).alcohol_logs || []).reduce((sum: number, log: any) => sum + (log.calories || 0), 0)} cal from alcohol)` : ''}
+   - sleep_hours: ${(dailyLog as any)?.sleep_hours ?? null}${(dailyLog as any)?.sleep_hours ? ` hours${((dailyLog as any).sleep_logs?.[0]?.sleep_quality ? ` (Quality: ${(dailyLog as any).sleep_logs[0].sleep_quality}/5)` : '')}` : ' (not logged)'}
 
 3. Whenever you talk about goals, reference THEIR targets:
    - "Your target is ${profile?.calorie_target || 2000} calories / ${profile?.protein_target || 150} g protein"
@@ -392,9 +399,13 @@ For any message involving food:
    - If the user gives nutrition label values (like "210 cal, 13g protein for 5 nuggets"), TRUST those numbers.
 
 2. If information is missing:
+   - **CRITICAL: Always estimate missing macros (carbs/fats) even if user doesn't mention them**
    - FIRST, try to compute from label info the user gave earlier in the conversation.
-   - If you truly need more detail, ask **1–2 short clarifying questions** (e.g., "How many pieces did you eat?" or "Do you know the calories, or should I estimate?").
-   - If the user says they don't know, you may estimate using typical values and clearly mark it as an estimate in the message.
+   - For calories/protein: If user provides them, use those values. If missing, ask 1-2 clarifying questions OR estimate using nutrition reference database.
+   - For carbs/fats: **ALWAYS estimate** using the nutrition reference database below - don't ask the user. Only ask if the food is completely unknown/unidentifiable.
+   - Use the comprehensive nutrition reference database provided below for accurate estimates.
+   - Always clearly mark estimates in your message (e.g., "estimated ~45g carbs based on typical rice", "estimated ~15g fats based on chicken thigh")
+   - If user says they don't know calories/protein, estimate using typical values from the reference database and mark as estimate.
 
 3. Always compute:
    - meal_calories = sum of item calories
@@ -413,17 +424,26 @@ For any message involving food:
       With your target of ${profile?.calorie_target || 2000} calories and ${profile?.protein_target || 150} g protein, you have ~${(profile?.calorie_target || 2000) - ((dailyLog?.calories_consumed ?? 0) + 650)} calories and ${(profile?.protein_target || 150) - ((dailyLog?.protein ?? 0) + 48)} g protein left."
 
 5. When the user asks "What's my day total?" or similar:
-   - Use the **latest meal you just processed + dailyLog values** to answer.
-   - If you aren't logging a new meal, just respond with:
-     • calories so far: ${dailyLog?.calories_consumed ?? 0}
-     • protein so far: ${dailyLog?.protein ?? 0}
-     • how far they are from their targets
+   - **CRITICAL: Always use the CURRENT dailyLog values provided above, NOT static examples**
+   - If you just processed/logged a meal in THIS conversation, add that meal's calories/protein to the dailyLog values
+   - Calculate current totals: calories_consumed = ${dailyLog?.calories_consumed ?? 0} (plus any meals logged in this conversation)
+   - Calculate current totals: protein = ${dailyLog?.protein ?? 0} (plus any meals logged in this conversation)
+   - Show:
+     • Current calories: [calculated total] / ${profile?.calorie_target || 2000} cal (${profile?.calorie_target ? Math.round(((dailyLog?.calories_consumed ?? 0) / profile.calorie_target) * 100) : 0}%)
+     • Current protein: [calculated total]g / ${profile?.protein_target || 150}g (${profile?.protein_target ? Math.round(((dailyLog?.protein ?? 0) / profile.protein_target) * 100) : 0}%)
+     • Remaining calories: ${profile?.calorie_target || 2000} - [calculated total] = [remaining]
+     • Remaining protein: ${profile?.protein_target || 150} - [calculated total] = [remaining]
    - In that case, set action.type = "none".
 
 6. When the user asks "What should I eat for lunch/dinner/snack?":
-   - Look at:
-     • remaining_calories = ${profile?.calorie_target || 2000} - (${dailyLog?.calories_consumed ?? 0}) = ${(profile?.calorie_target || 2000) - (dailyLog?.calories_consumed ?? 0)}
-     • remaining_protein = ${profile?.protein_target || 150} - (${dailyLog?.protein ?? 0}) = ${(profile?.protein_target || 150) - (dailyLog?.protein ?? 0)}
+   - **CRITICAL: Calculate remaining macros DYNAMICALLY using CURRENT dailyLog values**
+   - First, determine current totals (including any meals logged in this conversation):
+     • current_calories = ${dailyLog?.calories_consumed ?? 0} + [any meals logged in this conversation]
+     • current_protein = ${dailyLog?.protein ?? 0} + [any meals logged in this conversation]
+   - Then calculate remaining:
+     • remaining_calories = ${profile?.calorie_target || 2000} - current_calories
+     • remaining_protein = ${profile?.protein_target || 150} - current_protein
+   - Example calculation: If dailyLog shows ${dailyLog?.calories_consumed ?? 0} calories and you just logged a 650-cal meal, current_calories = ${dailyLog?.calories_consumed ?? 0} + 650 = ${(dailyLog?.calories_consumed ?? 0) + 650}
    - Suggest 2–3 concrete options that fit roughly inside remaining_calories and help reach remaining_protein.
    - Respect dietary preference and restrictions.
    - Set action.type = "answer_food_question" OR "none" (either is fine), and put your full advice in "message".
@@ -545,8 +565,75 @@ You can help users with:
      • When user provides specific amounts (e.g., "180g chicken, 112g = 22g protein"), calculate proportionally: (amount eaten / reference amount) × reference nutrition
      • Example: "112g chicken = 22g protein, so 180g = (22/112) × 180 = 35.4g ≈ 35g protein"
      • Double-check: Sum of individual items MUST equal total calories/protein/carbs/fats
-     • Use standard nutrition databases: Rice (1 cup cooked) ≈ 200 cal, 45g carbs; Dal (1 cup cooked) ≈ 200-250 cal, 10g protein, 35g carbs; Chicken thigh (100g) ≈ 180-200 cal, 20-25g protein, 10-15g fat
-     • If unsure about a food, use conservative estimates and mention uncertainty
+     • **NUTRITION REFERENCE DATABASE (use these for accurate estimates):**
+       **Grains & Carbs (per 100g cooked):**
+       - Rice (white, cooked): ~130 cal, 2.7g protein, 28g carbs, 0.3g fat
+       - Rice (brown, cooked): ~111 cal, 2.6g protein, 23g carbs, 0.9g fat
+       - Pasta (cooked): ~131 cal, 5g protein, 25g carbs, 1.1g fat
+       - Oats (cooked): ~68 cal, 2.4g protein, 12g carbs, 1.4g fat
+       - Bread (white): ~265 cal, 9g protein, 49g carbs, 3.2g fat
+       - Roti/Chapati (1 piece ~30g): ~90 cal, 2.5g protein, 15g carbs, 2g fat
+       
+       **Proteins (per 100g raw):**
+       - Chicken breast: ~165 cal, 31g protein, 0g carbs, 3.6g fat
+       - Chicken thigh: ~209 cal, 26g protein, 0g carbs, 10.9g fat
+       - Fish (salmon): ~208 cal, 20g protein, 0g carbs, 12g fat
+       - Fish (tuna): ~144 cal, 30g protein, 0g carbs, 0.5g fat
+       - Eggs (1 large ~50g): ~70 cal, 6g protein, 0.6g carbs, 5g fat
+       - Beef (lean): ~250 cal, 26g protein, 0g carbs, 15g fat
+       - Pork (lean): ~242 cal, 27g protein, 0g carbs, 14g fat
+       
+       **Legumes & Plant Proteins (per 100g cooked):**
+       - Dal/Lentils: ~116 cal, 9g protein, 20g carbs, 0.4g fat
+       - Chickpeas: ~164 cal, 8.9g protein, 27g carbs, 2.6g fat
+       - Black beans: ~132 cal, 8.9g protein, 24g carbs, 0.5g fat
+       - Tofu (firm): ~144 cal, 17g protein, 3g carbs, 9g fat
+       
+       **Vegetables (per 100g raw):**
+       - Broccoli: ~34 cal, 2.8g protein, 7g carbs, 0.4g fat
+       - Spinach: ~23 cal, 2.9g protein, 3.6g carbs, 0.4g fat
+       - Carrots: ~41 cal, 0.9g protein, 10g carbs, 0.2g fat
+       - Tomatoes: ~18 cal, 0.9g protein, 3.9g carbs, 0.2g fat
+       - Potatoes: ~77 cal, 2g protein, 17g carbs, 0.1g fat
+       
+       **Fruits (per 100g):**
+       - Apple: ~52 cal, 0.3g protein, 14g carbs, 0.2g fat
+       - Banana: ~89 cal, 1.1g protein, 23g carbs, 0.3g fat
+       - Orange: ~47 cal, 0.9g protein, 12g carbs, 0.1g fat
+       
+       **Dairy (per 100g/ml):**
+       - Milk (whole): ~61 cal, 3.2g protein, 4.8g carbs, 3.3g fat
+       - Milk (skim): ~34 cal, 3.4g protein, 5g carbs, 0.1g fat
+       - Yogurt (Greek): ~59 cal, 10g protein, 3.6g carbs, 0.4g fat
+       - Cheese (cheddar): ~402 cal, 25g protein, 1.3g carbs, 33g fat
+       
+       **Nuts & Seeds (per 100g):**
+       - Almonds: ~579 cal, 21g protein, 22g carbs, 50g fat
+       - Peanuts: ~567 cal, 26g protein, 16g carbs, 49g fat
+       - Cashews: ~553 cal, 18g protein, 30g carbs, 44g fat
+       
+       **Oils & Fats:**
+       - Olive oil (1 tbsp ~14g): ~119 cal, 0g protein, 0g carbs, 14g fat
+       - Butter (1 tbsp ~14g): ~102 cal, 0.1g protein, 0g carbs, 11.5g fat
+       - Ghee (1 tbsp ~14g): ~112 cal, 0g protein, 0g carbs, 12.7g fat
+       
+       **Common Portions:**
+       - 1 cup cooked rice ≈ 200g = ~260 cal, 5.4g protein, 56g carbs
+       - 1 cup cooked dal ≈ 200g = ~232 cal, 18g protein, 40g carbs
+       - 1 roti/chapati ≈ 30g = ~90 cal, 2.5g protein, 15g carbs, 2g fat
+       - 1 chicken breast (150g) ≈ 248 cal, 46.5g protein, 0g carbs, 5.4g fat
+       - 1 egg (large) ≈ 70 cal, 6g protein, 0.6g carbs, 5g fat
+       
+     • **ESTIMATION RULES:**
+       - If user provides calories/protein but not carbs/fats: Estimate based on food type using reference database above
+       - Pure proteins (chicken, fish, eggs): carbs ≈ 0g, estimate fats based on cut (breast = low fat, thigh = higher fat)
+       - Grains/cereals: High carbs (20-30g per 100g), low-moderate protein (2-10g), low fat (<2g)
+       - Legumes: Moderate carbs (15-25g), high protein (8-10g), low fat (<3g)
+       - Vegetables: Low calories, low carbs (3-10g), minimal protein/fat
+       - Fruits: Moderate carbs (10-25g), minimal protein/fat
+       - Nuts/oils: High fat (40-50g), moderate protein (15-25g), moderate carbs (15-30g)
+       - Dairy: Varies by type - whole milk has fat, skim has minimal fat
+     • If unsure about a food, use conservative estimates and mention uncertainty (e.g., "estimated ~Xg carbs based on typical [food type]")
    - **MESSAGE FORMAT FOR MEAL LOGGING:**
      • First, show detailed breakdown: "Here's the breakdown for your [meal type]:"
      • List each food item with its nutrition: "• [Food] ([amount]): X calories, Yg protein, Zg carbs, Wg fats"
@@ -560,8 +647,11 @@ You can help users with:
      "Do you want me to log this meal?" (only if requires_confirmation: true)
 
 2. **Food Questions ("Can I eat this?", "Is this okay?"):**
+   - **CRITICAL: Use CURRENT dailyLog values and calculate remaining macros dynamically**
+   - Calculate remaining calories = ${profile?.calorie_target || 2000} - current_calories_consumed (including any meals logged in this conversation)
+   - Calculate remaining protein = ${profile?.protein_target || 150} - current_protein (including any meals logged in this conversation)
    - Analyze the food in context of their goals and remaining macros.
-   - Consider calorie_target, protein_target, current dailyLog, dietary_preference, and restrictions.
+   - Consider calorie_target (${profile?.calorie_target || 2000}), protein_target (${profile?.protein_target || 150}), current dailyLog (calories: ${dailyLog?.calories_consumed ?? 0}, protein: ${dailyLog?.protein ?? 0}), dietary_preference (${profile?.dietary_preference || 'none'}), and restrictions (${JSON.stringify(profile?.restrictions || [])}).
    - Answer if it fits today's goals and optionally suggest a portion size.
    - Use action type: "answer_food_question".
    - Include can_eat (true/false) and reasoning in action.data.

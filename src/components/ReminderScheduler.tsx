@@ -1,41 +1,67 @@
 import { useEffect, useRef } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { notificationService } from '@/services/notifications'
-import { smartReminderService } from '@/services/smartReminders'
+import { supabaseReminderService } from '@/services/supabaseReminders'
 import { ReminderSettings } from '@/types'
 import { getDailyLog } from '@/services/dailyLogs'
 import { getWaterIntake } from '@/services/water'
+import { isSupabaseConfigured } from '@/lib/supabase'
 
 /**
  * ReminderScheduler Component
  * Handles scheduling and triggering reminders based on user settings
  */
 export function ReminderScheduler() {
-  const { user, profile } = useAuth()
+  const { user, profile, session } = useAuth()
   const initializedRef = useRef(false)
+  const processingRef = useRef(false) // Prevent concurrent executions
 
   useEffect(() => {
-    if (!user || !profile || initializedRef.current) {
+    console.log('[ReminderScheduler] useEffect triggered', { 
+      hasUser: !!user, 
+      hasProfile: !!profile, 
+      userId: user?.id,
+      settingsEnabled: profile?.reminder_settings?.enabled 
+    })
+    
+    if (!user || !profile) {
       if (!user) {
         console.log('[ReminderScheduler] No user, skipping initialization')
       } else if (!profile) {
         console.log('[ReminderScheduler] No profile, skipping initialization')
-      } else if (initializedRef.current) {
-        console.log('[ReminderScheduler] Already initialized, skipping')
       }
+      return
+    }
+
+    // Prevent concurrent executions
+    if (processingRef.current) {
+      console.log('[ReminderScheduler] Already processing, skipping...')
       return
     }
 
     const settings: ReminderSettings | undefined = profile.reminder_settings
 
-    console.log('[ReminderScheduler] Initializing with settings:', settings)
+    console.log('[ReminderScheduler] Settings changed, re-initializing with settings:', settings)
+    console.log('[ReminderScheduler] Full settings object:', JSON.stringify(settings, null, 2))
+
+    // Reset initialization flag when settings change
+    initializedRef.current = false
+    processingRef.current = true
 
     if (!settings?.enabled) {
-      console.log('[ReminderScheduler] Reminders are disabled in settings')
+      console.log('[ReminderScheduler] Reminders are disabled in settings - deleting existing reminders')
+      // Delete all reminders when disabled
+      if (settings) {
+        supabaseReminderService.createRemindersFromSettings(user.id, settings)
+          .then(() => {
+            console.log('[ReminderScheduler] ✅ Existing reminders deleted')
+          })
+          .catch((error) => {
+            console.error('[ReminderScheduler] Error deleting reminders:', error)
+          })
+      }
       return
     }
-
-    initializedRef.current = true
 
     // Request notification permission and check if granted
     notificationService.requestPermission().then(async (permission) => {
@@ -47,20 +73,72 @@ export function ReminderScheduler() {
       }
 
       console.log('[ReminderScheduler] Scheduling smart reminders...')
+      console.log('[ReminderScheduler] User ID:', user.id)
+      console.log('[ReminderScheduler] Settings:', JSON.stringify(settings, null, 2))
 
       try {
-        // Use smart reminder service to create reminders from settings
-        // This stores reminders in IndexedDB and works even when tab is closed
-        await smartReminderService.createReminderFromSettings(user.id, settings)
-        console.log('[ReminderScheduler] Smart reminders scheduled successfully')
+        // Use Supabase reminder service to create reminders from settings
+        // This stores reminders in Supabase database for reliable triggering
+        await supabaseReminderService.createRemindersFromSettings(user.id, settings)
+        console.log('[ReminderScheduler] ✅ Reminders scheduled successfully in Supabase')
+        
+        // Verify reminders were saved
+        const savedReminders = await supabaseReminderService.getUserReminders(user.id)
+        console.log(`[ReminderScheduler] Verified: ${savedReminders.length} reminders saved to Supabase`)
+        savedReminders.forEach(r => {
+          console.log(`[ReminderScheduler] - ${r.id}: ${r.title} at ${new Date(r.next_trigger_time).toLocaleString()}`)
+        })
+        
+        // Send Supabase config to service worker and notify to refresh reminders
+        if ('serviceWorker' in navigator && isSupabaseConfigured() && session?.access_token) {
+          setTimeout(async () => {
+            const controller = navigator.serviceWorker.controller
+            if (controller) {
+              console.log('[ReminderScheduler] 🔄 Sending Supabase config to service worker...')
+              try {
+                // Get Supabase URL and anon key from environment
+                const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+                const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+                
+                // Send Supabase configuration
+                controller.postMessage({
+                  type: 'SET_SUPABASE_CONFIG',
+                  supabaseUrl,
+                  supabaseAnonKey,
+                  userId: user.id,
+                  accessToken: session.access_token,
+                })
+                
+                // Also send refresh message
+                controller.postMessage({
+                  type: 'REFRESH_REMINDERS_FROM_SUPABASE',
+                  userId: user.id,
+                  reminderCount: savedReminders.length,
+                })
+                
+                console.log('[ReminderScheduler] ✅ Service worker configured and notified')
+              } catch (error) {
+                console.error('[ReminderScheduler] ❌ Failed to configure service worker:', error)
+              }
+            }
+          }, 500)
+        }
+        
+        // Mark as initialized after successful scheduling
+        initializedRef.current = true
+        processingRef.current = false
       } catch (error) {
         console.error('[ReminderScheduler] Error scheduling smart reminders:', error)
+        console.error('[ReminderScheduler] Error stack:', error instanceof Error ? error.stack : 'No stack trace')
         // Fallback to old notification service if smart reminders fail
         console.log('[ReminderScheduler] Falling back to basic reminders...')
         scheduleBasicReminders(settings)
+        initializedRef.current = true
+        processingRef.current = false
       }
     }).catch((error) => {
       console.error('[ReminderScheduler] Error initializing reminders:', error)
+      processingRef.current = false
     })
 
     // Cleanup on unmount
@@ -69,13 +147,9 @@ export function ReminderScheduler() {
       // Cancel old-style reminders (if any)
       notificationService.cancelAllReminders()
       initializedRef.current = false
+      processingRef.current = false
     }
-  }, [user, profile])
-
-  // Re-initialize when settings change
-  useEffect(() => {
-    initializedRef.current = false
-  }, [profile?.reminder_settings])
+  }, [user, profile, profile?.reminder_settings]) // Include reminder_settings in dependencies
 
   return null
 }

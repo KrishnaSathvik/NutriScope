@@ -1,7 +1,6 @@
 -- ============================================================================
--- MEAL PLANS TABLE MIGRATION
--- Add meal_plans table if it doesn't exist
--- Run this in Supabase SQL Editor
+-- Migration 021: Create Meal Plans Table
+-- Creates meal_plans table for weekly meal planning
 -- ============================================================================
 
 -- MEAL PLANS TABLE
