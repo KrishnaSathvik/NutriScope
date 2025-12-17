@@ -92,17 +92,23 @@ export function ReminderScheduler() {
         
         // Send Supabase config to service worker and notify to refresh reminders
         if ('serviceWorker' in navigator && isSupabaseConfigured() && session?.access_token) {
-          // Wait for service worker to be ready
-          const sendConfigToSW = async () => {
+          // Wait for service worker to be ready with retry logic
+          const sendConfigToSW = async (retryCount = 0) => {
+            const MAX_RETRIES = 10 // Try up to 10 times (10 seconds total)
             try {
               // Ensure service worker is ready
               const registration = await navigator.serviceWorker.ready
-              const controller = navigator.serviceWorker.controller || registration.active
+              let controller = navigator.serviceWorker.controller || registration.active
+              
+              // If no controller, wait a bit and try again
+              if (!controller && retryCount < MAX_RETRIES) {
+                console.warn(`[ReminderScheduler] ⚠️ Service worker controller not available, retrying... (${retryCount + 1}/${MAX_RETRIES})`)
+                setTimeout(() => sendConfigToSW(retryCount + 1), 1000)
+                return
+              }
               
               if (!controller) {
-                console.warn('[ReminderScheduler] ⚠️ Service worker controller not available, waiting...')
-                // Wait a bit and try again
-                setTimeout(sendConfigToSW, 1000)
+                console.error('[ReminderScheduler] ❌ Service worker controller not available after retries')
                 return
               }
               
@@ -114,6 +120,8 @@ export function ReminderScheduler() {
               
               if (!supabaseUrl || !supabaseAnonKey) {
                 console.error('[ReminderScheduler] ❌ Supabase environment variables not set')
+                console.error('[ReminderScheduler] VITE_SUPABASE_URL:', supabaseUrl ? 'set' : 'NOT SET')
+                console.error('[ReminderScheduler] VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'set' : 'NOT SET')
                 return
               }
               
@@ -130,27 +138,36 @@ export function ReminderScheduler() {
               
               // Wait a moment for config to be processed, then send refresh message
               setTimeout(() => {
-                if (navigator.serviceWorker.controller) {
-                  navigator.serviceWorker.controller.postMessage({
+                controller = navigator.serviceWorker.controller
+                if (controller) {
+                  controller.postMessage({
                     type: 'REFRESH_REMINDERS_FROM_SUPABASE',
                     userId: user.id,
                     reminderCount: savedReminders.length,
                   })
                   console.log('[ReminderScheduler] ✅ Refresh message sent to service worker')
+                } else {
+                  console.warn('[ReminderScheduler] ⚠️ Controller lost before sending refresh message')
                 }
-              }, 500)
+              }, 1000) // Increased delay to ensure config is processed
             } catch (error) {
               console.error('[ReminderScheduler] ❌ Failed to configure service worker:', error)
+              // Retry if we haven't exceeded max retries
+              if (retryCount < MAX_RETRIES) {
+                console.log(`[ReminderScheduler] Retrying... (${retryCount + 1}/${MAX_RETRIES})`)
+                setTimeout(() => sendConfigToSW(retryCount + 1), 1000)
+              }
             }
           }
           
-          // Start sending config after a short delay to ensure SW is ready
-          setTimeout(sendConfigToSW, 500)
+          // Start sending config - try immediately, then retry if needed
+          sendConfigToSW()
         } else {
           console.warn('[ReminderScheduler] ⚠️ Cannot send config to service worker:', {
             hasServiceWorker: 'serviceWorker' in navigator,
             isSupabaseConfigured: isSupabaseConfigured(),
-            hasAccessToken: !!session?.access_token
+            hasAccessToken: !!session?.access_token,
+            hasUser: !!user?.id
           })
         }
         

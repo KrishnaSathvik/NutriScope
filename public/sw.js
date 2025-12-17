@@ -1,8 +1,8 @@
 // Service Worker for NutriScope PWA
-const CACHE_NAME = 'nutriscope-v13'
-const RUNTIME_CACHE = 'nutriscope-runtime-v13'
+const CACHE_NAME = 'nutriscope-v14'
+const RUNTIME_CACHE = 'nutriscope-runtime-v14'
 const REMINDER_CHECK_INTERVAL = 30000 // Check every 30 seconds for more accurate timing
-const SW_VERSION = 'v13-no-logs-prod'
+const SW_VERSION = 'v14-fix-prod-reminders'
 
 // Production-safe logging - disable logs in production unless explicitly enabled
 // Check if we're in production by hostname
@@ -1342,16 +1342,42 @@ self.addEventListener('message', async (event) => {
     SUPABASE_ANON_KEY = event.data.supabaseAnonKey
     currentUserId = event.data.userId
     currentAccessToken = event.data.accessToken
+    
+    // Always log config receipt (even in production) for debugging
     swLog('[SW] ✅ Supabase configuration received and set')
     swLog(`[SW] Supabase URL: ${SUPABASE_URL ? 'configured' : 'not set'}`)
     swLog(`[SW] User ID: ${currentUserId || 'not set'}`)
     swLog(`[SW] Access Token: ${currentAccessToken ? 'present' : 'missing'}`)
+    
+    // Validate config before initializing
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !currentUserId || !currentAccessToken) {
+      swError('[SW] ❌ Invalid Supabase config - missing required fields')
+      swError(`[SW] SUPABASE_URL: ${SUPABASE_URL ? 'set' : 'MISSING'}`)
+      swError(`[SW] SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY ? 'set' : 'MISSING'}`)
+      swError(`[SW] currentUserId: ${currentUserId ? 'set' : 'MISSING'}`)
+      swError(`[SW] currentAccessToken: ${currentAccessToken ? 'set' : 'MISSING'}`)
+      return
+    }
     
     // Initialize reminder checking with new config
     initReminderChecking()
     
     // Check reminders immediately with new config
     await checkReminders()
+    
+    // Send confirmation back to main app (if possible)
+    try {
+      const clients = await self.clients.matchAll()
+      clients.forEach(client => {
+        client.postMessage({
+          type: 'SW_CONFIG_RECEIVED',
+          success: true,
+          userId: currentUserId
+        })
+      })
+    } catch (e) {
+      // Ignore errors sending confirmation
+    }
   }
   
   if (event.data && event.data.type === 'SCHEDULE_REMINDERS') {
