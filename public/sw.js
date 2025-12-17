@@ -601,7 +601,9 @@ async function checkReminders() {
       swLog('[SW] Supabase fetch failed, falling back to IndexedDB for reminders')
       const db = await openReminderDB()
       if (!db) {
+        console.log('[SW] No reminder DB available')
         swLog('[SW] No reminder DB available')
+        isCheckingReminders = false
         return
       }
       reminders = await getUpcomingReminders(db)
