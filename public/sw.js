@@ -1310,6 +1310,8 @@ async function saveRemindersToSW(reminders) {
 
 // Handle messages from main app
 self.addEventListener('message', async (event) => {
+  // Always log messages, even in production, for debugging
+  console.log('[SW] 📨 Received message:', event.data)
   swLog('[SW] Received message:', event.data)
   
   // Handle skip waiting message
@@ -1509,34 +1511,43 @@ self.addEventListener('message', async (event) => {
       
       // Method 1: BroadcastChannel (send once only)
       try {
+        console.log('[SW] 📤 Sending message via BroadcastChannel:', messageData)
         const channel = new BroadcastChannel('nutriscope-notifications')
         channel.postMessage(messageData)
+        console.log('[SW] ✅ Test notification message sent via BroadcastChannel')
         swLog('[SW] ✅ Test notification message sent via BroadcastChannel')
         // Close channel after brief delay to ensure message is sent
         setTimeout(() => channel.close(), 100)
         messageSent = true
       } catch (error) {
+        console.error('[SW] ⚠️ BroadcastChannel not available for test:', error)
         swWarn('[SW] ⚠️ BroadcastChannel not available for test:', error)
       }
       
       // Method 2: Direct postMessage
       try {
         const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
+        console.log(`[SW] 📤 Found ${clients.length} client(s) for test notification`)
         swLog(`[SW] 📤 Found ${clients.length} client(s) for test notification`)
         if (clients.length > 0) {
           clients.forEach((client, index) => {
             try {
+              console.log(`[SW] 📤 Sending message to client ${index + 1}/${clients.length}:`, client.url)
               client.postMessage(messageData)
+              console.log(`[SW] ✅ Test notification message sent to client ${index + 1}/${clients.length} (${client.url})`)
               swLog(`[SW] ✅ Test notification message sent to client ${index + 1}/${clients.length} (${client.url})`)
               messageSent = true
             } catch (error) {
+              console.error(`[SW] ⚠️ Failed to send test notification to client ${index + 1}:`, error)
               swWarn(`[SW] ⚠️ Failed to send test notification to client ${index + 1}:`, error)
             }
           })
         } else {
+          console.warn('[SW] ⚠️ No clients found to send test notification message')
           swWarn('[SW] ⚠️ No clients found to send test notification message')
         }
       } catch (error) {
+        console.error('[SW] ⚠️ Error sending test notification message:', error)
         swWarn('[SW] ⚠️ Error sending test notification message:', error)
       }
       

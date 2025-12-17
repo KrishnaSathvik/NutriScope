@@ -48,13 +48,13 @@ export function NotificationsDropdown() {
     setNotifications(stored.sort((a, b) => b.timestamp - a.timestamp))
   }, [])
 
+  // Track recent notifications to prevent duplicates (outside useEffect to persist)
+  const recentNotificationIdsRef = useRef<Set<string>>(new Set())
+  const DEDUP_WINDOW_MS = 10000 // 10 seconds deduplication window
+
   // Listen for new notifications from service worker and BroadcastChannel
   useEffect(() => {
     if (typeof window === 'undefined') return
-
-    // Track recent notifications to prevent duplicates
-    const recentNotificationIds = new Set<string>()
-    const DEDUP_WINDOW_MS = 10000 // 10 seconds deduplication window
 
     const handleNotification = (data: any) => {
       if (data && data.type === 'NOTIFICATION_SHOWN') {
@@ -67,21 +67,21 @@ export function NotificationsDropdown() {
           : `${data.title}-${messageTimestamp}`
         
         console.log('[NotificationsDropdown] Generated notification ID:', notificationId)
-        console.log('[NotificationsDropdown] Recent notification IDs:', Array.from(recentNotificationIds))
+        console.log('[NotificationsDropdown] Recent notification IDs:', Array.from(recentNotificationIdsRef.current))
         
         // Check if we've already processed this notification
-        if (recentNotificationIds.has(notificationId)) {
+        if (recentNotificationIdsRef.current.has(notificationId)) {
           console.log('[NotificationsDropdown] ⏭️ Skipping duplicate notification:', notificationId)
           return
         }
         
         // Mark as processed immediately
-        recentNotificationIds.add(notificationId)
+        recentNotificationIdsRef.current.add(notificationId)
         console.log('[NotificationsDropdown] ✅ Added notification ID to deduplication set:', notificationId)
         
         // Clean up old IDs after deduplication window
         setTimeout(() => {
-          recentNotificationIds.delete(notificationId)
+          recentNotificationIdsRef.current.delete(notificationId)
         }, DEDUP_WINDOW_MS)
         
         const newNotification: StoredNotification = {
