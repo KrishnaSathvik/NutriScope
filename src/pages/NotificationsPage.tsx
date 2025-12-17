@@ -55,21 +55,52 @@ export default function NotificationsPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return
 
+    // Track recent notifications to prevent duplicates
+    const recentNotificationIds = new Set<string>()
+    const DEDUP_WINDOW_MS = 10000 // 10 seconds deduplication window
+
     const handleNotification = (data: any) => {
       if (data && data.type === 'NOTIFICATION_SHOWN') {
         console.log('[NotificationsPage] Received NOTIFICATION_SHOWN message:', data)
+        
+        // Create a unique ID for deduplication using tag + timestamp
+        const notificationId = data.tag 
+          ? `${data.tag}-${data.timestamp || Date.now()}`
+          : `${data.title}-${data.timestamp || Date.now()}`
+        
+        // Check if we've already processed this notification
+        if (recentNotificationIds.has(notificationId)) {
+          console.log('[NotificationsPage] ⏭️ Skipping duplicate notification:', notificationId)
+          return
+        }
+        
+        // Mark as processed
+        recentNotificationIds.add(notificationId)
+        
+        // Clean up old IDs after deduplication window
+        setTimeout(() => {
+          recentNotificationIds.delete(notificationId)
+        }, DEDUP_WINDOW_MS)
+        
         const newNotification: StoredNotification = {
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          id: notificationId,
           type: data.notificationType || 'goal',
           title: data.title || 'Reminder',
           message: data.body || '',
-          timestamp: Date.now(),
+          timestamp: data.timestamp || Date.now(),
           read: false,
           actionUrl: data.url,
         }
         
         // Use functional update to avoid dependency on notifications
         setNotifications((prevNotifications) => {
+          // Check if notification with same ID already exists
+          const exists = prevNotifications.some(n => n.id === notificationId)
+          if (exists) {
+            console.log('[NotificationsPage] ⏭️ Notification already exists in list:', notificationId)
+            return prevNotifications
+          }
+          
           const updated = [newNotification, ...prevNotifications]
           saveNotifications(updated)
           return updated
@@ -77,15 +108,7 @@ export default function NotificationsPage() {
       }
     }
 
-    // Method 1: Service Worker messages (works when SW controls the page)
-    let handleMessage: ((event: MessageEvent) => void) | null = null
-    if ('serviceWorker' in navigator) {
-      handleMessage = (event: MessageEvent) => handleNotification(event.data)
-      navigator.serviceWorker.addEventListener('message', handleMessage)
-      console.log('[NotificationsPage] Service Worker message listener registered')
-    }
-
-    // Method 2: BroadcastChannel (works even when SW doesn't control the page)
+    // Use BroadcastChannel as primary method (works across all contexts)
     let broadcastChannel: BroadcastChannel | null = null
     try {
       broadcastChannel = new BroadcastChannel('nutriscope-notifications')
@@ -96,6 +119,19 @@ export default function NotificationsPage() {
       console.log('[NotificationsPage] BroadcastChannel listener registered')
     } catch (error) {
       console.warn('[NotificationsPage] BroadcastChannel not available:', error)
+    }
+
+    // Fallback: Service Worker messages (works when SW controls the page)
+    let handleMessage: ((event: MessageEvent) => void) | null = null
+    if ('serviceWorker' in navigator) {
+      handleMessage = (event: MessageEvent) => {
+        // Only handle if BroadcastChannel is not available
+        if (!broadcastChannel) {
+          handleNotification(event.data)
+        }
+      }
+      navigator.serviceWorker.addEventListener('message', handleMessage)
+      console.log('[NotificationsPage] Service Worker message listener registered (fallback)')
     }
     
     // Combined cleanup function

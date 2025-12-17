@@ -5,6 +5,7 @@ import { calculateLoggingStreak } from '@/services/streak'
 import { getUserStreak } from '@/services/streaks'
 import { Zap, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import type { StreakData } from '@/services/streak'
 
 /**
@@ -28,6 +29,13 @@ export function StreakWidget() {
   
   // Get today's date string for cache invalidation
   const today = format(new Date(), 'yyyy-MM-dd')
+  
+  // Set up realtime subscription for user_streaks table and related tables
+  // This ensures streak updates immediately when meals/exercises/water are logged
+  useUserRealtimeSubscription('user_streaks', ['streak'], user?.id)
+  useUserRealtimeSubscription('meals', ['streak'], user?.id)
+  useUserRealtimeSubscription('exercises', ['streak'], user?.id)
+  useUserRealtimeSubscription('daily_logs', ['streak'], user?.id)
 
   // Get cached data from React Query cache synchronously for immediate display
   // Only use today's cache, not yesterday's, to avoid showing stale streak data
@@ -76,9 +84,9 @@ export function StreakWidget() {
     },
     enabled: !!user, // Only run if user exists (including guest users)
     refetchOnWindowFocus: false,
-    refetchOnMount: false, // Don't refetch on mount if data exists - use cached data immediately
+    refetchOnMount: true, // Refetch on mount to ensure fresh data
     refetchOnReconnect: true, // Refetch on reconnect
-    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes (allows immediate display of cached data)
+    staleTime: 0, // Always consider data stale - allows realtime updates to trigger refetch immediately
     retry: 1,
     gcTime: 24 * 60 * 60 * 1000, // Keep in cache for 24 hours
     // Use cached data immediately if available to avoid loading state

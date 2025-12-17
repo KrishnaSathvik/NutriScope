@@ -1,22 +1,47 @@
 -- ============================================================================
 -- Migration 024: Enable Supabase Realtime Replication
 -- Enables realtime subscriptions for all tables that need realtime updates
+-- This migration is idempotent - it will only add tables that aren't already in the publication
 -- ============================================================================
 
--- Enable replication for all tables that need realtime updates
-ALTER PUBLICATION supabase_realtime ADD TABLE meals;
-ALTER PUBLICATION supabase_realtime ADD TABLE exercises;
-ALTER PUBLICATION supabase_realtime ADD TABLE daily_logs;
-ALTER PUBLICATION supabase_realtime ADD TABLE weight_logs;
-ALTER PUBLICATION supabase_realtime ADD TABLE recipes;
-ALTER PUBLICATION supabase_realtime ADD TABLE meal_plans;
-ALTER PUBLICATION supabase_realtime ADD TABLE grocery_lists;
-ALTER PUBLICATION supabase_realtime ADD TABLE chat_conversations;
-ALTER PUBLICATION supabase_realtime ADD TABLE achievements;
-ALTER PUBLICATION supabase_realtime ADD TABLE user_profiles;
-ALTER PUBLICATION supabase_realtime ADD TABLE meal_templates;
-ALTER PUBLICATION supabase_realtime ADD TABLE exercise_library;
-ALTER PUBLICATION supabase_realtime ADD TABLE alcohol_logs;
-ALTER PUBLICATION supabase_realtime ADD TABLE sleep_logs;
-ALTER PUBLICATION supabase_realtime ADD TABLE reminders;
+-- Function to safely add tables to publication (only if not already added)
+DO $$
+DECLARE
+    table_name TEXT;
+    tables_to_add TEXT[] := ARRAY[
+        'meals',
+        'exercises',
+        'daily_logs',
+        'weight_logs',
+        'recipes',
+        'meal_plans',
+        'grocery_lists',
+        'chat_conversations',
+        'achievements',
+        'user_profiles',
+        'meal_templates',
+        'exercise_library',
+        'alcohol_logs',
+        'sleep_logs',
+        'reminders',
+        'user_streaks'
+    ];
+BEGIN
+    FOREACH table_name IN ARRAY tables_to_add
+    LOOP
+        -- Check if table is already in publication
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM pg_publication_tables 
+            WHERE pubname = 'supabase_realtime' 
+            AND tablename = table_name
+        ) THEN
+            -- Add table to publication
+            EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE %I', table_name);
+            RAISE NOTICE 'Added table % to supabase_realtime publication', table_name;
+        ELSE
+            RAISE NOTICE 'Table % is already in supabase_realtime publication, skipping', table_name;
+        END IF;
+    END LOOP;
+END $$;
 

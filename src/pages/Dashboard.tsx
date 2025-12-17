@@ -24,6 +24,9 @@ export default function Dashboard() {
   useUserRealtimeSubscription('exercises', ['exercises', 'dailyLog', 'aiInsights', 'streak'], user?.id)
   useUserRealtimeSubscription('daily_logs', ['dailyLog', 'waterIntake', 'streak'], user?.id)
   useUserRealtimeSubscription('weight_logs', ['weightLogs', 'latestWeight'], user?.id)
+  useUserRealtimeSubscription('sleep_logs', ['sleepLog'], user?.id)
+  useUserRealtimeSubscription('alcohol_logs', ['alcoholLogs'], user?.id)
+  useUserRealtimeSubscription('user_streaks', ['streak'], user?.id)
 
   const { data: dailyLog } = useQuery({
     queryKey: ['dailyLog', today],

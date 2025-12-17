@@ -315,8 +315,8 @@ async function fetchRemindersFromSupabase(userId, accessToken) {
 
       if (!response.ok) {
         const errorText = await response.text()
-        swError('[SW] ❌ Error fetching reminders from Supabase:', response.status, response.statusText)
-        swError('[SW] ❌ Error details:', errorText)
+        console.error('[SW] ❌ Error fetching reminders from Supabase:', response.status, response.statusText)
+        console.error('[SW] ❌ Error details:', errorText)
         return null
       }
 
@@ -339,16 +339,16 @@ async function fetchRemindersFromSupabase(userId, accessToken) {
     } catch (fetchError) {
       clearTimeout(timeoutId)
       if (fetchError.name === 'AbortError') {
-        swError('[SW] ❌ Fetch timeout - request took too long')
+        console.error('[SW] ❌ Fetch timeout - request took too long')
       } else {
-        swError('[SW] ❌ Error fetching reminders from Supabase:', fetchError)
-        swError('[SW] Error stack:', fetchError.stack)
+        console.error('[SW] ❌ Error fetching reminders from Supabase:', fetchError)
+        console.error('[SW] Error stack:', fetchError.stack)
       }
       return null
     }
   } catch (error) {
-    swError('[SW] ❌ Error in fetchRemindersFromSupabase:', error)
-    swError('[SW] Error stack:', error.stack)
+    console.error('[SW] ❌ Error in fetchRemindersFromSupabase:', error)
+    console.error('[SW] Error stack:', error.stack)
     return null
   }
 }
@@ -366,7 +366,7 @@ async function updateReminderInSupabase(reminderId, nextTriggerTime, currentTrig
       : new Date(nextTriggerTime)
     
     if (isNaN(nextTriggerDate.getTime())) {
-      swError(`[SW] ❌ Invalid date for reminder ${reminderId}: ${nextTriggerTime}`)
+      console.error(`[SW] ❌ Invalid date for reminder ${reminderId}: ${nextTriggerTime}`)
       return false
     }
     
@@ -388,13 +388,13 @@ async function updateReminderInSupabase(reminderId, nextTriggerTime, currentTrig
 
     if (!response.ok) {
       const errorText = await response.text()
-      swError('[SW] ❌ Error updating reminder in Supabase:', response.status, errorText)
+      console.error('[SW] ❌ Error updating reminder in Supabase:', response.status, errorText)
       return false
     }
 
     return true
   } catch (error) {
-    swError('[SW] ❌ Error updating reminder in Supabase:', error)
+    console.error('[SW] ❌ Error updating reminder in Supabase:', error)
     return false
   }
 }
@@ -642,13 +642,13 @@ async function checkReminders() {
             if (updateSuccess) {
               swLog(`[SW] ✅ Successfully updated reminder ${reminderId} in Supabase`)
             } else {
-              swError(`[SW] ❌ Failed to update reminder ${reminderId} in Supabase`)
+              console.error(`[SW] ❌ Failed to update reminder ${reminderId} in Supabase`)
               // Remove from recently triggered if update failed so it can retry
               recentlyTriggeredReminders.delete(reminderId)
               continue // Skip showing notification if update failed
             }
           } catch (error) {
-            swError(`[SW] ❌ Error calculating/updating next trigger for reminder ${reminderId}:`, error)
+            console.error(`[SW] ❌ Error calculating/updating next trigger for reminder ${reminderId}:`, error)
             // Remove from recently triggered if update failed so it can retry
             recentlyTriggeredReminders.delete(reminderId)
             continue // Skip showing notification if update failed
@@ -661,7 +661,7 @@ async function checkReminders() {
               await triggerReminder(reminder, db)
               updateSuccess = true
             } catch (error) {
-              swError(`[SW] ❌ Error updating IndexedDB reminder:`, error)
+              console.error(`[SW] ❌ Error updating IndexedDB reminder:`, error)
               recentlyTriggeredReminders.delete(reminderId)
               continue
             }
@@ -711,8 +711,8 @@ async function checkReminders() {
             swWarn(`[SW] 💡 Check: System notification center (bell icon in address bar)`)
           }
         } catch (error) {
-          swError(`[SW] ❌ Failed to show notification:`, error)
-          swError(`[SW] Error details:`, error.message)
+          console.error(`[SW] ❌ Failed to show notification:`, error)
+          console.error(`[SW] Error details:`, error.message)
           swWarn(`[SW] 💡 Notification permission may be denied. Check browser settings.`)
           // Remove tag from deduplication set if notification failed
           recentNotificationTags.delete(tag)
@@ -760,7 +760,7 @@ async function checkReminders() {
                 swLog(`[SW] ✅ Message sent to client ${index + 1}/${clients.length} (${client.url})`)
                 messageSent = true
               } catch (error) {
-                swError(`[SW] ❌ Failed to send message to client ${index + 1}:`, error)
+                console.error(`[SW] ❌ Failed to send message to client ${index + 1}:`, error)
               }
             })
           }
@@ -776,7 +776,7 @@ async function checkReminders() {
       }
     }
   } catch (error) {
-    swError('[SW] Error checking reminders:', error)
+    console.error('[SW] Error checking reminders:', error)
   } finally {
     isCheckingReminders = false
   }
@@ -788,7 +788,7 @@ function openReminderDB() {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
 
     request.onerror = () => {
-      swError('[SW] Failed to open reminder DB:', request.error)
+      console.error('[SW] Failed to open reminder DB:', request.error)
       resolve(null)
     }
 
@@ -975,8 +975,8 @@ async function triggerReminder(reminder, db) {
       }
     } catch (error) {
       // If notification fails (e.g., permission denied), log but don't throw
-      swError('[SW] ❌ Failed to show notification:', error)
-      swError('[SW] Error details:', error.message, error.stack)
+      console.error('[SW] ❌ Failed to show notification:', error)
+      console.error('[SW] Error details:', error.message, error.stack)
       // Notify client to request permission
       const clients = await self.clients.matchAll()
       clients.forEach(client => {
@@ -1008,7 +1008,7 @@ async function triggerReminder(reminder, db) {
         client.postMessage(messageData)
         swLog(`[SW] ✅ Message sent to client ${index + 1}/${clients.length}`)
       } catch (error) {
-        swError(`[SW] ❌ Failed to send message to client ${index + 1}:`, error)
+        console.error(`[SW] ❌ Failed to send message to client ${index + 1}:`, error)
       }
     })
 
@@ -1020,7 +1020,7 @@ async function triggerReminder(reminder, db) {
 
     swLog(`[SW] Triggered reminder: ${reminder.id}, next trigger: ${new Date(nextTriggerTime).toLocaleString()}`)
   } catch (error) {
-    swError('[SW] Error triggering reminder:', error)
+    console.error('[SW] Error triggering reminder:', error)
   }
 }
 
@@ -1179,7 +1179,7 @@ async function saveRemindersToSW(reminders) {
   
   const db = await openReminderDB()
   if (!db) {
-    swError('[SW] ❌ Cannot save reminders - DB not available')
+    console.error('[SW] ❌ Cannot save reminders - DB not available')
     return
   }
   
@@ -1209,7 +1209,7 @@ async function saveRemindersToSW(reminders) {
       request.onerror = () => {
         const error = request.error
         errors.push({ reminderId: reminder.id, error })
-        swError(`[SW] ❌ Failed to save reminder ${reminder.id}:`, error)
+        console.error(`[SW] ❌ Failed to save reminder ${reminder.id}:`, error)
         if (errors.length === reminders.length) {
           reject(new Error(`Failed to save all reminders: ${errors.map(e => e.error.message).join(', ')}`))
         }
@@ -1227,7 +1227,7 @@ async function saveRemindersToSW(reminders) {
     
     transaction.onerror = () => {
       const error = transaction.error
-      swError('[SW] ❌ Transaction error saving reminders:', error)
+      console.error('[SW] ❌ Transaction error saving reminders:', error)
       reject(error)
     }
     
@@ -1260,7 +1260,7 @@ self.addEventListener('message', async (event) => {
         swLog('[SW] ✅ Reminders saved via message')
         await checkReminders()
       } catch (error) {
-        swError('[SW] ❌ Error saving reminders:', error)
+        console.error('[SW] ❌ Error saving reminders:', error)
       }
     }
   }
@@ -1370,7 +1370,7 @@ self.addEventListener('message', async (event) => {
       })
       swLog('[SW] ✅ Test notification shown')
     } catch (error) {
-      swError('[SW] ❌ Failed to show test notification:', error)
+      console.error('[SW] ❌ Failed to show test notification:', error)
     }
   }
   
@@ -1388,7 +1388,7 @@ self.addEventListener('message', async (event) => {
       }
       await checkReminders()
     } else {
-      swError('[SW] 🔍 DEBUG: Cannot open DB')
+      console.error('[SW] 🔍 DEBUG: Cannot open DB')
     }
   }
 })

@@ -5,7 +5,7 @@ import { supabaseReminderService } from '@/services/supabaseReminders'
 import { ReminderSettings } from '@/types'
 import { getDailyLog } from '@/services/dailyLogs'
 import { getWaterIntake } from '@/services/water'
-import { isSupabaseConfigured } from '@/lib/supabase'
+import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 
 /**
  * ReminderScheduler Component
@@ -15,6 +15,7 @@ export function ReminderScheduler() {
   const { user, profile, session } = useAuth()
   const initializedRef = useRef(false)
   const processingRef = useRef(false) // Prevent concurrent executions
+  const realtimeChannelRef = useRef<any>(null) // Store realtime channel
 
   useEffect(() => {
     console.log('[ReminderScheduler] useEffect triggered', { 
@@ -179,6 +180,54 @@ export function ReminderScheduler() {
       processingRef.current = false
     }
   }, [user, profile, profile?.reminder_settings]) // Include reminder_settings in dependencies
+
+  // Set up realtime subscription for reminders table
+  useEffect(() => {
+    if (!user || !supabase || !isSupabaseConfigured()) {
+      return
+    }
+
+    console.log('[ReminderScheduler] Setting up realtime subscription for reminders')
+
+    // Subscribe to reminders table changes
+    const channel = supabase
+      .channel(`reminders_user_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'reminders',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload: any) => {
+          console.log('[ReminderScheduler] Reminder changed:', payload.eventType, payload.new || payload.old)
+          
+          // Notify service worker to refresh reminders
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'REFRESH_REMINDERS_FROM_SUPABASE',
+              userId: user.id,
+              reason: `reminder_${payload.eventType}`,
+            })
+            console.log('[ReminderScheduler] ✅ Notified service worker to refresh reminders after', payload.eventType)
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[ReminderScheduler] Realtime subscription status:', status)
+      })
+
+    realtimeChannelRef.current = channel
+
+    return () => {
+      console.log('[ReminderScheduler] Cleaning up realtime subscription')
+      if (realtimeChannelRef.current && supabase) {
+        supabase.removeChannel(realtimeChannelRef.current)
+        realtimeChannelRef.current = null
+      }
+    }
+  }, [user])
 
   return null
 }
