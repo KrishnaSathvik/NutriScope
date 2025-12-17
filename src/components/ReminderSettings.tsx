@@ -78,16 +78,41 @@ export function ReminderSettingsSection() {
       queryClient.invalidateQueries({ queryKey: ['profile'] })
       setEditing(false)
       
-      // Notify service worker to reschedule reminders
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'SCHEDULE_REMINDERS',
-        })
-      }
+      // Wait a moment for profile to update, then trigger reminder refresh
+      setTimeout(async () => {
+        // ReminderScheduler will detect the profile change and recreate reminders
+        // But we also notify service worker to refresh immediately
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller && user) {
+          const controller = navigator.serviceWorker.controller
+          
+          // Send Supabase config if available (in case it wasn't set)
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+          const session = await supabase?.auth.getSession()
+          
+          if (supabaseUrl && supabaseAnonKey && session?.data?.session?.access_token) {
+            controller.postMessage({
+              type: 'SET_SUPABASE_CONFIG',
+              supabaseUrl,
+              supabaseAnonKey,
+              userId: user.id,
+              accessToken: session.data.session.access_token,
+            })
+          }
+          
+          // Notify service worker to refresh reminders from Supabase
+          controller.postMessage({
+            type: 'SCHEDULE_REMINDERS',
+            userId: user.id,
+          })
+          
+          console.log('[ReminderSettings] ✅ Notified service worker to refresh reminders')
+        }
+      }, 1000) // Wait 1 second for profile update to propagate
       
       toast({
         title: 'Reminder settings saved',
-        description: 'Your reminder preferences have been updated.',
+        description: 'Your reminder preferences have been updated. Reminders will refresh shortly.',
       })
     },
   })

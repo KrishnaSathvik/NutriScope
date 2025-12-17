@@ -26,6 +26,11 @@ let SUPABASE_ANON_KEY = null
 let currentUserId = null
 let currentAccessToken = null
 
+// Track recently triggered reminders to prevent duplicates
+// Key: reminderId, Value: timestamp when triggered
+const recentlyTriggeredReminders = new Map()
+const TRIGGER_COOLDOWN_MS = 60000 // 1 minute cooldown to prevent duplicates
+
 // Install event - cache assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -514,26 +519,115 @@ async function checkReminders() {
       // Trigger if reminder time has passed or is within the next 30 seconds
       // Also catch reminders that are up to 30 minutes overdue (in case we missed them)
       if (enabled && nextTriggerTime <= now + 30000 && nextTriggerTime >= now - (30 * 60 * 1000)) {
+        // Check if this reminder was recently triggered to prevent duplicates
+        const lastTriggered = recentlyTriggeredReminders.get(reminderId)
+        const timeSinceLastTrigger = lastTriggered ? now - lastTriggered : Infinity
+        
+        if (lastTriggered && timeSinceLastTrigger < TRIGGER_COOLDOWN_MS) {
+          console.log(`[SW] ⏭️ Skipping duplicate trigger for ${reminderId} (triggered ${Math.round(timeSinceLastTrigger / 1000)}s ago)`)
+          continue // Skip this reminder - already triggered recently
+        }
+        
+        // Mark as triggered immediately to prevent race conditions
+        recentlyTriggeredReminders.set(reminderId, now)
+        
+        // Clean up old entries (older than cooldown period)
+        for (const [id, timestamp] of recentlyTriggeredReminders.entries()) {
+          if (now - timestamp > TRIGGER_COOLDOWN_MS * 2) {
+            recentlyTriggeredReminders.delete(id)
+          }
+        }
+        
         console.log(`[SW] 🔔 Triggering reminder: ${reminderId} at ${new Date(nextTriggerTime).toLocaleString()}`)
         console.log(`[SW] Time until trigger: ${secondsUntil} seconds ${isOverdue ? '(OVERDUE)' : ''}`)
         
-        // Show notification
+        // Prepare notification data
         const title = reminder.title || reminder.options?.title || 'Reminder'
         const body = reminder.body || reminder.options?.body || ''
         const tag = reminder.tag || reminder.options?.tag || reminderId
         const data = reminder.data || reminder.options?.data || {}
         
-        await self.registration.showNotification(title, {
-          body,
-          icon: reminder.icon || reminder.options?.icon || '/favicon.ico',
-          badge: reminder.badge || reminder.options?.badge || '/favicon.ico',
-          tag,
-          data,
-          requireInteraction: false,
-          vibrate: [200, 100, 200],
-        })
+        console.log(`[SW] 📋 Preparing to show notification: ${title}`)
         
-        console.log(`[SW] ✅ Notification shown: ${title}`)
+        // Update reminder in Supabase FIRST to prevent duplicate triggers
+        // This ensures the next_trigger_time is updated before showing notification
+        let updateSuccess = false
+        if (reminder.next_trigger_time) {
+          // Supabase reminder - calculate next trigger and update BEFORE showing notification
+          try {
+            const nextTrigger = calculateNextTriggerTime(reminder, new Date())
+            // Ensure nextTrigger is a Date object
+            const nextTriggerDate = nextTrigger instanceof Date ? nextTrigger : new Date(nextTrigger)
+            const triggerCount = reminder.trigger_count || 0
+            console.log(`[SW] Updating reminder ${reminderId} in Supabase - next trigger: ${nextTriggerDate.toLocaleString()}`)
+            console.log(`[SW] Next trigger date type: ${typeof nextTriggerDate}, is Date: ${nextTriggerDate instanceof Date}`)
+            updateSuccess = await updateReminderInSupabase(reminderId, nextTriggerDate, triggerCount, currentAccessToken)
+            if (updateSuccess) {
+              console.log(`[SW] ✅ Successfully updated reminder ${reminderId} in Supabase`)
+            } else {
+              console.error(`[SW] ❌ Failed to update reminder ${reminderId} in Supabase`)
+              // Remove from recently triggered if update failed so it can retry
+              recentlyTriggeredReminders.delete(reminderId)
+              continue // Skip showing notification if update failed
+            }
+          } catch (error) {
+            console.error(`[SW] ❌ Error calculating/updating next trigger for reminder ${reminderId}:`, error)
+            // Remove from recently triggered if update failed so it can retry
+            recentlyTriggeredReminders.delete(reminderId)
+            continue // Skip showing notification if update failed
+          }
+        } else {
+          // IndexedDB reminder - update before showing notification
+          const db = await openReminderDB()
+          if (db) {
+            try {
+              await triggerReminder(reminder, db)
+              updateSuccess = true
+            } catch (error) {
+              console.error(`[SW] ❌ Error updating IndexedDB reminder:`, error)
+              recentlyTriggeredReminders.delete(reminderId)
+              continue
+            }
+          }
+        }
+        
+        // Only show notification if update was successful
+        if (!updateSuccess) {
+          console.warn(`[SW] ⚠️ Skipping notification - reminder update failed`)
+          continue
+        }
+        
+        try {
+          await self.registration.showNotification(title, {
+            body,
+            icon: reminder.icon || reminder.options?.icon || '/favicon.ico',
+            badge: reminder.badge || reminder.options?.badge || '/favicon.ico',
+            tag,
+            data,
+            requireInteraction: true, // Keep notification visible until user interacts
+            vibrate: [200, 100, 200],
+            silent: false,
+          })
+          
+          // Verify notification was shown
+          await new Promise(resolve => setTimeout(resolve, 100))
+          const allNotifications = await self.registration.getNotifications()
+          const matchingNotifications = allNotifications.filter(n => n.tag === tag)
+          
+          if (matchingNotifications.length > 0) {
+            console.log(`[SW] ✅ Notification shown and verified: ${title}`)
+            console.log(`[SW] 📊 Total active notifications: ${allNotifications.length}`)
+          } else {
+            console.warn(`[SW] ⚠️ Notification API succeeded but notification not found`)
+            console.warn(`[SW] 💡 This usually means browser/OS is blocking notifications`)
+            console.warn(`[SW] 💡 Check: Browser settings → Notifications → Site settings`)
+            console.warn(`[SW] 💡 Check: System notification center (bell icon in address bar)`)
+          }
+        } catch (error) {
+          console.error(`[SW] ❌ Failed to show notification:`, error)
+          console.error(`[SW] Error details:`, error.message)
+          console.warn(`[SW] 💡 Notification permission may be denied. Check browser settings.`)
+        }
         
         const messageData = {
           type: 'NOTIFICATION_SHOWN',
@@ -584,33 +678,6 @@ async function checkReminders() {
           console.warn(`[SW] ⚠️ No clients found and BroadcastChannel failed!`)
           console.warn(`[SW] 💡 Notification will still appear in browser notification center`)
           console.warn(`[SW] 💡 Try: Hard refresh (Ctrl+Shift+R) or check service worker registration`)
-        }
-        
-        // Update reminder in Supabase or IndexedDB
-        if (reminder.next_trigger_time) {
-          // Supabase reminder - calculate next trigger and update
-          try {
-            const nextTrigger = calculateNextTriggerTime(reminder, new Date())
-            // Ensure nextTrigger is a Date object
-            const nextTriggerDate = nextTrigger instanceof Date ? nextTrigger : new Date(nextTrigger)
-            const triggerCount = reminder.trigger_count || 0
-            console.log(`[SW] Updating reminder ${reminderId} in Supabase - next trigger: ${nextTriggerDate.toLocaleString()}`)
-            console.log(`[SW] Next trigger type: ${typeof nextTrigger}, is Date: ${nextTrigger instanceof Date}`)
-            const updateSuccess = await updateReminderInSupabase(reminderId, nextTriggerDate, triggerCount, currentAccessToken)
-            if (updateSuccess) {
-              console.log(`[SW] ✅ Successfully updated reminder ${reminderId} in Supabase`)
-            } else {
-              console.error(`[SW] ❌ Failed to update reminder ${reminderId} in Supabase`)
-            }
-          } catch (error) {
-            console.error(`[SW] ❌ Error calculating/updating next trigger for reminder ${reminderId}:`, error)
-          }
-        } else {
-          // IndexedDB reminder - use existing update logic
-          const db = await openReminderDB()
-          if (db) {
-            await triggerReminder(reminder, db)
-          }
         }
       } else if (enabled) {
         console.log(`[SW] ⏰ Reminder ${reminderId} scheduled for ${new Date(nextTriggerTime).toLocaleString()} (in ${Math.round(timeUntilTrigger / 1000 / 60)} minutes, ${secondsUntil}s)`)
@@ -852,7 +919,7 @@ async function triggerReminder(reminder, db) {
     })
 
     // Calculate next trigger time
-    const nextTriggerTime = calculateNextTriggerTime(reminder)
+    const nextTriggerTime = calculateNextTriggerTimeForIndexedDB(reminder)
 
     // Update reminder in DB
     await updateReminderNextTrigger(db, reminder.id, nextTriggerTime)
@@ -863,8 +930,8 @@ async function triggerReminder(reminder, db) {
   }
 }
 
-// Calculate next trigger time for a reminder
-function calculateNextTriggerTime(reminder) {
+// Calculate next trigger time for IndexedDB reminders (returns timestamp number)
+function calculateNextTriggerTimeForIndexedDB(reminder) {
   const now = Date.now()
   const currentTime = new Date()
 
@@ -1129,6 +1196,27 @@ self.addEventListener('message', async (event) => {
     await checkReminders()
   }
   
+  if (event.data && event.data.type === 'SCHEDULE_REMINDERS') {
+    // Triggered when reminder settings are updated
+    console.log(`[SW] ✅ Received SCHEDULE_REMINDERS message - refreshing reminders from Supabase`)
+    
+    // If Supabase config is available, refresh reminders immediately
+    if (currentUserId && currentAccessToken) {
+      console.log(`[SW] Refreshing reminders for user ${currentUserId}`)
+      // Ensure reminder checking is initialized
+      if (!reminderCheckInterval) {
+        console.log('[SW] Initializing reminder checking interval...')
+        initReminderChecking()
+      }
+      // Check reminders immediately - this will fetch fresh data from Supabase
+      await checkReminders()
+      console.log(`[SW] ✅ Reminders refreshed after settings update`)
+    } else {
+      console.warn(`[SW] ⚠️ Cannot refresh reminders - Supabase config not set`)
+      console.warn(`[SW] 💡 Waiting for ReminderScheduler to send config...`)
+    }
+  }
+  
   if (event.data && event.data.type === 'SET_SUPABASE_CONFIG') {
     // Set Supabase configuration from main app
     SUPABASE_URL = event.data.supabaseUrl
@@ -1148,12 +1236,26 @@ self.addEventListener('message', async (event) => {
   }
   
   if (event.data && event.data.type === 'SCHEDULE_REMINDERS') {
-    console.log('[SW] Rescheduling reminders for user:', event.data.userId)
-    // Check reminders immediately
-    await checkReminders()
-    // Re-initialize checking to ensure we're checking regularly
-    initReminderChecking()
-    console.log('[SW] Reminder checking re-initialized')
+    // Triggered when reminder settings are updated
+    console.log(`[SW] ✅ Received SCHEDULE_REMINDERS message - refreshing reminders from Supabase`)
+    
+    // If Supabase config is available, refresh reminders immediately
+    if (currentUserId && currentAccessToken) {
+      console.log(`[SW] Refreshing reminders for user ${currentUserId}`)
+      // Ensure reminder checking is initialized
+      if (!reminderCheckInterval) {
+        console.log('[SW] Initializing reminder checking interval...')
+        initReminderChecking()
+      }
+      // Check reminders immediately - this will fetch fresh data from Supabase
+      await checkReminders()
+      console.log(`[SW] ✅ Reminders refreshed after settings update`)
+    } else {
+      console.warn(`[SW] ⚠️ Cannot refresh reminders - Supabase config not set`)
+      console.warn(`[SW] 💡 Waiting for ReminderScheduler to send config...`)
+      // Still try to check - might work if config was set earlier
+      await checkReminders()
+    }
   }
   
   if (event.data && event.data.type === 'TEST_NOTIFICATION') {
