@@ -27,28 +27,28 @@ const isProduction = (() => {
 })()
 
 // Only enable logs in development OR if explicitly enabled via flag
-const enableLogs = !isProduction || (typeof self !== 'undefined' && (self as any).ENABLE_SW_LOGS === 'true')
+const enableLogs = !isProduction || (typeof self !== 'undefined' && self.ENABLE_SW_LOGS === 'true')
 
-const swLog = enableLogs ? (...args: any[]) => console.log('[SW]', ...args) : () => {}
-const swWarn = enableLogs ? (...args: any[]) => console.warn('[SW]', ...args) : () => {}
-const swError = (...args: any[]) => {
+const swLog = enableLogs ? (...args) => console.log('[SW]', ...args) : () => {}
+const swWarn = enableLogs ? (...args) => console.warn('[SW]', ...args) : () => {}
+const swError = (...args) => {
   // Always log errors, but only show in console if logs enabled
   if (enableLogs) {
     console.error('[SW]', ...args)
   }
   // Send to Sentry if available
-  if (typeof self !== 'undefined' && (self as any).Sentry) {
+  if (typeof self !== 'undefined' && self.Sentry) {
     try {
       const errorMessage = args.map(arg => 
         typeof arg === 'string' ? arg : JSON.stringify(arg)
       ).join(' ')
-      ;(self as any).Sentry.captureException(new Error(errorMessage))
+      self.Sentry.captureException(new Error(errorMessage))
     } catch (e) {
       // Sentry not available
     }
   }
 }
-const swDebug = enableLogs ? (...args: any[]) => console.debug('[SW]', ...args) : () => {}
+const swDebug = enableLogs ? (...args) => console.debug('[SW]', ...args) : () => {}
 
 swLog(`Service Worker ${SW_VERSION} loading...`)
 
