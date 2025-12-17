@@ -16,6 +16,22 @@ export function ReminderScheduler() {
   const initializedRef = useRef(false)
   const processingRef = useRef(false) // Prevent concurrent executions
   const realtimeChannelRef = useRef<any>(null) // Store realtime channel
+  
+  // Listen for service worker confirmation that config was received
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+    
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'SW_CONFIG_RECEIVED') {
+        console.log('[ReminderScheduler] ✅ Service worker confirmed config received:', event.data)
+      }
+    }
+    
+    navigator.serviceWorker.addEventListener('message', handleMessage)
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleMessage)
+    }
+  }, [])
 
   useEffect(() => {
     console.log('[ReminderScheduler] useEffect triggered', { 
