@@ -1312,6 +1312,15 @@ async function saveRemindersToSW(reminders) {
 self.addEventListener('message', async (event) => {
   swLog('[SW] Received message:', event.data)
   
+  // Handle skip waiting message
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    swLog('[SW] Received SKIP_WAITING message, activating immediately...')
+    await self.skipWaiting()
+    // Claim all clients immediately
+    await self.clients.claim()
+    return
+  }
+  
   if (event.data && event.data.type === 'SAVE_REMINDERS') {
     // Legacy support - save reminders if sent via message
     swLog(`[SW] ✅ Received SAVE_REMINDERS message`)
