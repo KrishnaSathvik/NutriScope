@@ -66,6 +66,8 @@ const DB_VERSION = 1
 const STORE_NAME = 'reminders'
 let reminderCheckInterval = null
 let isCheckingReminders = false // Prevent concurrent reminder checks
+let refreshRemindersDebounceTimer = null // Debounce REFRESH_REMINDERS_FROM_SUPABASE messages
+const REFRESH_DEBOUNCE_MS = 2000 // 2 seconds debounce
 
 // Supabase configuration (will be set from main app)
 let SUPABASE_URL = null
@@ -1348,25 +1350,37 @@ self.addEventListener('message', async (event) => {
   }
   
   if (event.data && event.data.type === 'REFRESH_REMINDERS_FROM_SUPABASE') {
-    // New Supabase approach
-    swLog(`[SW] ✅ Received REFRESH_REMINDERS_FROM_SUPABASE message`)
-    swLog(`[SW] User ID: ${event.data.userId}`)
-    swLog(`[SW] Reminder count: ${event.data.reminderCount || 'unknown'}`)
-    swLog(`[SW] Reason: ${event.data.reason || 'manual'}`)
-    swLog(`[SW] Current Supabase config - userId: ${currentUserId ? 'set' : 'NOT SET'}, token: ${currentAccessToken ? 'set' : 'NOT SET'}`)
+    // New Supabase approach - debounce to prevent spam
+    console.log(`[SW] 📨 Received REFRESH_REMINDERS_FROM_SUPABASE message (reason: ${event.data.reason || 'manual'})`)
     
-    // Ensure reminder checking is initialized
-    if (!reminderCheckInterval) {
-      swLog('[SW] Initializing reminder checking interval...')
-      initReminderChecking()
+    // Clear existing debounce timer
+    if (refreshRemindersDebounceTimer) {
+      clearTimeout(refreshRemindersDebounceTimer)
     }
     
-    // Check reminders immediately from Supabase (only if not already checking)
-    if (!isCheckingReminders) {
-      await checkReminders()
-    } else {
-      swLog('[SW] ⏭️ Reminder check already in progress, will refresh on next interval')
-    }
+    // Set new debounce timer
+    refreshRemindersDebounceTimer = setTimeout(async () => {
+      swLog(`[SW] ✅ Processing REFRESH_REMINDERS_FROM_SUPABASE message (debounced)`)
+      swLog(`[SW] User ID: ${event.data.userId}`)
+      swLog(`[SW] Reminder count: ${event.data.reminderCount || 'unknown'}`)
+      swLog(`[SW] Reason: ${event.data.reason || 'manual'}`)
+      swLog(`[SW] Current Supabase config - userId: ${currentUserId ? 'set' : 'NOT SET'}, token: ${currentAccessToken ? 'set' : 'NOT SET'}`)
+      
+      // Ensure reminder checking is initialized
+      if (!reminderCheckInterval) {
+        swLog('[SW] Initializing reminder checking interval...')
+        initReminderChecking()
+      }
+      
+      // Check reminders immediately from Supabase (only if not already checking)
+      if (!isCheckingReminders) {
+        await checkReminders()
+      } else {
+        swLog('[SW] ⏭️ Reminder check already in progress, will refresh on next interval')
+      }
+      
+      refreshRemindersDebounceTimer = null
+    }, REFRESH_DEBOUNCE_MS)
   }
   
   if (event.data && event.data.type === 'SCHEDULE_REMINDERS') {

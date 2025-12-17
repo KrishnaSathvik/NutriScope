@@ -236,12 +236,18 @@ export function ReminderScheduler() {
         (payload: any) => {
           console.log('[ReminderScheduler] Reminder changed:', payload.eventType, payload.new || payload.old)
           
-          // Notify service worker to refresh reminders
+          // Debounce refresh messages to prevent spam
+          // The service worker will also debounce, but we can reduce messages here too
+          const reminderId = payload.new?.id || payload.old?.id
+          console.log('[ReminderScheduler] Reminder ID:', reminderId)
+          
+          // Notify service worker to refresh reminders (service worker will debounce)
           if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({
               type: 'REFRESH_REMINDERS_FROM_SUPABASE',
               userId: user.id,
               reason: `reminder_${payload.eventType}`,
+              reminderId: reminderId, // Include reminder ID for better logging
             })
             console.log('[ReminderScheduler] ✅ Notified service worker to refresh reminders after', payload.eventType)
           }

@@ -141,55 +141,6 @@ export function ReminderSettingsSection() {
     }
   }
 
-  const handleTestNotification = async () => {
-    const permission = await notificationService.requestPermission()
-    if (permission !== 'granted') {
-      toast({
-        title: 'Permission required',
-        description: 'Please enable notifications first.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    console.log('[ReminderSettings] Sending test notification...')
-    console.log('[ReminderSettings] Service worker available:', 'serviceWorker' in navigator)
-    console.log('[ReminderSettings] Service worker controller:', navigator.serviceWorker?.controller)
-
-    // Test notification via service worker if available
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      console.log('[ReminderSettings] Sending TEST_NOTIFICATION message to service worker')
-      try {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'TEST_NOTIFICATION',
-          title: '🧪 Test Notification',
-          body: 'If you see this, notifications are working!',
-        })
-        console.log('[ReminderSettings] ✅ Message sent to service worker')
-      } catch (error) {
-        console.error('[ReminderSettings] ❌ Error sending message:', error)
-        toast({
-          title: 'Error',
-          description: 'Failed to send test notification. Check console for details.',
-          variant: 'destructive',
-        })
-        return
-      }
-    } else {
-      console.log('[ReminderSettings] Service worker not available, using fallback')
-      // Fallback to direct notification
-      await notificationService.showNotification({
-        title: '🧪 Test Notification',
-        body: 'If you see this, notifications are working!',
-        tag: 'test-notification',
-      })
-    }
-    
-    toast({
-      title: 'Test notification sent',
-      description: 'Check if you received a notification.',
-    })
-  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -243,21 +194,6 @@ export function ReminderSettingsSection() {
         </div>
       )}
 
-      {notificationService.hasPermission() && (
-        <div className="mb-4 p-4 border border-success/30 bg-success/5 rounded-sm">
-          <p className="text-sm text-text font-mono mb-3">
-            Notifications are enabled. You can test them below.
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={handleTestNotification}
-              className="btn-secondary text-xs"
-            >
-              🧪 Test Notification
-            </button>
-          </div>
-        </div>
-      )}
 
       {editing ? (
         <form onSubmit={handleSubmit} className="space-y-6">
