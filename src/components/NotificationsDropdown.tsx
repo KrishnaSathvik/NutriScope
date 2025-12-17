@@ -52,21 +52,57 @@ export function NotificationsDropdown() {
   useEffect(() => {
     if (typeof window === 'undefined') return
 
+    // Track recent notifications to prevent duplicates
+    const recentNotificationIds = new Set<string>()
+    const DEDUP_WINDOW_MS = 10000 // 10 seconds deduplication window
+
     const handleNotification = (data: any) => {
       if (data && data.type === 'NOTIFICATION_SHOWN') {
         console.log('[NotificationsDropdown] Received NOTIFICATION_SHOWN message:', data)
+        
+        // Create a unique ID for deduplication using tag + timestamp (same as NotificationsPage)
+        const messageTimestamp = data.timestamp || Date.now()
+        const notificationId = data.tag 
+          ? `${data.tag}-${messageTimestamp}`
+          : `${data.title}-${messageTimestamp}`
+        
+        console.log('[NotificationsDropdown] Generated notification ID:', notificationId)
+        console.log('[NotificationsDropdown] Recent notification IDs:', Array.from(recentNotificationIds))
+        
+        // Check if we've already processed this notification
+        if (recentNotificationIds.has(notificationId)) {
+          console.log('[NotificationsDropdown] ⏭️ Skipping duplicate notification:', notificationId)
+          return
+        }
+        
+        // Mark as processed immediately
+        recentNotificationIds.add(notificationId)
+        console.log('[NotificationsDropdown] ✅ Added notification ID to deduplication set:', notificationId)
+        
+        // Clean up old IDs after deduplication window
+        setTimeout(() => {
+          recentNotificationIds.delete(notificationId)
+        }, DEDUP_WINDOW_MS)
+        
         const newNotification: StoredNotification = {
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          id: notificationId, // Use the same ID for consistency
           type: data.notificationType || 'goal',
           title: data.title || 'Reminder',
           message: data.body || '',
-          timestamp: Date.now(),
+          timestamp: messageTimestamp, // Use timestamp from message
           read: false,
           actionUrl: data.url,
         }
         
         // Use functional update to avoid dependency on notifications
         setNotifications((prevNotifications) => {
+          // Check if notification with same ID already exists
+          const exists = prevNotifications.some(n => n.id === notificationId)
+          if (exists) {
+            console.log('[NotificationsDropdown] ⏭️ Notification already exists in list:', notificationId)
+            return prevNotifications
+          }
+          
           const updated = [newNotification, ...prevNotifications]
           saveNotifications(updated)
           return updated

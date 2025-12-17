@@ -1507,16 +1507,13 @@ self.addEventListener('message', async (event) => {
       
       let messageSent = false
       
-      // Method 1: BroadcastChannel (keep open longer to ensure delivery)
+      // Method 1: BroadcastChannel (send once only)
       try {
         const channel = new BroadcastChannel('nutriscope-notifications')
         channel.postMessage(messageData)
         swLog('[SW] ✅ Test notification message sent via BroadcastChannel')
-        // Keep channel open longer to ensure message is delivered
-        setTimeout(() => {
-          channel.postMessage(messageData) // Send again after a delay as backup
-          setTimeout(() => channel.close(), 200)
-        }, 500)
+        // Close channel after brief delay to ensure message is sent
+        setTimeout(() => channel.close(), 100)
         messageSent = true
       } catch (error) {
         swWarn('[SW] ⚠️ BroadcastChannel not available for test:', error)
