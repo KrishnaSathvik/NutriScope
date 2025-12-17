@@ -49,6 +49,15 @@ export default function NotificationsPage() {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setPermission(Notification.permission)
     }
+    
+    // Also check for any notifications that might have been shown but not saved
+    // This can happen if BroadcastChannel/postMessage failed but notification was shown
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      // Request service worker to resend any recent notifications
+      navigator.serviceWorker.controller.postMessage({
+        type: 'RESEND_RECENT_NOTIFICATIONS'
+      })
+    }
   }, [])
 
   // Listen for new notifications from service worker and BroadcastChannel
