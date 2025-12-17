@@ -1,8 +1,8 @@
 // Service Worker for NutriScope PWA
-const CACHE_NAME = 'nutriscope-v14'
-const RUNTIME_CACHE = 'nutriscope-runtime-v14'
+const CACHE_NAME = 'nutriscope-v15'
+const RUNTIME_CACHE = 'nutriscope-runtime-v15'
 const REMINDER_CHECK_INTERVAL = 30000 // Check every 30 seconds for more accurate timing
-const SW_VERSION = 'v14-notification-fix'
+const SW_VERSION = 'v15-force-activate'
 
 // Production-safe logging - disable logs in production unless explicitly enabled
 // Check if we're in production by hostname
