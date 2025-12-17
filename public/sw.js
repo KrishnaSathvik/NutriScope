@@ -2,7 +2,7 @@
 const CACHE_NAME = 'nutriscope-v14'
 const RUNTIME_CACHE = 'nutriscope-runtime-v14'
 const REMINDER_CHECK_INTERVAL = 30000 // Check every 30 seconds for more accurate timing
-const SW_VERSION = 'v14-fix-prod-reminders'
+const SW_VERSION = 'v14-notification-fix'
 
 // Production-safe logging - disable logs in production unless explicitly enabled
 // Check if we're in production by hostname
@@ -1428,17 +1428,66 @@ self.addEventListener('message', async (event) => {
   }
   
   if (event.data && event.data.type === 'TEST_NOTIFICATION') {
-    swLog('[SW] Test notification requested')
+    swLog('[SW] 🧪 Test notification requested')
     try {
-      await self.registration.showNotification(event.data.title || 'Test Notification', {
-        body: event.data.body || 'This is a test notification',
+      const title = event.data.title || 'Test Notification'
+      const body = event.data.body || 'This is a test notification'
+      
+      await self.registration.showNotification(title, {
+        body: body,
         icon: '/favicon.ico',
         badge: '/favicon.ico',
         tag: 'test-notification',
-        requireInteraction: true,
+        requireInteraction: false,
         vibrate: [200, 100, 200],
+        data: { url: '/dashboard' },
       })
       swLog('[SW] ✅ Test notification shown')
+      
+      // Send message to UI so it appears in notifications list
+      const messageData = {
+        type: 'NOTIFICATION_SHOWN',
+        notificationType: 'goal',
+        title: title,
+        body: body,
+        url: '/dashboard',
+        tag: 'test-notification',
+        timestamp: Date.now(),
+      }
+      
+      let messageSent = false
+      
+      // Method 1: BroadcastChannel
+      try {
+        const channel = new BroadcastChannel('nutriscope-notifications')
+        channel.postMessage(messageData)
+        swLog('[SW] ✅ Test notification message sent via BroadcastChannel')
+        setTimeout(() => channel.close(), 100)
+        messageSent = true
+      } catch (error) {
+        swWarn('[SW] ⚠️ BroadcastChannel not available for test:', error)
+      }
+      
+      // Method 2: Direct postMessage
+      try {
+        const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
+        if (clients.length > 0) {
+          clients.forEach(client => {
+            client.postMessage(messageData)
+          })
+          swLog(`[SW] ✅ Test notification message sent to ${clients.length} client(s)`)
+          messageSent = true
+        } else {
+          swWarn('[SW] ⚠️ No clients found to send test notification message')
+        }
+      } catch (error) {
+        swWarn('[SW] ⚠️ Error sending test notification message:', error)
+      }
+      
+      if (!messageSent) {
+        swWarn('[SW] ⚠️ Could not send test notification message to UI')
+        swWarn('[SW] 💡 Notification was shown but won\'t appear in notifications list')
+      }
     } catch (error) {
       swError('[SW] ❌ Failed to show test notification:', error)
     }
