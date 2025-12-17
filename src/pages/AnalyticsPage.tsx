@@ -823,7 +823,7 @@ export default function AnalyticsPage() {
                 <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Workouts</h2>
               </div>
               <ResponsiveContainer width="100%" height={180} className="md:h-[250px]">
-                <BarChart data={logsArray}>
+                <ComposedChart data={logsArray}>
                   <XAxis 
                     dataKey="date" 
                     stroke="#525252" 
@@ -831,9 +831,19 @@ export default function AnalyticsPage() {
                     axisLine={{ stroke: '#222' }}
                   />
                   <YAxis 
+                    yAxisId="left"
                     stroke="#525252" 
                     tick={{ fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
                     axisLine={{ stroke: '#222' }}
+                    label={{ value: 'Workouts', angle: -90, position: 'insideLeft', fill: '#525252', fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                  />
+                  <YAxis 
+                    yAxisId="right"
+                    orientation="right"
+                    stroke="#ff3300" 
+                    tick={{ fill: '#ff3300', fontSize: 10, fontFamily: 'JetBrains Mono' }}
+                    axisLine={{ stroke: '#ff3300' }}
+                    label={{ value: 'Calories', angle: 90, position: 'insideRight', fill: '#ff3300', fontSize: 10, fontFamily: 'JetBrains Mono' }}
                   />
                   <Tooltip
                     contentStyle={{
@@ -844,14 +854,32 @@ export default function AnalyticsPage() {
                       fontFamily: 'JetBrains Mono',
                       fontSize: '11px',
                     }}
+                    formatter={(value: number, name: string) => {
+                      if (name === 'Calories Burned') {
+                        return [`${value.toFixed(0)} cal`, name]
+                      }
+                      return [value, name]
+                    }}
+                  />
+                  <Legend 
+                    wrapperStyle={{ fontFamily: 'JetBrains Mono', fontSize: '11px', color: '#525252' }}
+                    iconType="rect"
                   />
                   <Bar 
+                    yAxisId="left"
                     dataKey="workouts" 
                     fill="#ffaa00" 
                     radius={[4, 4, 0, 0]}
                     name="Workouts"
                   />
-                </BarChart>
+                  <Bar 
+                    yAxisId="right"
+                    dataKey="caloriesBurned" 
+                    fill="#ff3300" 
+                    radius={[4, 4, 0, 0]}
+                    name="Calories Burned"
+                  />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </div>
