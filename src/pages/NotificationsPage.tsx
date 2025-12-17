@@ -122,16 +122,21 @@ export default function NotificationsPage() {
     }
 
     // Fallback: Service Worker messages (works when SW controls the page)
+    // Also listen for storage save messages
     let handleMessage: ((event: MessageEvent) => void) | null = null
     if ('serviceWorker' in navigator) {
       handleMessage = (event: MessageEvent) => {
-        // Only handle if BroadcastChannel is not available
-        if (!broadcastChannel) {
+        // Handle notification shown messages
+        if (event.data && event.data.type === 'NOTIFICATION_SHOWN') {
           handleNotification(event.data)
+        }
+        // Handle storage save messages (fallback)
+        if (event.data && event.data.type === 'SAVE_NOTIFICATION_TO_STORAGE') {
+          handleNotification(event.data.notification)
         }
       }
       navigator.serviceWorker.addEventListener('message', handleMessage)
-      console.log('[NotificationsPage] Service Worker message listener registered (fallback)')
+      console.log('[NotificationsPage] Service Worker message listener registered')
     }
     
     // Combined cleanup function

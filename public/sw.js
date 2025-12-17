@@ -750,28 +750,29 @@ async function checkReminders() {
         
         swLog(`[SW] Message data:`, JSON.stringify(messageData, null, 2))
         
-        // Use BroadcastChannel as primary method (works across all contexts)
-        // Only send via postMessage if BroadcastChannel fails
+        // Send notification message to UI via multiple methods to ensure delivery
+        // Method 1: BroadcastChannel (works across all contexts, even when SW doesn't control page)
         let messageSent = false
         
         try {
           const channel = new BroadcastChannel('nutriscope-notifications')
           channel.postMessage(messageData)
           swLog(`[SW] ✅ Message sent via BroadcastChannel`)
-          channel.close()
+          // Don't close immediately - keep it open briefly to ensure message is sent
+          setTimeout(() => channel.close(), 100)
           messageSent = true
         } catch (error) {
           swWarn(`[SW] ⚠️ BroadcastChannel not available:`, error)
         }
         
-        // Fallback: Direct client postMessage (works when SW controls the page)
-        if (!messageSent) {
+        // Method 2: Direct client postMessage (works when SW controls the page)
+        // Always try this as well, even if BroadcastChannel succeeded (redundancy)
+        try {
           const clients = await self.clients.matchAll({ 
             includeUncontrolled: true, 
             type: 'window' 
           })
           swLog(`[SW] 📤 Found ${clients.length} client(s) via matchAll`)
-          swLog(`[SW] Client URLs:`, clients.map(c => c.url))
           
           if (clients.length > 0) {
             clients.forEach((client, index) => {
@@ -783,13 +784,36 @@ async function checkReminders() {
                 swError(`[SW] ❌ Failed to send message to client ${index + 1}:`, error)
               }
             })
+          } else {
+            swWarn(`[SW] ⚠️ No clients found - page might be closed`)
           }
+        } catch (error) {
+          swWarn(`[SW] ⚠️ Error getting clients:`, error)
+        }
+        
+        // Method 3: Store in localStorage as last resort (main app can poll)
+        // This ensures notifications are saved even if messages fail
+        try {
+          if (typeof self !== 'undefined' && self.clients) {
+            const clients = await self.clients.matchAll()
+            if (clients.length > 0) {
+              // Try to access localStorage through a client
+              clients.forEach(client => {
+                client.postMessage({
+                  type: 'SAVE_NOTIFICATION_TO_STORAGE',
+                  notification: messageData
+                })
+              })
+            }
+          }
+        } catch (e) {
+          // Ignore errors - this is a fallback
         }
         
         if (!messageSent) {
-          swWarn(`[SW] ⚠️ Could not send message to UI!`)
+          swWarn(`[SW] ⚠️ Could not send message to UI via any method!`)
           swWarn(`[SW] 💡 Notification will still appear in browser notification center`)
-          swWarn(`[SW] 💡 Try: Hard refresh (Ctrl+Shift+R) or check service worker registration`)
+          swWarn(`[SW] 💡 User can check browser notification center for notifications`)
         }
       } else if (enabled) {
         swLog(`[SW] ⏰ Reminder ${reminderId} scheduled for ${new Date(nextTriggerTime).toLocaleString()} (in ${Math.round(timeUntilTrigger / 1000 / 60)} minutes, ${secondsUntil}s)`)

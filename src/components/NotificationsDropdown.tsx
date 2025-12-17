@@ -78,15 +78,7 @@ export function NotificationsDropdown() {
       }
     }
 
-    // Method 1: Service Worker messages (works when SW controls the page)
-    let handleMessage: ((event: MessageEvent) => void) | null = null
-    if ('serviceWorker' in navigator) {
-      handleMessage = (event: MessageEvent) => handleNotification(event.data)
-      navigator.serviceWorker.addEventListener('message', handleMessage)
-      console.log('[NotificationsDropdown] Service Worker message listener registered')
-    }
-
-    // Method 2: BroadcastChannel (works even when SW doesn't control the page)
+    // Method 1: BroadcastChannel (works across all contexts - primary method)
     let broadcastChannel: BroadcastChannel | null = null
     try {
       broadcastChannel = new BroadcastChannel('nutriscope-notifications')
@@ -97,6 +89,23 @@ export function NotificationsDropdown() {
       console.log('[NotificationsDropdown] BroadcastChannel listener registered')
     } catch (error) {
       console.warn('[NotificationsDropdown] BroadcastChannel not available:', error)
+    }
+
+    // Method 2: Service Worker messages (works when SW controls the page)
+    let handleMessage: ((event: MessageEvent) => void) | null = null
+    if ('serviceWorker' in navigator) {
+      handleMessage = (event: MessageEvent) => {
+        // Handle notification shown messages
+        if (event.data && event.data.type === 'NOTIFICATION_SHOWN') {
+          handleNotification(event.data)
+        }
+        // Handle storage save messages (fallback)
+        if (event.data && event.data.type === 'SAVE_NOTIFICATION_TO_STORAGE') {
+          handleNotification(event.data.notification)
+        }
+      }
+      navigator.serviceWorker.addEventListener('message', handleMessage)
+      console.log('[NotificationsDropdown] Service Worker message listener registered')
     }
     
     // Combined cleanup function
