@@ -91,37 +91,66 @@ export function ReminderScheduler() {
         
         // Send Supabase config to service worker and notify to refresh reminders
         if ('serviceWorker' in navigator && isSupabaseConfigured() && session?.access_token) {
-          setTimeout(async () => {
-            const controller = navigator.serviceWorker.controller
-            if (controller) {
-              console.log('[ReminderScheduler] 🔄 Sending Supabase config to service worker...')
-              try {
-                // Get Supabase URL and anon key from environment
-                const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-                const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-                
-                // Send Supabase configuration
-                controller.postMessage({
-                  type: 'SET_SUPABASE_CONFIG',
-                  supabaseUrl,
-                  supabaseAnonKey,
-                  userId: user.id,
-                  accessToken: session.access_token,
-                })
-                
-                // Also send refresh message
-                controller.postMessage({
-                  type: 'REFRESH_REMINDERS_FROM_SUPABASE',
-                  userId: user.id,
-                  reminderCount: savedReminders.length,
-                })
-                
-                console.log('[ReminderScheduler] ✅ Service worker configured and notified')
-              } catch (error) {
-                console.error('[ReminderScheduler] ❌ Failed to configure service worker:', error)
+          // Wait for service worker to be ready
+          const sendConfigToSW = async () => {
+            try {
+              // Ensure service worker is ready
+              const registration = await navigator.serviceWorker.ready
+              const controller = navigator.serviceWorker.controller || registration.active
+              
+              if (!controller) {
+                console.warn('[ReminderScheduler] ⚠️ Service worker controller not available, waiting...')
+                // Wait a bit and try again
+                setTimeout(sendConfigToSW, 1000)
+                return
               }
+              
+              console.log('[ReminderScheduler] 🔄 Sending Supabase config to service worker...')
+              
+              // Get Supabase URL and anon key from environment
+              const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+              const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+              
+              if (!supabaseUrl || !supabaseAnonKey) {
+                console.error('[ReminderScheduler] ❌ Supabase environment variables not set')
+                return
+              }
+              
+              // Send Supabase configuration first
+              controller.postMessage({
+                type: 'SET_SUPABASE_CONFIG',
+                supabaseUrl,
+                supabaseAnonKey,
+                userId: user.id,
+                accessToken: session.access_token,
+              })
+              
+              console.log('[ReminderScheduler] ✅ Supabase config sent to service worker')
+              
+              // Wait a moment for config to be processed, then send refresh message
+              setTimeout(() => {
+                if (navigator.serviceWorker.controller) {
+                  navigator.serviceWorker.controller.postMessage({
+                    type: 'REFRESH_REMINDERS_FROM_SUPABASE',
+                    userId: user.id,
+                    reminderCount: savedReminders.length,
+                  })
+                  console.log('[ReminderScheduler] ✅ Refresh message sent to service worker')
+                }
+              }, 500)
+            } catch (error) {
+              console.error('[ReminderScheduler] ❌ Failed to configure service worker:', error)
             }
-          }, 500)
+          }
+          
+          // Start sending config after a short delay to ensure SW is ready
+          setTimeout(sendConfigToSW, 500)
+        } else {
+          console.warn('[ReminderScheduler] ⚠️ Cannot send config to service worker:', {
+            hasServiceWorker: 'serviceWorker' in navigator,
+            isSupabaseConfigured: isSupabaseConfigured(),
+            hasAccessToken: !!session?.access_token
+          })
         }
         
         // Mark as initialized after successful scheduling

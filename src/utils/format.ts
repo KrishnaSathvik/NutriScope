@@ -107,3 +107,62 @@ export function stripMarkdown(text: string): string {
     .trim()
 }
 
+/**
+ * Convert decimal hours to hours and minutes
+ * @param decimalHours - Sleep duration in decimal hours (e.g., 7.5 for 7 hours 30 minutes)
+ * @returns Object with hours and minutes
+ */
+export function decimalHoursToHoursMinutes(decimalHours: number): { hours: number; minutes: number } {
+  const hours = Math.floor(decimalHours)
+  const minutes = Math.round((decimalHours - hours) * 60)
+  return { hours, minutes }
+}
+
+/**
+ * Convert hours and minutes to decimal hours
+ * @param hours - Number of hours
+ * @param minutes - Number of minutes (0-59)
+ * @returns Decimal hours (e.g., 7.5 for 7 hours 30 minutes)
+ */
+export function hoursMinutesToDecimalHours(hours: number, minutes: number): number {
+  return hours + minutes / 60
+}
+
+/**
+ * Format sleep duration as "X hours Y minutes" or "X hours" if minutes is 0
+ * @param decimalHours - Sleep duration in decimal hours
+ * @returns Formatted string (e.g., "7 hours 30 minutes" or "8 hours")
+ */
+export function formatSleepDuration(decimalHours: number | null | undefined): string {
+  if (decimalHours === null || decimalHours === undefined) {
+    return '-'
+  }
+  
+  const { hours, minutes } = decimalHoursToHoursMinutes(decimalHours)
+  
+  if (minutes === 0) {
+    return `${hours} hour${hours !== 1 ? 's' : ''}`
+  }
+  
+  return `${hours} hour${hours !== 1 ? 's' : ''} ${minutes} minute${minutes !== 1 ? 's' : ''}`
+}
+
+/**
+ * Format sleep duration as short string "Xh Ym" or "Xh" if minutes is 0
+ * @param decimalHours - Sleep duration in decimal hours
+ * @returns Short formatted string (e.g., "7h 30m" or "8h")
+ */
+export function formatSleepDurationShort(decimalHours: number | null | undefined): string {
+  if (decimalHours === null || decimalHours === undefined) {
+    return '-'
+  }
+  
+  const { hours, minutes } = decimalHoursToHoursMinutes(decimalHours)
+  
+  if (minutes === 0) {
+    return `${hours}h`
+  }
+  
+  return `${hours}h ${minutes}m`
+}
+

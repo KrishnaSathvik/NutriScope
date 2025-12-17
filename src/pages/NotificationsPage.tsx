@@ -51,21 +51,21 @@ export default function NotificationsPage() {
     }
   }, [])
 
-  // Listen for new notifications from service worker
+  // Listen for new notifications from service worker and BroadcastChannel
   useEffect(() => {
-    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
+    if (typeof window === 'undefined') return
 
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data && event.data.type === 'NOTIFICATION_SHOWN') {
-        console.log('[NotificationsPage] Received NOTIFICATION_SHOWN message:', event.data)
+    const handleNotification = (data: any) => {
+      if (data && data.type === 'NOTIFICATION_SHOWN') {
+        console.log('[NotificationsPage] Received NOTIFICATION_SHOWN message:', data)
         const newNotification: StoredNotification = {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          type: event.data.notificationType || 'goal',
-          title: event.data.title || 'Reminder',
-          message: event.data.body || '',
+          type: data.notificationType || 'goal',
+          title: data.title || 'Reminder',
+          message: data.body || '',
           timestamp: Date.now(),
           read: false,
-          actionUrl: event.data.url,
+          actionUrl: data.url,
         }
         
         // Use functional update to avoid dependency on notifications
@@ -77,12 +77,37 @@ export default function NotificationsPage() {
       }
     }
 
-    navigator.serviceWorker.addEventListener('message', handleMessage)
-    console.log('[NotificationsPage] Message listener registered')
+    // Method 1: Service Worker messages (works when SW controls the page)
+    let handleMessage: ((event: MessageEvent) => void) | null = null
+    if ('serviceWorker' in navigator) {
+      handleMessage = (event: MessageEvent) => handleNotification(event.data)
+      navigator.serviceWorker.addEventListener('message', handleMessage)
+      console.log('[NotificationsPage] Service Worker message listener registered')
+    }
+
+    // Method 2: BroadcastChannel (works even when SW doesn't control the page)
+    let broadcastChannel: BroadcastChannel | null = null
+    try {
+      broadcastChannel = new BroadcastChannel('nutriscope-notifications')
+      broadcastChannel.onmessage = (event) => {
+        console.log('[NotificationsPage] Received BroadcastChannel message:', event.data)
+        handleNotification(event.data)
+      }
+      console.log('[NotificationsPage] BroadcastChannel listener registered')
+    } catch (error) {
+      console.warn('[NotificationsPage] BroadcastChannel not available:', error)
+    }
     
+    // Combined cleanup function
     return () => {
-      navigator.serviceWorker.removeEventListener('message', handleMessage)
-      console.log('[NotificationsPage] Message listener removed')
+      if (handleMessage && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleMessage)
+        console.log('[NotificationsPage] Service Worker message listener removed')
+      }
+      if (broadcastChannel) {
+        broadcastChannel.close()
+        console.log('[NotificationsPage] BroadcastChannel listener removed')
+      }
     }
   }, []) // Empty dependency array - listener stays active
 

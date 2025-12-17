@@ -1,7 +1,10 @@
 // Service Worker for NutriScope PWA
-const CACHE_NAME = 'nutriscope-v10'
-const RUNTIME_CACHE = 'nutriscope-runtime-v10'
+const CACHE_NAME = 'nutriscope-v11'
+const RUNTIME_CACHE = 'nutriscope-runtime-v11'
 const REMINDER_CHECK_INTERVAL = 30000 // Check every 30 seconds for more accurate timing
+const SW_VERSION = 'v11-fixed-30min-window'
+
+console.log(`[SW] Service Worker ${SW_VERSION} loading...`)
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
@@ -35,7 +38,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches and initialize reminders
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Service worker activating...')
+  console.log(`[SW] Service worker ${SW_VERSION} activating...`)
   event.waitUntil(
     Promise.all([
       // Clean up old caches
@@ -57,15 +60,25 @@ self.addEventListener('activate', (event) => {
           console.log(`[SW] Controlling ${clients.length} client(s)`)
         })
       }),
-      // Initialize reminder checking
+      // Initialize reminder checking (but only if Supabase is configured)
       Promise.resolve().then(() => {
-        console.log('[SW] Initializing reminder checking...')
-        initReminderChecking()
+        console.log('[SW] Checking if reminder checking should be initialized...')
+        if (currentUserId && currentAccessToken) {
+          console.log('[SW] Supabase config already available, initializing reminder checking...')
+          initReminderChecking()
+        } else {
+          console.log('[SW] ⏳ Waiting for Supabase config before initializing reminder checking...')
+          console.log('[SW] Reminder checking will start after SET_SUPABASE_CONFIG message is received')
+        }
       }),
     ]).then(() => {
-      console.log('[SW] ✅ Service worker activated and ready')
+      console.log(`[SW] ✅ Service worker ${SW_VERSION} activated and ready`)
+      // Force immediate activation
+      return self.clients.claim()
     })
   )
+  // Skip waiting to activate immediately
+  self.skipWaiting()
 })
 
 // Fetch event - network-first for HTML, cache-first for assets
@@ -171,59 +184,103 @@ async function syncMeals() {
 
 // Initialize reminder checking
 function initReminderChecking() {
+  // Clear any existing interval
+  if (reminderCheckInterval) {
+    clearInterval(reminderCheckInterval)
+    reminderCheckInterval = null
+  }
+  
   // Check reminders immediately
   checkReminders()
   
   // Then check every 30 seconds for more accurate timing
-  if (reminderCheckInterval) {
-    clearInterval(reminderCheckInterval)
-  }
-  
   reminderCheckInterval = setInterval(() => {
     checkReminders()
   }, REMINDER_CHECK_INTERVAL)
+  
+  console.log('[SW] ✅ Reminder checking initialized (interval: 30s)')
 }
 
 // Fetch reminders from Supabase
 async function fetchRemindersFromSupabase(userId, accessToken) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !userId || !accessToken) {
-    console.log('[SW] ⚠️ Supabase not configured or user not authenticated, falling back to IndexedDB')
+    console.log('[SW] ⚠️ Supabase not configured or user not authenticated')
+    console.log(`[SW]   - SUPABASE_URL: ${SUPABASE_URL ? 'set' : 'NOT SET'}`)
+    console.log(`[SW]   - SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY ? 'set' : 'NOT SET'}`)
+    console.log(`[SW]   - userId: ${userId ? 'set' : 'NOT SET'}`)
+    console.log(`[SW]   - accessToken: ${accessToken ? 'set' : 'NOT SET'}`)
     return null
   }
 
   try {
     const url = `${SUPABASE_URL}/rest/v1/rpc/get_upcoming_reminders`
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${accessToken}`,
-        'Prefer': 'return=representation',
-      },
-      body: JSON.stringify({
-        p_user_id: userId,
-        p_window_minutes: 30, // Increased window to catch overdue reminders (30 minutes past and 30 minutes future)
-      }),
-    })
+    console.log(`[SW] 📡 Fetching reminders from: ${url}`)
+    console.log(`[SW] 📡 Request body:`, JSON.stringify({
+      p_user_id: userId,
+      p_window_minutes: 30,
+    }))
+    
+    console.log('[SW] 📡 Starting fetch request...')
+    
+    // Add timeout to prevent hanging
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${accessToken}`,
+          'Prefer': 'return=representation',
+        },
+        body: JSON.stringify({
+          p_user_id: userId,
+          p_window_minutes: 30, // Increased window to catch overdue reminders (30 minutes past and 30 minutes future)
+        }),
+        signal: controller.signal,
+      })
+      
+      clearTimeout(timeoutId)
+      console.log(`[SW] 📡 Fetch response received: status=${response.status}, ok=${response.ok}`)
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('[SW] ❌ Error fetching reminders from Supabase:', response.status, errorText)
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('[SW] ❌ Error fetching reminders from Supabase:', response.status, response.statusText)
+        console.error('[SW] ❌ Error details:', errorText)
+        return null
+      }
+
+      const reminders = await response.json()
+      console.log(`[SW] ✅ Fetched ${reminders.length} reminders from Supabase`)
+      console.log(`[SW] 📋 Reminders data:`, JSON.stringify(reminders, null, 2))
+      if (reminders.length > 0) {
+        reminders.forEach(r => {
+          const triggerTime = r.next_trigger_time ? new Date(r.next_trigger_time).toLocaleString() : 'unknown'
+          const now = new Date()
+          const triggerDate = r.next_trigger_time ? new Date(r.next_trigger_time) : null
+          const timeUntil = triggerDate ? triggerDate.getTime() - now.getTime() : null
+          const minutesUntil = timeUntil ? Math.round(timeUntil / 1000 / 60) : null
+          console.log(`[SW]   - ${r.id}: ${r.title} at ${triggerTime} (${minutesUntil !== null ? `${minutesUntil}m` : 'unknown'} until trigger)`)
+        })
+      } else {
+        console.log('[SW] ℹ️ No reminders found in the upcoming window (30 minutes past to 30 minutes future)')
+      }
+      return reminders
+    } catch (fetchError) {
+      clearTimeout(timeoutId)
+      if (fetchError.name === 'AbortError') {
+        console.error('[SW] ❌ Fetch timeout - request took too long')
+      } else {
+        console.error('[SW] ❌ Error fetching reminders from Supabase:', fetchError)
+        console.error('[SW] Error stack:', fetchError.stack)
+      }
       return null
     }
-
-    const reminders = await response.json()
-    console.log(`[SW] ✅ Fetched ${reminders.length} reminders from Supabase`)
-    if (reminders.length > 0) {
-      reminders.forEach(r => {
-        const triggerTime = r.next_trigger_time ? new Date(r.next_trigger_time).toLocaleString() : 'unknown'
-        console.log(`[SW]   - ${r.id}: ${r.title} at ${triggerTime}`)
-      })
-    }
-    return reminders
   } catch (error) {
-    console.error('[SW] ❌ Error fetching reminders from Supabase:', error)
+    console.error('[SW] ❌ Error in fetchRemindersFromSupabase:', error)
+    console.error('[SW] Error stack:', error.stack)
     return null
   }
 }
@@ -235,6 +292,16 @@ async function updateReminderInSupabase(reminderId, nextTriggerTime, currentTrig
   }
 
   try {
+    // Ensure nextTriggerTime is a Date object
+    const nextTriggerDate = nextTriggerTime instanceof Date 
+      ? nextTriggerTime 
+      : new Date(nextTriggerTime)
+    
+    if (isNaN(nextTriggerDate.getTime())) {
+      console.error(`[SW] ❌ Invalid date for reminder ${reminderId}: ${nextTriggerTime}`)
+      return false
+    }
+    
     const url = `${SUPABASE_URL}/rest/v1/reminders?id=eq.${encodeURIComponent(reminderId)}`
     const response = await fetch(url, {
       method: 'PATCH',
@@ -246,7 +313,7 @@ async function updateReminderInSupabase(reminderId, nextTriggerTime, currentTrig
       },
       body: JSON.stringify({
         last_triggered: new Date().toISOString(),
-        next_trigger_time: nextTriggerTime.toISOString(),
+        next_trigger_time: nextTriggerDate.toISOString(),
         trigger_count: currentTriggerCount + 1,
       }),
     })
@@ -267,10 +334,13 @@ async function updateReminderInSupabase(reminderId, nextTriggerTime, currentTrig
 // Calculate next trigger time for a reminder (same logic as SupabaseReminderService)
 function calculateNextTriggerTime(reminder, currentTime = new Date()) {
   const now = currentTime.getTime()
+  
+  // Handle both JSONB data (from Supabase) and regular objects
+  const reminderData = typeof reminder.data === 'string' ? JSON.parse(reminder.data) : reminder.data
 
   switch (reminder.reminder_type) {
     case 'daily': {
-      const time = reminder.data?.time || '08:00'
+      const time = reminderData?.time || '08:00'
       const [hours, minutes] = time.split(':').map(Number)
       const nextTrigger = new Date(currentTime)
       nextTrigger.setHours(hours, minutes, 0, 0)
@@ -283,7 +353,7 @@ function calculateNextTriggerTime(reminder, currentTime = new Date()) {
     }
 
     case 'weekly': {
-      const time = reminder.data?.time || '08:00'
+      const time = reminderData?.time || '08:00'
       const [hours, minutes] = time.split(':').map(Number)
       const days = reminder.days_of_week || [1, 2, 3, 4, 5]
       
@@ -394,15 +464,20 @@ async function checkReminders() {
     let reminders = null
     
     if (currentUserId && currentAccessToken) {
-      console.log(`[SW] Fetching reminders from Supabase for user ${currentUserId}`)
+      console.log(`[SW] 🔍 Checking reminders from Supabase for user ${currentUserId}`)
+      console.log(`[SW] Supabase URL: ${SUPABASE_URL ? 'configured' : 'NOT SET'}`)
+      console.log(`[SW] Access token: ${currentAccessToken ? 'present' : 'missing'}`)
       reminders = await fetchRemindersFromSupabase(currentUserId, currentAccessToken)
     } else {
-      console.log(`[SW] ⚠️ Cannot fetch from Supabase - userId: ${currentUserId ? 'set' : 'not set'}, accessToken: ${currentAccessToken ? 'set' : 'not set'}`)
+      console.log(`[SW] ⚠️ Cannot fetch from Supabase - userId: ${currentUserId ? 'set' : 'NOT SET'}, accessToken: ${currentAccessToken ? 'set' : 'NOT SET'}`)
+      console.log(`[SW] ⚠️ Waiting for SET_SUPABASE_CONFIG message from main app...`)
     }
     
-    // Fallback to IndexedDB if Supabase fails
-    if (!reminders || reminders.length === 0) {
-      console.log('[SW] Falling back to IndexedDB for reminders')
+    // Fallback to IndexedDB only if Supabase fetch failed (not if it returned empty array)
+    // Empty array means no reminders in the window, which is valid
+    if (reminders === null) {
+      // Supabase fetch failed, try IndexedDB fallback
+      console.log('[SW] Supabase fetch failed, falling back to IndexedDB for reminders')
       const db = await openReminderDB()
       if (!db) {
         console.log('[SW] No reminder DB available')
@@ -412,7 +487,8 @@ async function checkReminders() {
     }
     
     if (!reminders || reminders.length === 0) {
-      console.log('[SW] ⚠️ No reminders found from Supabase or IndexedDB')
+      // This is normal if no reminders are scheduled in the current window
+      console.log('[SW] ℹ️ No reminders found in the current time window (30 minutes past to 30 minutes future)')
       return
     }
 
@@ -457,12 +533,78 @@ async function checkReminders() {
           vibrate: [200, 100, 200],
         })
         
+        console.log(`[SW] ✅ Notification shown: ${title}`)
+        
+        const messageData = {
+          type: 'NOTIFICATION_SHOWN',
+          notificationType: reminder.type || 'goal',
+          title: title,
+          body: body,
+          url: data?.url || '/dashboard',
+        }
+        
+        console.log(`[SW] Message data:`, JSON.stringify(messageData, null, 2))
+        
+        // Try multiple methods to send notification to UI
+        // Method 1: Direct client postMessage (works when SW controls the page)
+        const clients = await self.clients.matchAll({ 
+          includeUncontrolled: true, 
+          type: 'window' 
+        })
+        console.log(`[SW] 📤 Found ${clients.length} client(s) via matchAll`)
+        console.log(`[SW] Client URLs:`, clients.map(c => c.url))
+        
+        let messageSent = false
+        
+        if (clients.length > 0) {
+          clients.forEach((client, index) => {
+            try {
+              client.postMessage(messageData)
+              console.log(`[SW] ✅ Message sent to client ${index + 1}/${clients.length} (${client.url})`)
+              messageSent = true
+            } catch (error) {
+              console.error(`[SW] ❌ Failed to send message to client ${index + 1}:`, error)
+            }
+          })
+        }
+        
+        // Method 2: BroadcastChannel (works even when SW doesn't control the page)
+        try {
+          const channel = new BroadcastChannel('nutriscope-notifications')
+          channel.postMessage(messageData)
+          console.log(`[SW] ✅ Message sent via BroadcastChannel`)
+          channel.close()
+          messageSent = true
+        } catch (error) {
+          console.warn(`[SW] ⚠️ BroadcastChannel not available:`, error)
+        }
+        
+        // Method 3: Store in localStorage as fallback (main app can poll)
+        if (!messageSent) {
+          console.warn(`[SW] ⚠️ No clients found and BroadcastChannel failed!`)
+          console.warn(`[SW] 💡 Notification will still appear in browser notification center`)
+          console.warn(`[SW] 💡 Try: Hard refresh (Ctrl+Shift+R) or check service worker registration`)
+        }
+        
         // Update reminder in Supabase or IndexedDB
         if (reminder.next_trigger_time) {
           // Supabase reminder - calculate next trigger and update
-          const nextTrigger = calculateNextTriggerTime(reminder, new Date())
-          const triggerCount = reminder.trigger_count || 0
-          await updateReminderInSupabase(reminderId, nextTrigger, triggerCount, currentAccessToken)
+          try {
+            const nextTrigger = calculateNextTriggerTime(reminder, new Date())
+            // Ensure nextTrigger is a Date object
+            const nextTriggerDate = nextTrigger instanceof Date ? nextTrigger : new Date(nextTrigger)
+            const triggerCount = reminder.trigger_count || 0
+            console.log(`[SW] Updating reminder ${reminderId} in Supabase - next trigger: ${nextTriggerDate.toLocaleString()}`)
+            console.log(`[SW] Next trigger type: ${typeof nextTrigger}, is Date: ${nextTrigger instanceof Date}`)
+            const updateSuccess = await updateReminderInSupabase(reminderId, nextTriggerDate, triggerCount, currentAccessToken)
+            if (updateSuccess) {
+              console.log(`[SW] ✅ Successfully updated reminder ${reminderId} in Supabase`)
+            } else {
+              console.error(`[SW] ❌ Failed to update reminder ${reminderId} in Supabase`)
+            }
+          } catch (error) {
+            console.error(`[SW] ❌ Error calculating/updating next trigger for reminder ${reminderId}:`, error)
+          }
         } else {
           // IndexedDB reminder - use existing update logic
           const db = await openReminderDB()
@@ -552,45 +694,50 @@ function getUpcomingReminders(db) {
       
       // Now filter for upcoming reminders
       const now = Date.now()
-      // CRITICAL: Use a wider time window to catch reminders that should trigger
-      // Check reminders that should have triggered in the last 5 minutes (to catch missed ones)
-      // and reminders that will trigger in the next 5 minutes
-      const pastWindow = now - (5 * 60 * 1000) // 5 minutes ago
-      const futureWindow = now + (5 * 60 * 1000) // 5 minutes from now
+      // CRITICAL: Use the same time window as Supabase (±30 minutes) to catch overdue reminders
+      // Check reminders that should have triggered in the last 30 minutes (to catch missed ones)
+      // and reminders that will trigger in the next 30 minutes
+      const pastWindow = now - (30 * 60 * 1000) // 30 minutes ago
+      const futureWindow = now + (30 * 60 * 1000) // 30 minutes from now
       
       // Filter all reminders to find ones that should trigger
       const reminders = allReminders.filter((r) => {
         if (!r.enabled) return false
         
-        // Check if reminder should trigger (within 5 minutes before or after now)
+        // Check if reminder should trigger (within 30 minutes before or after now)
+        // This matches the Supabase get_upcoming_reminders function behavior
         const shouldTrigger = r.nextTriggerTime >= pastWindow && r.nextTriggerTime <= futureWindow
         
         if (shouldTrigger) {
           const timeUntil = r.nextTriggerTime - now
           const minutesUntil = Math.round(timeUntil / 1000 / 60)
           const secondsUntil = Math.round(timeUntil / 1000)
-          console.log(`[SW] 🎯 Reminder ${r.id}: nextTriggerTime=${new Date(r.nextTriggerTime).toLocaleString()}, now=${new Date(now).toLocaleString()}, timeUntil=${secondsUntil}s (${minutesUntil}m)`)
+          const isOverdue = timeUntil < 0
+          console.log(`[SW] 🎯 Reminder ${r.id}: nextTriggerTime=${new Date(r.nextTriggerTime).toLocaleString()}, now=${new Date(now).toLocaleString()}, timeUntil=${secondsUntil}s (${minutesUntil}m) ${isOverdue ? 'OVERDUE' : ''}`)
         }
         
         return shouldTrigger
       })
       
-      console.log(`[SW] ✅ Found ${reminders.length} reminders to check out of ${allReminders.length} total`)
+      console.log(`[SW] ✅ Found ${reminders.length} reminders to check out of ${allReminders.length} total (using ±30 minute window) [SW Version: ${SW_VERSION}]`)
       
       if (reminders.length > 0) {
         reminders.forEach(r => {
           const timeUntil = r.nextTriggerTime - now
           const secondsUntil = Math.round(timeUntil / 1000)
-          console.log(`[SW] 🎯 Will trigger: ${r.id} (${r.options?.title || 'no title'}) in ${secondsUntil} seconds`)
+          const minutesUntil = Math.round(timeUntil / 1000 / 60)
+          const isOverdue = timeUntil < 0
+          console.log(`[SW] 🎯 Will trigger: ${r.id} (${r.options?.title || 'no title'}) in ${secondsUntil}s (${minutesUntil}m) ${isOverdue ? 'OVERDUE' : ''}`)
         })
       } else if (allReminders.length > 0) {
-        console.log(`[SW] ⚠️ No reminders in time window (±5 minutes), but ${allReminders.length} reminders exist in DB`)
-        // Show next trigger times
+        console.log(`[SW] ℹ️ No reminders in time window (±30 minutes), but ${allReminders.length} reminders exist in DB [SW Version: ${SW_VERSION}]`)
+        // Show next trigger times for debugging
         allReminders.forEach(r => {
           const timeUntil = r.nextTriggerTime - now
           const minutesUntil = Math.round(timeUntil / 1000 / 60)
           const secondsUntil = Math.round(timeUntil / 1000)
-          console.log(`[SW]   - ${r.id}: triggers in ${secondsUntil}s (${minutesUntil}m) - ${new Date(r.nextTriggerTime).toLocaleString()}`)
+          const isOverdue = timeUntil < 0
+          console.log(`[SW]   - ${r.id}: triggers in ${secondsUntil}s (${minutesUntil}m) ${isOverdue ? 'OVERDUE' : ''} - ${new Date(r.nextTriggerTime).toLocaleString()}`)
         })
       }
       
@@ -970,13 +1117,16 @@ self.addEventListener('message', async (event) => {
     console.log(`[SW] ✅ Received REFRESH_REMINDERS_FROM_SUPABASE message`)
     console.log(`[SW] User ID: ${event.data.userId}`)
     console.log(`[SW] Reminder count: ${event.data.reminderCount || 'unknown'}`)
+    console.log(`[SW] Current Supabase config - userId: ${currentUserId ? 'set' : 'NOT SET'}, token: ${currentAccessToken ? 'set' : 'NOT SET'}`)
+    
+    // Ensure reminder checking is initialized
+    if (!reminderCheckInterval) {
+      console.log('[SW] Initializing reminder checking interval...')
+      initReminderChecking()
+    }
     
     // Check reminders immediately from Supabase
     await checkReminders()
-    
-    // Re-initialize checking to ensure we're checking regularly
-    console.log('[SW] Re-initializing reminder checking after refresh...')
-    initReminderChecking()
   }
   
   if (event.data && event.data.type === 'SET_SUPABASE_CONFIG') {
@@ -985,9 +1135,13 @@ self.addEventListener('message', async (event) => {
     SUPABASE_ANON_KEY = event.data.supabaseAnonKey
     currentUserId = event.data.userId
     currentAccessToken = event.data.accessToken
-    console.log('[SW] ✅ Supabase configuration set')
+    console.log('[SW] ✅ Supabase configuration received and set')
     console.log(`[SW] Supabase URL: ${SUPABASE_URL ? 'configured' : 'not set'}`)
     console.log(`[SW] User ID: ${currentUserId || 'not set'}`)
+    console.log(`[SW] Access Token: ${currentAccessToken ? 'present' : 'missing'}`)
+    
+    // Initialize reminder checking with new config
+    initReminderChecking()
     
     // Check reminders immediately with new config
     await checkReminders()

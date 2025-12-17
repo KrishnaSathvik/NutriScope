@@ -1,4 +1,5 @@
 import { UserProfile, DailyLog } from '@/types'
+import { formatSleepDuration } from '@/utils/format'
 
 export interface ContextOptions {
   mode?: 'chat' | 'insight'
@@ -185,7 +186,7 @@ export function buildPersonalizedContext(
     context += `- Calories Burned: ${dailyLog.calories_burned} cal\n`
     context += `- Net Calories: ${dailyLog.net_calories} cal\n`
     if (dailyLog.sleep_hours) {
-      context += `- Sleep: ${dailyLog.sleep_hours.toFixed(1)} hours`
+      context += `- Sleep: ${formatSleepDuration(dailyLog.sleep_hours)}`
       if (dailyLog.sleep_logs && dailyLog.sleep_logs.length > 0 && dailyLog.sleep_logs[0].sleep_quality) {
         context += ` (Quality: ${dailyLog.sleep_logs[0].sleep_quality}/5)`
       }
@@ -271,14 +272,14 @@ export function buildPersonalizedContext(
         const isInsufficient = sleepHours < 7
         
         if (isInsufficient) {
-          context += `- Sleep logged: ${sleepHours.toFixed(1)} hours (below recommended 7-9 hours) - insufficient sleep can affect metabolism, hunger hormones, and weight loss progress\n`
+          context += `- Sleep logged: ${formatSleepDuration(sleepHours)} (below recommended 7-9 hours) - insufficient sleep can affect metabolism, hunger hormones, and weight loss progress\n`
           if (profile && (profile.goal === 'lose_weight' || profile.goal === 'reduce_body_fat')) {
             context += `- Poor sleep increases cortisol and affects ghrelin/leptin hormones, which can slow weight loss and increase cravings\n`
           }
         } else if (isOptimal) {
-          context += `- Sleep logged: ${sleepHours.toFixed(1)} hours (optimal range) - good sleep supports metabolism and weight management\n`
+          context += `- Sleep logged: ${formatSleepDuration(sleepHours)} (optimal range) - good sleep supports metabolism and weight management\n`
         } else if (sleepHours > 9) {
-          context += `- Sleep logged: ${sleepHours.toFixed(1)} hours (above recommended range) - very long sleep may indicate other health factors\n`
+          context += `- Sleep logged: ${formatSleepDuration(sleepHours)} (above recommended range) - very long sleep may indicate other health factors\n`
         }
       } else {
         // No sleep logged today

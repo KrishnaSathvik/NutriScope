@@ -3,6 +3,7 @@ import { getWeightLogs } from './weightTracking'
 import { getAlcoholLogs } from './alcohol'
 import { getSleepLogs } from './sleep'
 import { format, subDays } from 'date-fns'
+import { formatSleepDuration } from '@/utils/format'
 
 export interface CorrelationData {
   x: number
@@ -627,21 +628,21 @@ export async function getSleepWeightImpact(
   if (profile?.goal === 'lose_weight' || profile?.goal === 'reduce_body_fat') {
     if (correlation !== null && correlation < -0.3) {
       insight = 'Sleep shows a strong negative correlation with weight. More sleep is associated with better weight loss results.'
-      impactPrediction = `On days with weight loss, average sleep was ${avgSleepOnLoss.toFixed(1)} hours. Getting adequate sleep (7-9 hours) supports your weight loss goals by regulating hormones and reducing cravings.`
+      impactPrediction = `On days with weight loss, average sleep was ${formatSleepDuration(avgSleepOnLoss)}. Getting adequate sleep (7-9 hours) supports your weight loss goals by regulating hormones and reducing cravings.`
     } else if (correlation !== null && correlation < -0.1) {
       insight = 'Sleep shows a moderate negative correlation with weight. Better sleep may support your weight loss journey.'
-      impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Aim for 7-9 hours per night to optimize metabolism and reduce stress-related eating.`
+      impactPrediction = `Your average sleep is ${formatSleepDuration(avgSleepHours)}. Aim for 7-9 hours per night to optimize metabolism and reduce stress-related eating.`
     } else if (correlation !== null) {
       // Weak correlation - still provide personalized impact
       insight = hasLimitedDataForCorrelation
         ? 'Limited data: Sleep shows a weak correlation with weight changes. More data needed for reliable analysis.'
         : 'Sleep patterns show a weak correlation with weight changes in your data.'
       if (avgSleepHours < 7) {
-        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours, which is below the recommended 7-9 hours. Poor sleep can increase cortisol, affect hunger hormones, and slow metabolism.`
+        impactPrediction = `Your average sleep is ${formatSleepDuration(avgSleepHours)}, which is below the recommended 7-9 hours. Poor sleep can increase cortisol, affect hunger hormones, and slow metabolism.`
       } else if (avgSleepHours > 9) {
-        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Good sleep helps regulate hormones that control appetite and metabolism.`
+        impactPrediction = `Your average sleep is ${formatSleepDuration(avgSleepHours)}. Good sleep helps regulate hormones that control appetite and metabolism.`
       } else {
-        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Maintaining consistent sleep (7-9 hours) supports overall health and weight management.`
+        impactPrediction = `Your average sleep is ${formatSleepDuration(avgSleepHours)}. Maintaining consistent sleep (7-9 hours) supports overall health and weight management.`
       }
     } else {
       // Not enough data for correlation - provide general impact
@@ -649,11 +650,11 @@ export async function getSleepWeightImpact(
         ? `Limited data: Only ${correlationData.length} day${correlationData.length !== 1 ? 's' : ''} with sleep logged. More data needed for correlation analysis.`
         : 'Insufficient data: Need at least 3 days with sleep logged for correlation analysis.'
       if (avgSleepHours < 7) {
-        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours, which is below the recommended 7-9 hours. Poor sleep can increase cortisol, affect hunger hormones, and slow metabolism.`
+        impactPrediction = `Your average sleep is ${formatSleepDuration(avgSleepHours)}, which is below the recommended 7-9 hours. Poor sleep can increase cortisol, affect hunger hormones, and slow metabolism.`
       } else if (avgSleepHours > 9) {
-        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Good sleep helps regulate hormones that control appetite and metabolism.`
+        impactPrediction = `Your average sleep is ${formatSleepDuration(avgSleepHours)}. Good sleep helps regulate hormones that control appetite and metabolism.`
       } else if (avgSleepHours > 0) {
-        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Aim for 7-9 hours per night for optimal health and weight management.`
+        impactPrediction = `Your average sleep is ${formatSleepDuration(avgSleepHours)}. Aim for 7-9 hours per night for optimal health and weight management.`
       } else {
         impactPrediction = 'Adequate sleep (7-9 hours) supports healthy metabolism, hormone regulation, and weight management.'
       }
@@ -662,16 +663,16 @@ export async function getSleepWeightImpact(
     // Fallback to correlation-based predictions if no profile data
     if (correlation !== null && correlation < -0.3) {
       insight = 'Sleep shows a strong negative correlation with weight. More sleep is associated with weight loss.'
-      impactPrediction = `On days with weight loss, average sleep was ${avgSleepOnLoss.toFixed(1)} hours. Adequate sleep supports healthy weight management.`
+      impactPrediction = `On days with weight loss, average sleep was ${formatSleepDuration(avgSleepOnLoss)}. Adequate sleep supports healthy weight management.`
     } else if (correlation !== null && correlation > 0.3) {
       insight = 'Sleep shows a positive correlation with weight. This may indicate sleep quality issues or other factors affecting both sleep and weight.'
-      impactPrediction = `On days with weight gain, average sleep was ${avgSleepOnGain.toFixed(1)} hours. Consider improving sleep quality and duration.`
+      impactPrediction = `On days with weight gain, average sleep was ${formatSleepDuration(avgSleepOnGain)}. Consider improving sleep quality and duration.`
     } else if (correlation !== null) {
       insight = hasLimitedDataForCorrelation
         ? `Limited data: Only ${correlationData.length} day${correlationData.length !== 1 ? 's' : ''} with sleep logged. More data needed for reliable correlation analysis.`
         : 'Sleep patterns show a weak correlation with weight changes in your data.'
       if (avgSleepHours > 0) {
-        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Aim for 7-9 hours per night for optimal health and weight management.`
+        impactPrediction = `Your average sleep is ${formatSleepDuration(avgSleepHours)}. Aim for 7-9 hours per night for optimal health and weight management.`
       } else {
         impactPrediction = 'Adequate sleep (7-9 hours) supports healthy metabolism, hormone regulation, and weight management.'
       }
@@ -681,7 +682,7 @@ export async function getSleepWeightImpact(
         ? `Limited data: Only ${correlationData.length} day${correlationData.length !== 1 ? 's' : ''} with sleep logged. Need at least 5 days for meaningful correlation analysis.`
         : 'Insufficient data: Need at least 3 days with sleep logged for correlation analysis.'
       if (avgSleepHours < 7) {
-        impactPrediction = `Your average sleep is ${avgSleepHours.toFixed(1)} hours. Aim for 7-9 hours per night for optimal health and weight management.`
+        impactPrediction = `Your average sleep is ${formatSleepDuration(avgSleepHours)}. Aim for 7-9 hours per night for optimal health and weight management.`
       } else if (avgSleepHours > 0) {
         impactPrediction = 'Adequate sleep (7-9 hours) supports healthy metabolism, hormone regulation, and weight management.'
       } else {
@@ -728,46 +729,46 @@ export function calculateSleepWeightImpact(
   if (goal === 'lose_weight' || goal === 'reduce_body_fat') {
     if (isOptimal) {
       sleepStatus = 'Optimal'
-      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep, which is optimal for weight loss.`
+      impactOnGoal = `You're getting ${formatSleepDuration(sleepHours)}, which is optimal for weight loss.`
       recommendation = 'Maintain this sleep schedule. Adequate sleep helps regulate hormones that control appetite and metabolism.'
       projectedImpact = 'Optimal sleep supports healthy weight loss by reducing cortisol, improving insulin sensitivity, and regulating hunger hormones.'
     } else if (isInsufficient) {
       sleepStatus = 'Insufficient'
-      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep, which is below the recommended 7-9 hours.`
+      impactOnGoal = `You're getting ${formatSleepDuration(sleepHours)}, which is below the recommended 7-9 hours.`
       recommendation = 'Aim for 7-9 hours of sleep per night. Poor sleep can increase cortisol, affect hunger hormones (ghrelin/leptin), and slow metabolism.'
       projectedImpact = 'Insufficient sleep may slow weight loss progress by increasing stress hormones and cravings. Improving sleep could accelerate your results.'
     } else if (isExcessive) {
       sleepStatus = 'Excessive'
-      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep, which is above the recommended range.`
+      impactOnGoal = `You're getting ${formatSleepDuration(sleepHours)}, which is above the recommended range.`
       recommendation = 'While adequate sleep is important, excessive sleep may indicate other health issues. Aim for 7-9 hours consistently.'
       projectedImpact = 'Very long sleep durations may be associated with underlying health conditions. Consult a healthcare provider if this persists.'
     }
   } else if (goal === 'gain_muscle') {
     if (isOptimal) {
       sleepStatus = 'Optimal'
-      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep, which is optimal for muscle recovery and growth.`
+      impactOnGoal = `You're getting ${formatSleepDuration(sleepHours)}, which is optimal for muscle recovery and growth.`
       recommendation = 'Maintain this sleep schedule. Sleep is crucial for muscle protein synthesis and recovery.'
       projectedImpact = 'Optimal sleep supports muscle growth by maximizing growth hormone release and recovery.'
     } else if (isInsufficient) {
       sleepStatus = 'Insufficient'
-      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep, which may limit muscle recovery.`
+      impactOnGoal = `You're getting ${formatSleepDuration(sleepHours)}, which may limit muscle recovery.`
       recommendation = 'Aim for 7-9 hours of sleep. Muscle growth occurs during sleep, so adequate rest is essential.'
       projectedImpact = 'Insufficient sleep may slow muscle growth by reducing growth hormone production and recovery.'
     } else {
       sleepStatus = 'Good'
-      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep.`
+      impactOnGoal = `You're getting ${formatSleepDuration(sleepHours)}.`
       recommendation = 'Sleep supports muscle recovery and growth. Maintain consistent sleep patterns.'
       projectedImpact = 'Adequate sleep is essential for optimal muscle protein synthesis and recovery.'
     }
   } else {
     if (isOptimal) {
       sleepStatus = 'Optimal'
-      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep, which is optimal for overall health.`
+      impactOnGoal = `You're getting ${formatSleepDuration(sleepHours)}, which is optimal for overall health.`
       recommendation = 'Maintain this sleep schedule for optimal health and well-being.'
       projectedImpact = 'Optimal sleep supports overall health, cognitive function, and metabolism.'
     } else {
       sleepStatus = 'Needs Improvement'
-      impactOnGoal = `You're getting ${sleepHours.toFixed(1)} hours of sleep.`
+      impactOnGoal = `You're getting ${formatSleepDuration(sleepHours)}.`
       recommendation = 'Aim for 7-9 hours of sleep per night for optimal health and well-being.'
       projectedImpact = 'Adequate sleep supports overall health, immune function, and metabolism.'
     }

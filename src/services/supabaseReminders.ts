@@ -333,15 +333,23 @@ class SupabaseReminderService {
       const workoutReminders = settings.workout_reminders
       const time = workoutReminders.time || '18:00'
       const days = workoutReminders.days || [1, 2, 3, 4, 5]
+      // If all 7 days are selected, treat as daily reminder
+      const isDaily = days.length === 7 && days.every(d => [0,1,2,3,4,5,6].includes(d))
 
       reminders.push({
         id: `workout-${userId}`,
         user_id: userId,
         type: 'workout',
-        reminder_type: 'weekly',
+        reminder_type: isDaily ? 'daily' : 'weekly',
         scheduled_time: now.toISOString(),
-        next_trigger_time: this.calculateNextTriggerTime('weekly', time, now, undefined, days).toISOString(),
-        days_of_week: days,
+        next_trigger_time: this.calculateNextTriggerTime(
+          isDaily ? 'daily' : 'weekly',
+          time,
+          now,
+          undefined,
+          isDaily ? undefined : days
+        ).toISOString(),
+        days_of_week: isDaily ? undefined : days,
         title: 'Workout Time! 💪',
         body: "Don't forget to log your workout.",
         tag: 'workout',

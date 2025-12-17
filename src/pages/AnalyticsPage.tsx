@@ -9,6 +9,7 @@ import { StatCardSkeleton, ChartSkeleton } from '@/components/LoadingSkeleton'
 import { WeightChart } from '@/components/WeightChart'
 import { getGoalAchievementInsightsFromData, getWeeklyPatternsFromData, predictWeight, getAlcoholWeightImpact, calculateAlcoholWeightImpact, getSleepWeightImpact, calculateSleepWeightImpact } from '@/services/analytics'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
+import { formatSleepDurationShort } from '@/utils/format'
 
 type TimeRange = '7d' | '30d' | '3m' | '1y' | 'custom'
 
@@ -533,7 +534,7 @@ export default function AnalyticsPage() {
                   <Moon className="w-3.5 h-3.5 md:w-4 md:h-4 text-indigo-500 fill-indigo-500 dark:text-indigo-500 dark:fill-indigo-500 flex-shrink-0" />
                   <span className="text-[10px] md:text-xs text-dim font-mono uppercase truncate">Avg Sleep</span>
                 </div>
-                <div className="text-xl md:text-2xl font-bold text-indigo-500 dark:text-text font-mono mb-1">{stats.avgSleep.toFixed(1)}h</div>
+                <div className="text-xl md:text-2xl font-bold text-indigo-500 dark:text-text font-mono mb-1">{formatSleepDurationShort(stats.avgSleep)}</div>
                 <div className="text-[10px] md:text-xs text-dim font-mono">
                   {stats.avgSleep >= 7 && stats.avgSleep <= 9 ? 'Optimal range' : stats.avgSleep < 7 ? 'Below recommended' : 'Above recommended'}
                 </div>
@@ -915,7 +916,7 @@ export default function AnalyticsPage() {
                   <h2 className="text-xs md:text-sm font-bold text-text uppercase tracking-widest font-mono">Sleep Duration</h2>
                 </div>
                 <div className="text-[10px] md:text-xs text-dim font-mono">
-                  Avg: {stats.avgSleep?.toFixed(1)} hours/day
+                  Avg: {stats.avgSleep !== null && stats.avgSleep !== undefined ? formatSleepDurationShort(stats.avgSleep) : '-'}/day
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={240} className="md:h-[350px]">
@@ -941,7 +942,7 @@ export default function AnalyticsPage() {
                       fontFamily: 'JetBrains Mono',
                       fontSize: '11px',
                     }}
-                    formatter={(value: number) => [`${value.toFixed(1)} hours`, 'Sleep']}
+                    formatter={(value: number) => [formatSleepDurationShort(value), 'Sleep']}
                   />
                   <Bar 
                     dataKey="sleep" 
@@ -1043,7 +1044,7 @@ export default function AnalyticsPage() {
                           </div>
                           {sleepImpact.averageSleepHours > 0 && (
                             <div className="text-xs text-dim font-mono mt-2">
-                              Average sleep: {sleepImpact.averageSleepHours.toFixed(1)} hours/day
+                              Average sleep: {formatSleepDurationShort(sleepImpact.averageSleepHours)}/day
                             </div>
                           )}
                         </div>

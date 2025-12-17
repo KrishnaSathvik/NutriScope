@@ -12,6 +12,22 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import OpenAI from 'openai'
 
+// Helper function to format sleep duration as "X hours Y minutes"
+function formatSleepDuration(decimalHours: number | null | undefined): string {
+  if (decimalHours === null || decimalHours === undefined) {
+    return '-'
+  }
+  
+  const hours = Math.floor(decimalHours)
+  const minutes = Math.round((decimalHours - hours) * 60)
+  
+  if (minutes === 0) {
+    return `${hours} hour${hours !== 1 ? 's' : ''}`
+  }
+  
+  return `${hours} hour${hours !== 1 ? 's' : ''} ${minutes} minute${minutes !== 1 ? 's' : ''}`
+}
+
 // Rate limiting storage
 // NOTE: In-memory Map works fine for single-instance deployments (Vercel serverless functions)
 // For multi-instance deployments, use Vercel KV or Redis
@@ -318,7 +334,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         context += `- Alcohol: ${alcoholDrinks.toFixed(1)} standard drinks (${alcoholCalories} cal)\n`
       }
       if (sleepHours !== undefined && sleepHours !== null) {
-        context += `- Sleep: ${sleepHours.toFixed(1)} hours${sleepQuality ? ` (Quality: ${sleepQuality}/5)` : ''}\n`
+        context += `- Sleep: ${formatSleepDuration(sleepHours)}${sleepQuality ? ` (Quality: ${sleepQuality}/5)` : ''}\n`
       }
       context += `- Calories Burned: ${caloriesBurned} cal\n`
       context += `\n`
@@ -368,7 +384,7 @@ PERSONALIZATION RULES
    - calories_burned: ${dailyLog?.calories_burned ?? 0}
    - water_intake: ${dailyLog?.water_intake ?? 0}
    - alcohol_drinks: ${(dailyLog as any)?.alcohol_drinks ?? 0}${(dailyLog as any)?.alcohol_drinks && (dailyLog as any).alcohol_drinks > 0 ? ` (${((dailyLog as any).alcohol_logs || []).reduce((sum: number, log: any) => sum + (log.calories || 0), 0)} cal from alcohol)` : ''}
-   - sleep_hours: ${(dailyLog as any)?.sleep_hours ?? null}${(dailyLog as any)?.sleep_hours ? ` hours${((dailyLog as any).sleep_logs?.[0]?.sleep_quality ? ` (Quality: ${(dailyLog as any).sleep_logs[0].sleep_quality}/5)` : '')}` : ' (not logged)'}
+   - sleep_hours: ${(dailyLog as any)?.sleep_hours ?? null}${(dailyLog as any)?.sleep_hours ? ` ${formatSleepDuration((dailyLog as any).sleep_hours)}${((dailyLog as any).sleep_logs?.[0]?.sleep_quality ? ` (Quality: ${(dailyLog as any).sleep_logs[0].sleep_quality}/5)` : '')}` : ' (not logged)'}
 
 3. Whenever you talk about goals, reference THEIR targets:
    - "Your target is ${profile?.calorie_target || 2000} calories / ${profile?.protein_target || 150} g protein"
