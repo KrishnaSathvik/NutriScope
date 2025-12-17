@@ -99,7 +99,11 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches and initialize reminders
 self.addEventListener('activate', (event) => {
-  swLog(`[SW] Service worker ${SW_VERSION} activating...`)
+  // Log production mode status (this will only show if logs are enabled)
+  if (enableLogs) {
+    console.log(`[SW] Service worker ${SW_VERSION} activating...`)
+    console.log(`[SW] Production mode: ${isProduction}, Logs enabled: ${enableLogs}, Hostname: ${self.location?.hostname}`)
+  }
   event.waitUntil(
     Promise.all([
       // Clean up old caches
