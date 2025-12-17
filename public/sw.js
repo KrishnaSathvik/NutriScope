@@ -1,16 +1,32 @@
 // Service Worker for NutriScope PWA
-const CACHE_NAME = 'nutriscope-v12'
-const RUNTIME_CACHE = 'nutriscope-runtime-v12'
+const CACHE_NAME = 'nutriscope-v13'
+const RUNTIME_CACHE = 'nutriscope-runtime-v13'
 const REMINDER_CHECK_INTERVAL = 30000 // Check every 30 seconds for more accurate timing
-const SW_VERSION = 'v12-fixed-duplicates-realtime'
+const SW_VERSION = 'v13-no-logs-prod'
 
 // Production-safe logging - disable logs in production unless explicitly enabled
-const isProduction = typeof self !== 'undefined' && 
-  self.location && 
-  self.location.hostname !== 'localhost' && 
-  self.location.hostname !== '127.0.0.1' &&
-  !self.location.hostname.includes('localhost')
+// Check if we're in production by hostname
+const isProduction = (() => {
+  if (typeof self === 'undefined' || !self.location) return false
+  const hostname = self.location.hostname.toLowerCase()
+  // Production domains
+  const prodDomains = ['nutriscope.app', 'www.nutriscope.app']
+  // Development domains
+  const devDomains = ['localhost', '127.0.0.1', '0.0.0.0']
+  
+  // Check if it's a production domain
+  if (prodDomains.some(domain => hostname === domain || hostname.endsWith('.' + domain))) {
+    return true
+  }
+  // Check if it's a development domain
+  if (devDomains.includes(hostname) || hostname.includes('localhost') || hostname.includes('127.0.0.1')) {
+    return false
+  }
+  // Default to production for any other domain (e.g., vercel.app, netlify.app, etc.)
+  return true
+})()
 
+// Only enable logs in development OR if explicitly enabled via flag
 const enableLogs = !isProduction || (typeof self !== 'undefined' && (self as any).ENABLE_SW_LOGS === 'true')
 
 const swLog = enableLogs ? (...args: any[]) => console.log('[SW]', ...args) : () => {}
