@@ -1456,11 +1456,22 @@ self.addEventListener('message', async (event) => {
   }
   
   if (event.data && event.data.type === 'TEST_NOTIFICATION') {
-    swLog('[SW] 🧪 Test notification requested')
+    // Always log test notifications, even in production
+    console.log('[SW] 🧪 Test notification requested')
+    console.log('[SW] Message data:', JSON.stringify(event.data))
     try {
       const title = event.data.title || 'Test Notification'
       const body = event.data.body || 'This is a test notification'
       
+      // Check notification permission first
+      try {
+        const allNotifications = await self.registration.getNotifications()
+        console.log(`[SW] Current active notifications: ${allNotifications.length}`)
+      } catch (permError) {
+        console.warn('[SW] Could not check notifications:', permError)
+      }
+      
+      console.log(`[SW] Attempting to show notification: "${title}" - "${body}"`)
       await self.registration.showNotification(title, {
         body: body,
         icon: '/favicon.ico',
@@ -1470,7 +1481,18 @@ self.addEventListener('message', async (event) => {
         vibrate: [200, 100, 200],
         data: { url: '/dashboard' },
       })
-      swLog('[SW] ✅ Test notification shown')
+      
+      // Verify notification was shown
+      await new Promise(resolve => setTimeout(resolve, 100))
+      const allNotifications = await self.registration.getNotifications()
+      const testNotifications = allNotifications.filter(n => n.tag === 'test-notification')
+      if (testNotifications.length > 0) {
+        console.log(`[SW] ✅ Test notification shown and verified: ${testNotifications.length} notification(s)`)
+      } else {
+        console.warn('[SW] ⚠️ Notification API succeeded but notification not found')
+        console.warn('[SW] 💡 This usually means browser/OS is blocking notifications')
+        console.warn('[SW] 💡 Check: Browser settings → Notifications → Site settings')
+      }
       
       // Send message to UI so it appears in notifications list
       const messageData = {
