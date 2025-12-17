@@ -559,11 +559,13 @@ function calculateNextTriggerTime(reminder, currentTime = new Date()) {
 async function checkReminders() {
   // Prevent concurrent executions
   if (isCheckingReminders) {
+    console.log('[SW] ⏭️ Reminder check already in progress, skipping...')
     swLog('[SW] ⏭️ Reminder check already in progress, skipping...')
     return
   }
   
   isCheckingReminders = true
+  console.log('[SW] 🔍 Starting reminder check...')
   
   try {
     // Check notification permission status
@@ -581,10 +583,12 @@ async function checkReminders() {
     let reminders = null
     
     if (currentUserId && currentAccessToken) {
+      console.log(`[SW] 🔍 Checking reminders from Supabase for user ${currentUserId}`)
       swLog(`[SW] 🔍 Checking reminders from Supabase for user ${currentUserId}`)
       swLog(`[SW] Supabase URL: ${SUPABASE_URL ? 'configured' : 'NOT SET'}`)
       swLog(`[SW] Access token: ${currentAccessToken ? 'present' : 'missing'}`)
       reminders = await fetchRemindersFromSupabase(currentUserId, currentAccessToken)
+      console.log(`[SW] Fetched ${reminders?.length || 0} reminders from Supabase`)
     } else {
       swLog(`[SW] ⚠️ Cannot fetch from Supabase - userId: ${currentUserId ? 'set' : 'NOT SET'}, accessToken: ${currentAccessToken ? 'set' : 'NOT SET'}`)
       swLog(`[SW] ⚠️ Waiting for SET_SUPABASE_CONFIG message from main app...`)
@@ -610,6 +614,7 @@ async function checkReminders() {
     }
 
     const now = Date.now()
+    console.log(`[SW] Checking ${reminders.length} reminders at ${new Date(now).toLocaleString()}`)
     swLog(`[SW] Checking ${reminders.length} reminders at ${new Date(now).toLocaleString()}`)
 
     for (const reminder of reminders) {
@@ -626,17 +631,19 @@ async function checkReminders() {
       const isOverdue = timeUntilTrigger < 0
 
       // Log each reminder being checked
+      console.log(`[SW] Checking reminder ${reminderId}: enabled=${enabled}, nextTrigger=${new Date(nextTriggerTime).toLocaleString()}, timeUntil=${minutesUntil}m (${secondsUntil}s), overdue=${isOverdue}`)
       swLog(`[SW] Checking reminder ${reminderId}: enabled=${enabled}, nextTrigger=${new Date(nextTriggerTime).toLocaleString()}, timeUntil=${minutesUntil}m (${secondsUntil}s), overdue=${isOverdue}`)
 
       // Trigger if reminder time has passed or is within the next 30 seconds
       // Also catch reminders that are up to 30 minutes overdue (in case we missed them)
-      // Round trigger times to nearest minute to prevent duplicate triggers within the same minute
-      const roundedNextTrigger = Math.floor(nextTriggerTime / 60000) * 60000
-      const roundedNow = Math.floor(now / 60000) * 60000
+      const shouldTrigger = enabled && nextTriggerTime <= now + 30000 && nextTriggerTime >= now - (30 * 60 * 1000)
+      console.log(`[SW] Should trigger ${reminderId}? ${shouldTrigger} (nextTriggerTime: ${nextTriggerTime}, now: ${now}, diff: ${nextTriggerTime - now}ms)`)
       
-      if (enabled && roundedNextTrigger <= roundedNow + 60000 && roundedNextTrigger >= roundedNow - (30 * 60 * 1000)) {
+      if (shouldTrigger) {
         // Check if this reminder was recently triggered to prevent duplicates
-        // Use rounded trigger time for cooldown check to prevent duplicates within same minute
+        // Round to nearest minute for cooldown check to prevent duplicates within same minute
+        const roundedNextTrigger = Math.floor(nextTriggerTime / 60000) * 60000
+        const roundedNow = Math.floor(now / 60000) * 60000
         const lastTriggered = recentlyTriggeredReminders.get(reminderId)
         const timeSinceLastTrigger = lastTriggered ? roundedNow - lastTriggered : Infinity
         
@@ -655,6 +662,8 @@ async function checkReminders() {
           }
         }
         
+        console.log(`[SW] 🔔 Triggering reminder: ${reminderId} at ${new Date(nextTriggerTime).toLocaleString()}`)
+        console.log(`[SW] Time until trigger: ${secondsUntil} seconds ${isOverdue ? '(OVERDUE)' : ''}`)
         swLog(`[SW] 🔔 Triggering reminder: ${reminderId} at ${new Date(nextTriggerTime).toLocaleString()}`)
         swLog(`[SW] Time until trigger: ${secondsUntil} seconds ${isOverdue ? '(OVERDUE)' : ''}`)
         
