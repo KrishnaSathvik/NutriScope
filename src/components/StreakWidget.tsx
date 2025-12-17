@@ -38,10 +38,11 @@ export function StreakWidget() {
   useUserRealtimeSubscription('daily_logs', ['streak'], user?.id)
 
   // Get cached data from React Query cache synchronously for immediate display
-  // Only use today's cache, not yesterday's, to avoid showing stale streak data
+  // This ensures streak shows instantly on page load without loading state
   const cachedStreakData = useMemo<StreakData | undefined>(() => {
     if (!user?.id) return undefined
-    // Only use today's cache - don't use yesterday's as streak might have changed
+    // Get cached data for today - React Query keeps this in memory
+    // This will be available immediately on page refresh if it was loaded before
     const cachedData = queryClient.getQueryData<StreakData>(['streak', user.id, today])
     return cachedData
   }, [user?.id, today, queryClient])
@@ -58,8 +59,7 @@ export function StreakWidget() {
         }
       }
       
-      // Phase 2: Try to get from DB first, but only if it's from today
-      // Don't use yesterday's DB data as streak might have changed
+      // Try to get from DB first (fast path)
       const dbStreak = await getUserStreak(user.id)
       if (dbStreak && dbStreak.lastLoggedDate) {
         const todayDate = new Date(today + 'T00:00:00') // Use start of day for comparison
@@ -69,28 +69,24 @@ export function StreakWidget() {
         // Only use DB streak if it's from today (daysDiff === 0)
         // If it's from yesterday or older, recalculate to get accurate current streak
         if (daysDiff === 0 && dbStreak.currentStreak > 0) {
-          console.log('[StreakWidget] Using DB streak from today:', dbStreak)
           return dbStreak
-        } else {
-          console.log(`[StreakWidget] DB streak is ${daysDiff} days old, recalculating...`)
         }
       }
       
       // Calculate fresh streak (will also save to DB)
-      console.log('[StreakWidget] Calculating fresh streak...')
       const result = await calculateLoggingStreak()
-      console.log('[StreakWidget] Calculated streak:', result)
       return result
     },
     enabled: !!user, // Only run if user exists (including guest users)
-    refetchOnWindowFocus: false,
-    refetchOnMount: true, // Refetch on mount to ensure fresh data
-    refetchOnReconnect: true, // Refetch on reconnect
-    staleTime: 0, // Always consider data stale - allows realtime updates to trigger refetch immediately
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchOnMount: false, // Don't refetch on mount - use cached data immediately
+    refetchOnReconnect: false, // Don't refetch on reconnect - cache is still valid
+    staleTime: 1000 * 60 * 30, // Consider data fresh for 30 minutes - allows showing cached data immediately
     retry: 1,
     gcTime: 24 * 60 * 60 * 1000, // Keep in cache for 24 hours
-    // Use cached data immediately if available to avoid loading state
-    placeholderData: (previousData) => previousData || cachedStreakData,
+    // Use cached data immediately if available - this prevents loading state
+    initialData: cachedStreakData, // Use cached data as initial data (shows immediately)
+    placeholderData: (previousData) => previousData || cachedStreakData, // Fallback to cached data while refetching
   })
   
   // Show fallback after 3 seconds if still loading
