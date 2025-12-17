@@ -759,6 +759,10 @@ async function checkReminders() {
           recentNotificationTags.delete(tag)
         }
         
+        // Use reminder trigger time as timestamp for consistent deduplication
+        // This ensures the same reminder trigger produces the same notification ID
+        const notificationTimestamp = nextTriggerTime // Use the actual trigger time, not current time
+        
         const messageData = {
           type: 'NOTIFICATION_SHOWN',
           notificationType: reminder.type || 'goal',
@@ -766,7 +770,7 @@ async function checkReminders() {
           body: body,
           url: data?.url || '/dashboard',
           tag: tag, // Include tag for deduplication
-          timestamp: Date.now(), // Include timestamp for deduplication
+          timestamp: notificationTimestamp, // Use trigger time for consistent deduplication
         }
         
         swLog(`[SW] Message data:`, JSON.stringify(messageData, null, 2))

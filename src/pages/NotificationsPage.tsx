@@ -73,9 +73,12 @@ export default function NotificationsPage() {
         console.log('[NotificationsPage] Received NOTIFICATION_SHOWN message:', data)
         
         // Create a unique ID for deduplication using tag + timestamp
+        // Round timestamp to nearest minute to handle slight timing differences
+        const messageTimestamp = data.timestamp || Date.now()
+        const roundedTimestamp = Math.floor(messageTimestamp / 60000) * 60000
         const notificationId = data.tag 
-          ? `${data.tag}-${data.timestamp || Date.now()}`
-          : `${data.title}-${data.timestamp || Date.now()}`
+          ? `${data.tag}-${roundedTimestamp}`
+          : `${data.title}-${roundedTimestamp}`
         
         // Check if we've already processed this notification
         if (recentNotificationIds.has(notificationId)) {

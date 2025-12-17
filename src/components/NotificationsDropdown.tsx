@@ -61,10 +61,13 @@ export function NotificationsDropdown() {
         console.log('[NotificationsDropdown] Received NOTIFICATION_SHOWN message:', data)
         
         // Create a unique ID for deduplication using tag + timestamp (same as NotificationsPage)
+        // Use the timestamp from the message (which is the reminder trigger time) for consistency
         const messageTimestamp = data.timestamp || Date.now()
+        // Round timestamp to nearest minute to handle slight timing differences
+        const roundedTimestamp = Math.floor(messageTimestamp / 60000) * 60000
         const notificationId = data.tag 
-          ? `${data.tag}-${messageTimestamp}`
-          : `${data.title}-${messageTimestamp}`
+          ? `${data.tag}-${roundedTimestamp}`
+          : `${data.title}-${roundedTimestamp}`
         
         console.log('[NotificationsDropdown] Generated notification ID:', notificationId)
         console.log('[NotificationsDropdown] Recent notification IDs:', Array.from(recentNotificationIdsRef.current))
