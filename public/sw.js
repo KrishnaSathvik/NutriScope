@@ -630,18 +630,23 @@ async function checkReminders() {
 
       // Trigger if reminder time has passed or is within the next 30 seconds
       // Also catch reminders that are up to 30 minutes overdue (in case we missed them)
-      if (enabled && nextTriggerTime <= now + 30000 && nextTriggerTime >= now - (30 * 60 * 1000)) {
+      // Round trigger times to nearest minute to prevent duplicate triggers within the same minute
+      const roundedNextTrigger = Math.floor(nextTriggerTime / 60000) * 60000
+      const roundedNow = Math.floor(now / 60000) * 60000
+      
+      if (enabled && roundedNextTrigger <= roundedNow + 60000 && roundedNextTrigger >= roundedNow - (30 * 60 * 1000)) {
         // Check if this reminder was recently triggered to prevent duplicates
+        // Use rounded trigger time for cooldown check to prevent duplicates within same minute
         const lastTriggered = recentlyTriggeredReminders.get(reminderId)
-        const timeSinceLastTrigger = lastTriggered ? now - lastTriggered : Infinity
+        const timeSinceLastTrigger = lastTriggered ? roundedNow - lastTriggered : Infinity
         
-        if (lastTriggered && timeSinceLastTrigger < TRIGGER_COOLDOWN_MS) {
+        if (lastTriggered && timeSinceLastTrigger < 60000) { // 1 minute cooldown using rounded times
           swLog(`[SW] ⏭️ Skipping duplicate trigger for ${reminderId} (triggered ${Math.round(timeSinceLastTrigger / 1000)}s ago)`)
           continue // Skip this reminder - already triggered recently
         }
         
-        // Mark as triggered immediately to prevent race conditions
-        recentlyTriggeredReminders.set(reminderId, now)
+        // Mark as triggered immediately to prevent race conditions (use rounded trigger time)
+        recentlyTriggeredReminders.set(reminderId, roundedNextTrigger)
         
         // Clean up old entries (older than cooldown period)
         for (const [id, timestamp] of recentlyTriggeredReminders.entries()) {
