@@ -222,14 +222,22 @@ export function ReminderSettingsSection() {
             >
               Enable Notifications
             </button>
-            {notificationService.hasPermission() && (
-              <button
-                onClick={handleTestNotification}
-                className="btn-secondary text-xs"
-              >
-                Test Notification
-              </button>
-            )}
+          </div>
+        </div>
+      )}
+
+      {notificationService.hasPermission() && (
+        <div className="mb-4 p-4 border border-success/30 bg-success/5 rounded-sm">
+          <p className="text-sm text-text font-mono mb-3">
+            Notifications are enabled. You can test them below.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleTestNotification}
+              className="btn-secondary text-xs"
+            >
+              🧪 Test Notification
+            </button>
           </div>
         </div>
       )}
