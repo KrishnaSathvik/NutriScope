@@ -177,18 +177,17 @@ class SupabaseReminderService {
 
     // Delete existing reminders for this user
     // CRITICAL: Wait for delete to complete before inserting to avoid duplicate key errors
-    const { error: deleteError, count: deleteCount } = await supabase
+    const { error: deleteError } = await supabase
       .from('reminders')
       .delete()
       .eq('user_id', userId)
-      .select('id', { count: 'exact', head: true })
 
     if (deleteError) {
       console.error('[SupabaseReminders] Error deleting old reminders:', deleteError)
       // If delete fails, try to continue anyway - upsert will handle duplicates
       console.warn('[SupabaseReminders] Continuing despite delete error - will use upsert to handle duplicates')
     } else {
-      console.log(`[SupabaseReminders] Deleted ${deleteCount || 0} existing reminders`)
+      console.log('[SupabaseReminders] Deleted existing reminders')
     }
 
     // Wait a moment to ensure delete transaction completes

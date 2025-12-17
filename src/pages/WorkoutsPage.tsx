@@ -12,7 +12,7 @@ import { Exercise } from '@/types'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 
 export default function WorkoutsPage() {
-  const { user, isGuest, profile } = useAuth()
+  const { user, profile } = useAuth()
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null)
   const [showExerciseSelector, setShowExerciseSelector] = useState(false)
@@ -312,12 +312,6 @@ export default function WorkoutsPage() {
     return workoutTypeConfig[type as keyof typeof workoutTypeConfig] || workoutTypeConfig.other
   }
 
-  const handleRefresh = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['exercises'] }),
-      queryClient.invalidateQueries({ queryKey: ['dailyLog'] }),
-    ])
-  }
 
   return (
       <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
