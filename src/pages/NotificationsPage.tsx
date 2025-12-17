@@ -122,12 +122,18 @@ export default function NotificationsPage() {
     try {
       broadcastChannel = new BroadcastChannel('nutriscope-notifications')
       broadcastChannel.onmessage = (event) => {
-        console.log('[NotificationsPage] Received BroadcastChannel message:', event.data)
-        handleNotification(event.data)
+        console.log('[NotificationsPage] 📨 Received BroadcastChannel message:', event.data)
+        console.log('[NotificationsPage] Message type:', event.data?.type)
+        if (event.data && event.data.type === 'NOTIFICATION_SHOWN') {
+          console.log('[NotificationsPage] ✅ Processing NOTIFICATION_SHOWN message')
+          handleNotification(event.data)
+        } else {
+          console.log('[NotificationsPage] ⚠️ Ignoring message - wrong type:', event.data?.type)
+        }
       }
-      console.log('[NotificationsPage] BroadcastChannel listener registered')
+      console.log('[NotificationsPage] ✅ BroadcastChannel listener registered')
     } catch (error) {
-      console.warn('[NotificationsPage] BroadcastChannel not available:', error)
+      console.warn('[NotificationsPage] ⚠️ BroadcastChannel not available:', error)
     }
 
     // Fallback: Service Worker messages (works when SW controls the page)
@@ -135,12 +141,15 @@ export default function NotificationsPage() {
     let handleMessage: ((event: MessageEvent) => void) | null = null
     if ('serviceWorker' in navigator) {
       handleMessage = (event: MessageEvent) => {
+        console.log('[NotificationsPage] 📨 Received Service Worker message:', event.data)
         // Handle notification shown messages
         if (event.data && event.data.type === 'NOTIFICATION_SHOWN') {
+          console.log('[NotificationsPage] ✅ Processing NOTIFICATION_SHOWN from SW')
           handleNotification(event.data)
         }
         // Handle storage save messages (fallback)
         if (event.data && event.data.type === 'SAVE_NOTIFICATION_TO_STORAGE') {
+          console.log('[NotificationsPage] ✅ Processing SAVE_NOTIFICATION_TO_STORAGE from SW')
           handleNotification(event.data.notification)
         }
       }

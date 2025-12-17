@@ -2,8 +2,30 @@ import { logger } from './logger'
 
 /**
  * Register Service Worker for PWA functionality
+ * Only registers in production to avoid interfering with Vite dev server
  */
 export function registerServiceWorker() {
+  // Skip service worker registration in development
+  const isDevelopment = import.meta.env.DEV || 
+    window.location.hostname === 'localhost' || 
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname.includes('localhost')
+  
+  if (isDevelopment) {
+    logger.debug('Service Worker registration skipped in development mode')
+    // Unregister any existing service workers in development
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => {
+          registration.unregister().then(() => {
+            logger.debug('Unregistered existing service worker for development')
+          })
+        })
+      })
+    }
+    return
+  }
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker

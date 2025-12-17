@@ -158,6 +158,19 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // Skip Vite dev server requests (HMR, source files, etc.)
+  const url = new URL(event.request.url)
+  if (url.pathname.startsWith('/src/') || 
+      url.pathname.startsWith('/node_modules/') ||
+      url.pathname.includes('?t=') || // Vite timestamp query param
+      url.searchParams.has('import') || // Vite import
+      url.pathname.endsWith('.tsx') ||
+      url.pathname.endsWith('.ts') ||
+      url.pathname.endsWith('.jsx') ||
+      url.pathname.endsWith('.vue')) {
+    return // Let browser handle Vite dev server requests
+  }
+
   // Network-first strategy for HTML documents (ensures fresh content)
   if (event.request.destination === 'document' || event.request.mode === 'navigate') {
     event.respondWith(
@@ -179,7 +192,9 @@ self.addEventListener('fetch', (event) => {
               return cachedResponse
             }
             // Fallback to index.html for navigation requests
-            return caches.match('/index.html')
+            return caches.match('/index.html').then((indexHtml) => {
+              return indexHtml || new Response('Offline', { status: 503, statusText: 'Service Unavailable' })
+            })
           })
         })
     )
@@ -226,8 +241,12 @@ self.addEventListener('fetch', (event) => {
         .catch(() => {
           // Return offline page if available for navigation requests
           if (event.request.destination === 'document') {
-            return caches.match('/index.html')
+            return caches.match('/index.html').then((indexHtml) => {
+              return indexHtml || new Response('Offline', { status: 503, statusText: 'Service Unavailable' })
+            })
           }
+          // For non-document requests, return a proper error response
+          return new Response('Network error', { status: 408, statusText: 'Request Timeout' })
         })
     })
   )
@@ -1457,12 +1476,16 @@ self.addEventListener('message', async (event) => {
       
       let messageSent = false
       
-      // Method 1: BroadcastChannel
+      // Method 1: BroadcastChannel (keep open longer to ensure delivery)
       try {
         const channel = new BroadcastChannel('nutriscope-notifications')
         channel.postMessage(messageData)
         swLog('[SW] ✅ Test notification message sent via BroadcastChannel')
-        setTimeout(() => channel.close(), 100)
+        // Keep channel open longer to ensure message is delivered
+        setTimeout(() => {
+          channel.postMessage(messageData) // Send again after a delay as backup
+          setTimeout(() => channel.close(), 200)
+        }, 500)
         messageSent = true
       } catch (error) {
         swWarn('[SW] ⚠️ BroadcastChannel not available for test:', error)
