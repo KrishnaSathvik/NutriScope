@@ -48,7 +48,7 @@ export function StreakWidget() {
   }, [user?.id, today, queryClient])
   
   const { data: streakData, isLoading, error } = useQuery({
-    queryKey: ['streak', user?.id, today], // Include date in query key so it refetches on new day
+    queryKey: ['streak', user?.id, today], // Date in query key ensures new query on day change
     queryFn: async () => {
       if (!user?.id) {
         return {
@@ -59,7 +59,7 @@ export function StreakWidget() {
         }
       }
       
-      // Try to get from DB first (fast path)
+      // Try to get from DB first (fast path - DB has pre-calculated streak)
       const dbStreak = await getUserStreak(user.id)
       if (dbStreak && dbStreak.lastLoggedDate) {
         const todayDate = new Date(today + 'T00:00:00') // Use start of day for comparison
@@ -78,12 +78,12 @@ export function StreakWidget() {
       return result
     },
     enabled: !!user, // Only run if user exists (including guest users)
-    refetchOnWindowFocus: false, // Don't refetch on window focus
-    refetchOnMount: false, // Don't refetch on mount - use cached data immediately
-    refetchOnReconnect: false, // Don't refetch on reconnect - cache is still valid
-    staleTime: 1000 * 60 * 30, // Consider data fresh for 30 minutes - allows showing cached data immediately
+    refetchOnWindowFocus: false, // Don't refetch on window focus - streak doesn't change
+    refetchOnMount: false, // Don't refetch on mount - streak stays same for the day
+    refetchOnReconnect: false, // Don't refetch on reconnect - streak doesn't change
+    staleTime: Infinity, // Streak doesn't change during the day - date in query key handles day changes
     retry: 1,
-    gcTime: 24 * 60 * 60 * 1000, // Keep in cache for 24 hours
+    gcTime: 24 * 60 * 60 * 1000 * 7, // Keep in cache for 7 days (for history)
     // Use cached data immediately if available - this prevents loading state
     initialData: cachedStreakData, // Use cached data as initial data (shows immediately)
     placeholderData: (previousData) => previousData || cachedStreakData, // Fallback to cached data while refetching
