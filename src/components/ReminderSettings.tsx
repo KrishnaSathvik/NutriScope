@@ -152,14 +152,31 @@ export function ReminderSettingsSection() {
       return
     }
 
+    console.log('[ReminderSettings] Sending test notification...')
+    console.log('[ReminderSettings] Service worker available:', 'serviceWorker' in navigator)
+    console.log('[ReminderSettings] Service worker controller:', navigator.serviceWorker?.controller)
+
     // Test notification via service worker if available
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      navigator.serviceWorker.controller.postMessage({
-        type: 'TEST_NOTIFICATION',
-        title: '🧪 Test Notification',
-        body: 'If you see this, notifications are working!',
-      })
+      console.log('[ReminderSettings] Sending TEST_NOTIFICATION message to service worker')
+      try {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'TEST_NOTIFICATION',
+          title: '🧪 Test Notification',
+          body: 'If you see this, notifications are working!',
+        })
+        console.log('[ReminderSettings] ✅ Message sent to service worker')
+      } catch (error) {
+        console.error('[ReminderSettings] ❌ Error sending message:', error)
+        toast({
+          title: 'Error',
+          description: 'Failed to send test notification. Check console for details.',
+          variant: 'destructive',
+        })
+        return
+      }
     } else {
+      console.log('[ReminderSettings] Service worker not available, using fallback')
       // Fallback to direct notification
       await notificationService.showNotification({
         title: '🧪 Test Notification',

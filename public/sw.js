@@ -1503,12 +1503,17 @@ self.addEventListener('message', async (event) => {
       // Method 2: Direct postMessage
       try {
         const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
+        swLog(`[SW] 📤 Found ${clients.length} client(s) for test notification`)
         if (clients.length > 0) {
-          clients.forEach(client => {
-            client.postMessage(messageData)
+          clients.forEach((client, index) => {
+            try {
+              client.postMessage(messageData)
+              swLog(`[SW] ✅ Test notification message sent to client ${index + 1}/${clients.length} (${client.url})`)
+              messageSent = true
+            } catch (error) {
+              swWarn(`[SW] ⚠️ Failed to send test notification to client ${index + 1}:`, error)
+            }
           })
-          swLog(`[SW] ✅ Test notification message sent to ${clients.length} client(s)`)
-          messageSent = true
         } else {
           swWarn('[SW] ⚠️ No clients found to send test notification message')
         }
