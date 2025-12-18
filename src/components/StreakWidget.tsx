@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import { format } from 'date-fns'
 import { calculateLoggingStreak } from '@/services/streak'
 import { getUserStreak } from '@/services/streaks'
@@ -25,7 +25,6 @@ function getStreakMessage(streak: number): string {
 export function StreakWidget() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
-  const [showFallback, setShowFallback] = useState(false)
   
   // Get today's date string for cache invalidation
   const today = format(new Date(), 'yyyy-MM-dd')
@@ -89,18 +88,6 @@ export function StreakWidget() {
     placeholderData: (previousData) => previousData || cachedStreakData, // Fallback to cached data while refetching
   })
   
-  // Show fallback after 3 seconds if still loading
-  useEffect(() => {
-    if (isLoading) {
-      const timer = setTimeout(() => {
-        setShowFallback(true)
-      }, 3000)
-      return () => clearTimeout(timer)
-    } else {
-      setShowFallback(false)
-    }
-  }, [isLoading])
-  
   // Default state component
   const DefaultState = () => (
     <div className="card-modern p-3 md:p-4">
@@ -129,25 +116,14 @@ export function StreakWidget() {
     console.error('StreakWidget error:', error)
   }
 
-  // Show widget even if there's an error (with default values)
-  if (error && !streakData) {
-    return <DefaultState />
-  }
-
-  // Show fallback state if loading takes too long
-  if (isLoading && showFallback) {
-    return <DefaultState />
-  }
-
   // Use streakData (which includes placeholderData) - this shows cached data immediately
   // placeholderData makes streakData available even while loading
+  // This ensures we show cached data immediately, even if still loading
   const displayData = streakData
   
-  // Show loading state only if we have no data at all (not even placeholder)
-  // placeholderData ensures streakData is available immediately from cache
-  const hasNoData = !displayData
-  
-  if (isLoading && hasNoData) {
+  // Show loading skeleton only if we have no data at all (not even placeholder/cached)
+  // This should rarely happen since placeholderData provides cached data
+  if (isLoading && !displayData) {
     return (
       <div className="card-modern p-3 md:p-4">
         <div className="flex items-center gap-2 mb-2">
@@ -163,24 +139,11 @@ export function StreakWidget() {
     )
   }
 
-  // Show default state only if we truly have no streak data
-  if (!displayData || displayData.currentStreak === 0) {
-    return (
-      <div className="card-modern p-3 md:p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-8 h-8 rounded-sm bg-acid/20 border border-acid/30 flex items-center justify-center">
-            <Zap className="w-4 h-4 text-amber-500 fill-amber-500 dark:text-amber-500 dark:fill-amber-500" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] md:text-xs text-dim font-mono uppercase tracking-wider mb-1">Logging Streak</div>
-            <div className="text-lg md:text-xl font-bold text-text font-mono">Start logging!</div>
-          </div>
-        </div>
-        <div className="text-[10px] md:text-xs text-dim font-mono mt-2">
-          Log meals, workouts, or water to start your streak
-        </div>
-      </div>
-    )
+  // Show default state only if we truly have no streak data AND not loading
+  // If we have cached data (even if currentStreak is 0), show it
+  // Only show "Start logging!" if we have no data at all and not loading
+  if (!displayData || (!isLoading && displayData.currentStreak === 0 && !displayData.lastLoggedDate)) {
+    return <DefaultState />
   }
 
   // Use displayData (either cached or fetched)

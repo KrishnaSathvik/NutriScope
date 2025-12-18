@@ -2,7 +2,7 @@
 const CACHE_NAME = 'nutriscope-v15'
 const RUNTIME_CACHE = 'nutriscope-runtime-v15'
 const REMINDER_CHECK_INTERVAL = 30000 // Check every 30 seconds for more accurate timing
-const SW_VERSION = 'v15-force-activate'
+const SW_VERSION = 'v16-reminder-fix'
 
 // Production-safe logging - disable logs in production unless explicitly enabled
 // Check if we're in production by hostname
@@ -362,18 +362,30 @@ async function fetchRemindersFromSupabase(userId, accessToken) {
       }
 
       const reminders = await response.json()
+      console.log(`[SW] ✅ Fetched ${reminders.length} reminders from Supabase`)
       swLog(`[SW] ✅ Fetched ${reminders.length} reminders from Supabase`)
-      swLog(`[SW] 📋 Reminders data:`, JSON.stringify(reminders, null, 2))
+      
       if (reminders.length > 0) {
+        const now = new Date()
+        console.log(`[SW] 📋 Reminder details:`)
         reminders.forEach(r => {
-          const triggerTime = r.next_trigger_time ? new Date(r.next_trigger_time).toLocaleString() : 'unknown'
-          const now = new Date()
-          const triggerDate = r.next_trigger_time ? new Date(r.next_trigger_time) : null
-          const timeUntil = triggerDate ? triggerDate.getTime() - now.getTime() : null
+          const triggerTime = r.next_trigger_time ? new Date(r.next_trigger_time) : null
+          const triggerTimeStr = triggerTime ? triggerTime.toLocaleString() : 'INVALID'
+          const timeUntil = triggerTime ? triggerTime.getTime() - now.getTime() : null
           const minutesUntil = timeUntil ? Math.round(timeUntil / 1000 / 60) : null
-          swLog(`[SW]   - ${r.id}: ${r.title} at ${triggerTime} (${minutesUntil !== null ? `${minutesUntil}m` : 'unknown'} until trigger)`)
+          const secondsUntil = timeUntil ? Math.round(timeUntil / 1000) : null
+          const isPast = timeUntil ? timeUntil < 0 : false
+          const isValid = triggerTime && !isNaN(triggerTime.getTime())
+          
+          console.log(`[SW]   - ${r.id}: ${r.title}`)
+          console.log(`[SW]     Trigger time: ${triggerTimeStr} ${isValid ? '' : '(INVALID DATE)'}`)
+          console.log(`[SW]     Time until: ${minutesUntil !== null ? `${minutesUntil}m (${secondsUntil}s)` : 'unknown'} ${isPast ? '(PAST)' : ''}`)
+          console.log(`[SW]     Enabled: ${r.enabled !== false}`)
+          
+          swLog(`[SW]   - ${r.id}: ${r.title} at ${triggerTimeStr} (${minutesUntil !== null ? `${minutesUntil}m` : 'unknown'} until trigger)`)
         })
       } else {
+        console.log('[SW] ℹ️ No reminders found in the upcoming window (30 minutes past to 30 minutes future)')
         swLog('[SW] ℹ️ No reminders found in the upcoming window (30 minutes past to 30 minutes future)')
       }
       return reminders
@@ -445,12 +457,26 @@ function calculateNextTriggerTime(reminder, currentTime = new Date()) {
   const now = currentTime.getTime()
   
   // Handle both JSONB data (from Supabase) and regular objects
-  const reminderData = typeof reminder.data === 'string' ? JSON.parse(reminder.data) : reminder.data
+  let reminderData
+  try {
+    reminderData = typeof reminder.data === 'string' ? JSON.parse(reminder.data) : (reminder.data || {})
+  } catch (e) {
+    swWarn(`[SW] ⚠️ Failed to parse reminder data for ${reminder.id}:`, e)
+    reminderData = {}
+  }
 
   switch (reminder.reminder_type) {
     case 'daily': {
-      const time = reminderData?.time || '08:00'
+      // Try to get time from data, or from reminder object directly
+      const time = reminderData?.time || reminder.time || reminder.start_time || '08:00'
       const [hours, minutes] = time.split(':').map(Number)
+      
+      // Validate time values
+      if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        swError(`[SW] ❌ Invalid time format for daily reminder ${reminder.id}: ${time}`)
+        return new Date(now + 60 * 60 * 1000) // Default to 1 hour from now
+      }
+      
       const nextTrigger = new Date(currentTime)
       nextTrigger.setHours(hours, minutes, 0, 0)
 
@@ -458,6 +484,7 @@ function calculateNextTriggerTime(reminder, currentTime = new Date()) {
         nextTrigger.setDate(nextTrigger.getDate() + 1)
       }
 
+      console.log(`[SW] Calculated next trigger for daily reminder ${reminder.id}: ${nextTrigger.toLocaleString()} (from time: ${time})`)
       return nextTrigger
     }
 
@@ -638,8 +665,18 @@ async function checkReminders() {
 
       // Trigger if reminder time has passed or is within the next 30 seconds
       // Also catch reminders that are up to 30 minutes overdue (in case we missed them)
+      // IMPORTANT: Check if nextTriggerTime is valid (not NaN)
+      if (isNaN(nextTriggerTime) || nextTriggerTime === 0) {
+        swError(`[SW] ❌ Invalid nextTriggerTime for reminder ${reminderId}: ${reminder.next_trigger_time || reminder.nextTriggerTime}`)
+        continue
+      }
+      
       const shouldTrigger = enabled && nextTriggerTime <= now + 30000 && nextTriggerTime >= now - (30 * 60 * 1000)
-      console.log(`[SW] Should trigger ${reminderId}? ${shouldTrigger} (nextTriggerTime: ${nextTriggerTime}, now: ${now}, diff: ${nextTriggerTime - now}ms)`)
+      console.log(`[SW] Should trigger ${reminderId}? ${shouldTrigger}`)
+      console.log(`[SW]   - nextTriggerTime: ${new Date(nextTriggerTime).toLocaleString()} (${nextTriggerTime})`)
+      console.log(`[SW]   - now: ${new Date(now).toLocaleString()} (${now})`)
+      console.log(`[SW]   - diff: ${nextTriggerTime - now}ms (${Math.round((nextTriggerTime - now) / 1000)}s)`)
+      console.log(`[SW]   - enabled: ${enabled}`)
       
       if (shouldTrigger) {
         // Check if this reminder was recently triggered to prevent duplicates

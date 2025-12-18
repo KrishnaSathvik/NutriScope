@@ -99,11 +99,19 @@ export function ReminderScheduler() {
         await supabaseReminderService.createRemindersFromSettings(user.id, settings)
         console.log('[ReminderScheduler] ✅ Reminders scheduled successfully in Supabase')
         
-        // Verify reminders were saved
+        // Verify reminders were saved and check their times
         const savedReminders = await supabaseReminderService.getUserReminders(user.id)
         console.log(`[ReminderScheduler] Verified: ${savedReminders.length} reminders saved to Supabase`)
+        const now = new Date()
         savedReminders.forEach(r => {
-          console.log(`[ReminderScheduler] - ${r.id}: ${r.title} at ${new Date(r.next_trigger_time).toLocaleString()}`)
+          const triggerTime = new Date(r.next_trigger_time)
+          const timeUntil = triggerTime.getTime() - now.getTime()
+          const minutesUntil = Math.round(timeUntil / 1000 / 60)
+          const isPast = timeUntil < 0
+          console.log(`[ReminderScheduler] - ${r.id}: ${r.title}`)
+          console.log(`[ReminderScheduler]   Scheduled: ${triggerTime.toLocaleString()}`)
+          console.log(`[ReminderScheduler]   Time until: ${minutesUntil} minutes ${isPast ? '(PAST)' : ''}`)
+          console.log(`[ReminderScheduler]   Enabled: ${r.enabled}`)
         })
         
         // Send Supabase config to service worker and notify to refresh reminders
@@ -178,6 +186,21 @@ export function ReminderScheduler() {
           
           // Start sending config - try immediately, then retry if needed
           sendConfigToSW()
+          
+          // Register Periodic Background Sync if supported (for better mobile PWA support)
+          if ('serviceWorker' in navigator && 'periodicSync' in (window as any)) {
+            try {
+              const registration = await navigator.serviceWorker.ready
+              // Request permission for periodic sync
+              const status = await (registration as any).periodicSync.register('check-reminders-periodic', {
+                minInterval: 30 * 60 * 1000, // Minimum 30 minutes (browser may increase)
+              })
+              console.log('[ReminderScheduler] ✅ Periodic Background Sync registered:', status)
+            } catch (error) {
+              console.warn('[ReminderScheduler] ⚠️ Periodic Background Sync not available:', error)
+              // This is fine - periodic sync is only supported in Chrome/Edge
+            }
+          }
         } else {
           console.warn('[ReminderScheduler] ⚠️ Cannot send config to service worker:', {
             hasServiceWorker: 'serviceWorker' in navigator,
