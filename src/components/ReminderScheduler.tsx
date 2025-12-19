@@ -17,13 +17,46 @@ export function ReminderScheduler() {
   const processingRef = useRef(false) // Prevent concurrent executions
   const realtimeChannelRef = useRef<any>(null) // Store realtime channel
   
-  // Listen for service worker confirmation that config was received
+  // Listen for service worker messages (config confirmation and token expiration)
   useEffect(() => {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return
     
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = async (event: MessageEvent) => {
       if (event.data && event.data.type === 'SW_CONFIG_RECEIVED') {
         console.log('[ReminderScheduler] ✅ Service worker confirmed config received:', event.data)
+      }
+      
+      // Handle token expiration request from service worker
+      if (event.data && event.data.type === 'SW_TOKEN_EXPIRED') {
+        console.log('[ReminderScheduler] ⚠️ Service worker reported token expired, refreshing...')
+        
+        if (!supabase || !user) return
+        
+        try {
+          // Get fresh session (Supabase client will auto-refresh if needed)
+          const { data: { session }, error } = await supabase.auth.getSession()
+          
+          if (error) {
+            console.error('[ReminderScheduler] Error getting session:', error)
+            return
+          }
+          
+          if (session?.access_token) {
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+            const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+            
+            if (supabaseUrl && supabaseAnonKey && navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({
+                type: 'REFRESH_ACCESS_TOKEN',
+                accessToken: session.access_token,
+                userId: user.id,
+              })
+              console.log('[ReminderScheduler] ✅ Token refresh sent to service worker')
+            }
+          }
+        } catch (error) {
+          console.error('[ReminderScheduler] Error handling token expiration:', error)
+        }
       }
     }
     
@@ -31,7 +64,7 @@ export function ReminderScheduler() {
     return () => {
       navigator.serviceWorker.removeEventListener('message', handleMessage)
     }
-  }, [])
+  }, [user])
 
   useEffect(() => {
     console.log('[ReminderScheduler] useEffect triggered', { 
@@ -288,6 +321,68 @@ export function ReminderScheduler() {
         supabase.removeChannel(realtimeChannelRef.current)
         realtimeChannelRef.current = null
       }
+    }
+  }, [user])
+
+  // Set up token refresh listener to update service worker when token refreshes
+  useEffect(() => {
+    if (!user || !supabase || !isSupabaseConfigured()) {
+      return
+    }
+
+    console.log('[ReminderScheduler] Setting up token refresh listener')
+
+    // Listen for auth state changes (including token refresh)
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // When token is refreshed, update service worker
+      if (event === 'TOKEN_REFRESHED' && session?.access_token) {
+        console.log('[ReminderScheduler] Token refreshed, updating service worker...')
+        
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+          
+          if (supabaseUrl && supabaseAnonKey && session.access_token) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'REFRESH_ACCESS_TOKEN',
+              accessToken: session.access_token,
+              userId: user.id,
+            })
+            console.log('[ReminderScheduler] ✅ Token refresh sent to service worker')
+          }
+        }
+      }
+    })
+
+    // Also set up periodic token refresh check (every 50 minutes to refresh before 1 hour expiry)
+    const tokenRefreshInterval = setInterval(async () => {
+      if (!supabase) return
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.access_token && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+          
+          if (supabaseUrl && supabaseAnonKey) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'REFRESH_ACCESS_TOKEN',
+              accessToken: session.access_token,
+              userId: user.id,
+            })
+            console.log('[ReminderScheduler] ✅ Periodic token refresh sent to service worker')
+          }
+        }
+      } catch (error) {
+        console.error('[ReminderScheduler] Error refreshing token:', error)
+      }
+    }, 50 * 60 * 1000) // Every 50 minutes
+
+    return () => {
+      subscription.unsubscribe()
+      clearInterval(tokenRefreshInterval)
     }
   }, [user])
 

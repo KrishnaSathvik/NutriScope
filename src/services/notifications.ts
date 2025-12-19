@@ -93,8 +93,8 @@ class NotificationService {
       console.log('[NotificationService] Showing notification:', options.title)
       const notification = new Notification(options.title, {
         body: options.body,
-        icon: options.icon || '/favicon.ico',
-        badge: options.badge || '/favicon.ico',
+        icon: options.icon || '/android-chrome-192x192.png',
+        badge: options.badge || '/android-chrome-192x192.png',
         tag: options.tag,
         requireInteraction: options.requireInteraction || false,
         silent: options.silent || false,

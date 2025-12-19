@@ -1,6 +1,30 @@
 /**
- * Smart Reminder Service
- * Provides context-aware, adaptive reminders that learn from user behavior
+ * Smart Reminder Service (LEGACY - NOT USED IN CURRENT FLOW)
+ * 
+ * ⚠️ WARNING: This service is LEGACY CODE and is NOT actively used in the current reminder system.
+ * 
+ * The current reminder system uses:
+ * - `supabaseReminders.ts` - Primary service that stores reminders in Supabase database
+ * - Service Worker (`public/sw.js`) - Fetches reminders from Supabase and triggers notifications
+ * 
+ * This file was originally designed for IndexedDB-only storage but has been superseded by
+ * the Supabase-based approach for better reliability and cross-device synchronization.
+ * 
+ * **Why this file still exists:**
+ * - Kept as a fallback/offline mechanism (though not currently integrated)
+ * - Contains useful reminder calculation logic that could be reused
+ * - May be needed for future offline-first features
+ * 
+ * **Current Status:**
+ * - ❌ NOT called by ReminderScheduler component
+ * - ❌ NOT used in production flow
+ * - ⚠️ May contain outdated logic
+ * 
+ * **If you need to modify reminder logic:**
+ * - Edit `src/services/supabaseReminders.ts` instead
+ * - This file should only be modified if implementing offline fallback
+ * 
+ * @deprecated Use `supabaseReminders.ts` instead
  */
 
 import { reminderStorage, StoredReminder } from './reminderStorage'

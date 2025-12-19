@@ -74,6 +74,7 @@ let SUPABASE_URL = null
 let SUPABASE_ANON_KEY = null
 let currentUserId = null
 let currentAccessToken = null
+let tokenRefreshRequested = false // Track if we've requested a token refresh
 
 // Track recently triggered reminders to prevent duplicates
 // Key: reminderId, Value: timestamp when triggered
@@ -354,6 +355,28 @@ async function fetchRemindersFromSupabase(userId, accessToken) {
       clearTimeout(timeoutId)
       swLog(`[SW] 📡 Fetch response received: status=${response.status}, ok=${response.ok}`)
 
+      // Handle 401 Unauthorized - token expired, request refresh
+      if (response.status === 401) {
+        swWarn('[SW] ⚠️ Access token expired (401), requesting refresh from main app...')
+        if (!tokenRefreshRequested) {
+          tokenRefreshRequested = true
+          // Request token refresh from main app
+          try {
+            const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
+            clients.forEach(client => {
+              client.postMessage({
+                type: 'SW_TOKEN_EXPIRED',
+                userId: userId,
+              })
+            })
+            swLog('[SW] ✅ Token refresh requested from main app')
+          } catch (error) {
+            swError('[SW] ❌ Failed to request token refresh:', error)
+          }
+        }
+        return null
+      }
+
       if (!response.ok) {
         const errorText = await response.text()
         swError('[SW] ❌ Error fetching reminders from Supabase:', response.status, response.statusText)
@@ -438,6 +461,27 @@ async function updateReminderInSupabase(reminderId, nextTriggerTime, currentTrig
         trigger_count: currentTriggerCount + 1,
       }),
     })
+
+    // Handle 401 Unauthorized - token expired
+    if (response.status === 401) {
+      swWarn('[SW] ⚠️ Access token expired (401) while updating reminder, requesting refresh...')
+      if (!tokenRefreshRequested) {
+        tokenRefreshRequested = true
+        try {
+          const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
+          clients.forEach(client => {
+            client.postMessage({
+              type: 'SW_TOKEN_EXPIRED',
+              userId: currentUserId,
+            })
+          })
+          swLog('[SW] ✅ Token refresh requested from main app')
+        } catch (error) {
+          swError('[SW] ❌ Failed to request token refresh:', error)
+        }
+      }
+      return false
+    }
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -779,8 +823,8 @@ async function checkReminders() {
           
           await self.registration.showNotification(title, {
             body,
-            icon: reminder.icon || reminder.options?.icon || '/favicon.ico',
-            badge: reminder.badge || reminder.options?.badge || '/favicon.ico',
+            icon: reminder.icon || reminder.options?.icon || '/android-chrome-192x192.png',
+            badge: reminder.badge || reminder.options?.badge || '/android-chrome-192x192.png',
             tag,
             data,
             requireInteraction: false, // Changed to false for better mobile PWA support
@@ -1061,7 +1105,11 @@ async function triggerReminder(reminder, db) {
 
     try {
       // Show the notification
-      await self.registration.showNotification(title, options)
+      await self.registration.showNotification(title, {
+        ...options,
+        icon: options.icon || '/android-chrome-192x192.png',
+        badge: options.badge || '/android-chrome-192x192.png',
+      })
       swLog(`[SW] ✅ Notification API call succeeded: ${title}`)
       
       // Verify notification was actually shown by checking if it exists
@@ -1467,6 +1515,7 @@ self.addEventListener('message', async (event) => {
     SUPABASE_ANON_KEY = event.data.supabaseAnonKey
     currentUserId = event.data.userId
     currentAccessToken = event.data.accessToken
+    tokenRefreshRequested = false // Reset token refresh flag when new token received
     
     // Always log config receipt (even in production) for debugging
     swLog('[SW] ✅ Supabase configuration received and set')
@@ -1502,6 +1551,24 @@ self.addEventListener('message', async (event) => {
       })
     } catch (e) {
       // Ignore errors sending confirmation
+    }
+  }
+  
+  if (event.data && event.data.type === 'REFRESH_ACCESS_TOKEN') {
+    // Update access token when main app refreshes it
+    const newAccessToken = event.data.accessToken
+    if (newAccessToken) {
+      currentAccessToken = newAccessToken
+      tokenRefreshRequested = false // Reset flag
+      swLog('[SW] ✅ Access token refreshed successfully')
+      
+      // Immediately retry reminder check with new token
+      if (currentUserId && !isCheckingReminders) {
+        swLog('[SW] Retrying reminder check with refreshed token...')
+        await checkReminders()
+      }
+    } else {
+      swError('[SW] ❌ Token refresh message received but no token provided')
     }
   }
   
@@ -1547,8 +1614,8 @@ self.addEventListener('message', async (event) => {
       console.log(`[SW] Attempting to show notification: "${title}" - "${body}"`)
       await self.registration.showNotification(title, {
         body: body,
-        icon: '/favicon.ico',
-        badge: '/favicon.ico',
+        icon: '/android-chrome-192x192.png',
+        badge: '/android-chrome-192x192.png',
         tag: 'test-notification',
         requireInteraction: false,
         vibrate: [200, 100, 200],

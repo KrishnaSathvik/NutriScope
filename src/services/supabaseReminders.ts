@@ -507,7 +507,7 @@ class SupabaseReminderService {
   /**
    * Get upcoming reminders for a user
    */
-  async getUpcomingReminders(userId: string, windowMinutes: number = 5): Promise<SupabaseReminder[]> {
+  async getUpcomingReminders(userId: string, windowMinutes: number = 30): Promise<SupabaseReminder[]> {
     if (!supabase) {
       throw new Error('Supabase client not available')
     }
