@@ -2,9 +2,9 @@ export default function Logo({ className = '', useImage = false }: { className?:
   if (useImage) {
     return (
       <div className={`flex items-center ${className}`}>
-        <img 
-          src="/logo.png" 
-          alt="NutriScope" 
+        <img
+          src="/logo.png"
+          alt="NutriScope"
           className="h-8 sm:h-10 md:h-12 w-auto"
           aria-label="NutriScope Logo"
         />

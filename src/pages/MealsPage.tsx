@@ -514,7 +514,7 @@ export default function MealsPage() {
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
                     max={today}
-                    className="bg-transparent border-none text-[10px] md:text-xs font-mono text-text focus:outline-none focus:ring-0 px-1.5 py-1 cursor-pointer w-28 md:w-32"
+                    className="bg-transparent border-none text-[10px] md:text-xs font-mono text-text focus:outline-none focus:ring-0 px-1.5 py-1 cursor-pointer w-24 sm:w-28 md:w-32"
                     title="Select date"
                   />
                   <button

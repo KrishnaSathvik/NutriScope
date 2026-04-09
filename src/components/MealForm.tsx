@@ -37,11 +37,12 @@ export function MealForm({
     fats: number
   } | null>(null)
   const [manualNutrition, setManualNutrition] = useState<{
-    calories?: number
-    protein?: number
-    carbs?: number
-    fats?: number
+    calories?: number | null
+    protein?: number | null
+    carbs?: number | null
+    fats?: number | null
   }>({})
+  const [clearedFields, setClearedFields] = useState<Set<string>>(new Set())
   const formRef = useRef<HTMLFormElement>(null)
   const [validationErrors, setValidationErrors] = useState<{
     calories?: string
@@ -62,6 +63,7 @@ export function MealForm({
       carbs: food.carbs,
       fats: food.fats,
     })
+    setClearedFields(new Set()) // Reset cleared fields
     
     // Populate meal name field (it's uncontrolled, so we can set value directly)
     if (formRef.current) {
@@ -83,6 +85,7 @@ export function MealForm({
     setSelectedMeal(meal)
     setCalculatedNutrition(nutrition)
     setManualNutrition({}) // Reset manual override
+    setClearedFields(new Set()) // Reset cleared fields
     
     // Populate form fields
     if (formRef.current) {
@@ -151,6 +154,11 @@ export function MealForm({
     }
   }, [foodQuantity, selectedFood])
 
+  // Reset cleared fields when editingMeal changes
+  useEffect(() => {
+    setClearedFields(new Set())
+  }, [editingMeal?.id])
+
   // Get current meal type from form
   const currentMealType = formRef.current?.querySelector<HTMLSelectElement>('select[name="meal_type"]')?.value as MealType | undefined
 
@@ -195,6 +203,7 @@ export function MealForm({
                     setSelectedMeal(null)
                     setCalculatedNutrition(null)
                     setManualNutrition({})
+                    setClearedFields(new Set())
                     setQuantity(1)
                   }}
                   className="text-dim hover:text-text"
@@ -263,6 +272,7 @@ export function MealForm({
                     setSelectedFood(null)
                     setFoodQuantity(1)
                     setManualNutrition({})
+                    setClearedFields(new Set())
                     if (formRef.current) {
                       const nameInput = formRef.current.querySelector<HTMLInputElement>('input[name="name"]')
                       const caloriesInput = formRef.current.querySelector<HTMLInputElement>('input[name="calories"]')
@@ -368,15 +378,29 @@ export function MealForm({
                 name="calories"
                 required
                 min="0"
-                value={manualNutrition.calories !== undefined ? manualNutrition.calories : (calculatedNutrition?.calories !== undefined ? calculatedNutrition.calories : (editingMeal?.calories || ''))}
+                value={
+                  clearedFields.has('calories') 
+                    ? '' 
+                    : (manualNutrition.calories !== undefined && manualNutrition.calories !== null
+                        ? manualNutrition.calories 
+                        : (calculatedNutrition?.calories !== undefined 
+                            ? calculatedNutrition.calories 
+                            : (editingMeal?.calories || '')))
+                }
                 onChange={(e) => {
                   const value = e.target.value
                   if (value === '') {
+                    setClearedFields(prev => new Set(prev).add('calories'))
                     setManualNutrition(prev => {
                       const { calories, ...rest } = prev
                       return rest
                     })
                   } else {
+                    setClearedFields(prev => {
+                      const newSet = new Set(prev)
+                      newSet.delete('calories')
+                      return newSet
+                    })
                     const numValue = Number(value)
                     if (!isNaN(numValue) && numValue >= 0) {
                       setManualNutrition(prev => ({ ...prev, calories: numValue }))
@@ -416,15 +440,29 @@ export function MealForm({
                 required
                 min="0"
                 step="0.1"
-                value={manualNutrition.protein !== undefined ? manualNutrition.protein : (calculatedNutrition?.protein !== undefined ? calculatedNutrition.protein : (editingMeal?.protein || ''))}
+                value={
+                  clearedFields.has('protein') 
+                    ? '' 
+                    : (manualNutrition.protein !== undefined && manualNutrition.protein !== null
+                        ? manualNutrition.protein 
+                        : (calculatedNutrition?.protein !== undefined 
+                            ? calculatedNutrition.protein 
+                            : (editingMeal?.protein || '')))
+                }
                 onChange={(e) => {
                   const value = e.target.value
                   if (value === '') {
+                    setClearedFields(prev => new Set(prev).add('protein'))
                     setManualNutrition(prev => {
                       const { protein, ...rest } = prev
                       return rest
                     })
                   } else {
+                    setClearedFields(prev => {
+                      const newSet = new Set(prev)
+                      newSet.delete('protein')
+                      return newSet
+                    })
                     const numValue = Number(value)
                     if (!isNaN(numValue) && numValue >= 0) {
                       setManualNutrition(prev => ({ ...prev, protein: numValue }))
@@ -461,15 +499,29 @@ export function MealForm({
                 name="carbs"
                 min="0"
                 step="0.1"
-                value={manualNutrition.carbs !== undefined ? manualNutrition.carbs : (calculatedNutrition?.carbs !== undefined ? calculatedNutrition.carbs : (editingMeal?.carbs || ''))}
+                value={
+                  clearedFields.has('carbs') 
+                    ? '' 
+                    : (manualNutrition.carbs !== undefined && manualNutrition.carbs !== null
+                        ? manualNutrition.carbs 
+                        : (calculatedNutrition?.carbs !== undefined 
+                            ? calculatedNutrition.carbs 
+                            : (editingMeal?.carbs || '')))
+                }
                 onChange={(e) => {
                   const value = e.target.value
                   if (value === '') {
+                    setClearedFields(prev => new Set(prev).add('carbs'))
                     setManualNutrition(prev => {
                       const { carbs, ...rest } = prev
                       return rest
                     })
                   } else {
+                    setClearedFields(prev => {
+                      const newSet = new Set(prev)
+                      newSet.delete('carbs')
+                      return newSet
+                    })
                     const numValue = Number(value)
                     if (!isNaN(numValue) && numValue >= 0) {
                       setManualNutrition(prev => ({ ...prev, carbs: numValue }))
@@ -508,15 +560,29 @@ export function MealForm({
                 name="fats"
                 min="0"
                 step="0.1"
-                value={manualNutrition.fats !== undefined ? manualNutrition.fats : (calculatedNutrition?.fats !== undefined ? calculatedNutrition.fats : (editingMeal?.fats || ''))}
+                value={
+                  clearedFields.has('fats') 
+                    ? '' 
+                    : (manualNutrition.fats !== undefined && manualNutrition.fats !== null
+                        ? manualNutrition.fats 
+                        : (calculatedNutrition?.fats !== undefined 
+                            ? calculatedNutrition.fats 
+                            : (editingMeal?.fats || '')))
+                }
                 onChange={(e) => {
                   const value = e.target.value
                   if (value === '') {
+                    setClearedFields(prev => new Set(prev).add('fats'))
                     setManualNutrition(prev => {
                       const { fats, ...rest } = prev
                       return rest
                     })
                   } else {
+                    setClearedFields(prev => {
+                      const newSet = new Set(prev)
+                      newSet.delete('fats')
+                      return newSet
+                    })
                     const numValue = Number(value)
                     if (!isNaN(numValue) && numValue >= 0) {
                       setManualNutrition(prev => ({ ...prev, fats: numValue }))

@@ -29,20 +29,39 @@ export function formatOptionalNumber(value: number | null | undefined): string {
 export function stripJSON(text: string): string {
   if (!text) return text
   
-  // Remove JSON objects (including multiline)
   let cleaned = text
-    // Remove complete JSON objects with action field
-    .replace(/\{[\s\S]*?"action"[\s\S]*?\}/g, '')
-    // Remove any remaining JSON-like structures
-    .replace(/\{[\s\S]*?\}/g, (match) => {
-      // Only remove if it looks like JSON (has quotes, colons, etc.)
-      if (match.includes('"') && match.includes(':')) {
-        return ''
-      }
-      return match
-    })
-    // Clean up extra whitespace
+  
+  // Remove complete JSON objects (try multiple patterns)
+  // Pattern 1: Remove complete JSON objects with balanced braces
+  cleaned = cleaned.replace(/\{[\s\S]*?"action"[\s\S]*?\}/g, '')
+  
+  // Pattern 2: Remove any remaining JSON-like objects
+  cleaned = cleaned.replace(/\{[^{}]*"requiresconfirmation"[^{}]*\}/gi, '')
+  cleaned = cleaned.replace(/\{[^{}]*"confirmationmessage"[^{}]*\}/gi, '')
+  
+  // Pattern 3: Remove standalone JSON key-value pairs (common in malformed responses)
+  cleaned = cleaned.replace(/"requiresconfirmation"\s*:\s*(true|false)/gi, '')
+  cleaned = cleaned.replace(/"confirmationmessage"\s*:\s*"([^"]*)"/gi, '')
+  cleaned = cleaned.replace(/"requires_confirmation"\s*:\s*(true|false)/gi, '')
+  cleaned = cleaned.replace(/"confirmation_message"\s*:\s*"([^"]*)"/gi, '')
+  
+  // Pattern 4: Remove action objects
+  cleaned = cleaned.replace(/"action"\s*:\s*\{[^}]*\}/gi, '')
+  
+  // Pattern 5: Remove message field declaration but keep the content if it's standalone
+  const messageMatch = cleaned.match(/"message"\s*:\s*"([^"]*)"/)
+  if (messageMatch && cleaned.trim().startsWith('"message"')) {
+    // If the whole text is just a message field, extract the value
+    cleaned = messageMatch[1]
+  } else {
+    // Otherwise just remove the field declaration but keep surrounding text
+    cleaned = cleaned.replace(/"message"\s*:\s*"([^"]*)"/g, '$1')
+  }
+  
+  // Clean up extra whitespace and newlines
+  cleaned = cleaned
     .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\s+|\s+$/g, '')
     .trim()
   
   return cleaned

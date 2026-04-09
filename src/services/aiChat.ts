@@ -451,20 +451,52 @@ Be conversational, helpful, personalized, and ask for confirmation before loggin
     const parsed = JSON.parse(responseContent)
     if (parsed.action && parsed.action.type !== 'none') {
       action = parsed.action
-      message = parsed.message || 'Done!'
+      // Extract message - if it's missing or empty, use a default
+      message = parsed.message || ''
+      if (!message || message.trim().length === 0) {
+        message = 'Done!'
+      }
     } else {
+      // No action, just extract message
       message = parsed.message || parsed.content || responseContent
     }
   } catch (e) {
     // If not JSON, try to extract action from text
     try {
-      const jsonMatch = responseContent.match(/\{[\s\S]*"action"[\s\S]*\}/)
+      const jsonMatch = responseContent.match(/\{[\s\S]*"action"[\s\S]*?\}/)
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0])
-        if (parsed.action && parsed.action.type !== 'none') {
-          action = parsed.action
-          message = parsed.message || responseContent.replace(jsonMatch[0], '').trim() || responseContent
+        try {
+          const parsed = JSON.parse(jsonMatch[0])
+          if (parsed.action && parsed.action.type !== 'none') {
+            action = parsed.action
+            // Extract message from parsed JSON
+            message = parsed.message || ''
+            
+            // If no message in JSON, try to extract from surrounding text
+            if (!message || message.trim().length === 0) {
+              const textBeforeJson = responseContent.substring(0, responseContent.indexOf(jsonMatch[0])).trim()
+              const textAfterJson = responseContent.substring(responseContent.indexOf(jsonMatch[0]) + jsonMatch[0].length).trim()
+              message = [textBeforeJson, textAfterJson].filter(Boolean).join(' ').trim()
+            }
+            
+            // If still no message, remove JSON and use remaining text
+            if (!message || message.trim().length === 0) {
+              message = responseContent.replace(jsonMatch[0], '').trim()
+            }
+          }
+        } catch (parseError) {
+          // JSON match found but couldn't parse - try regex extraction
+          const messageMatch = responseContent.match(/"message"\s*:\s*"([^"]*)"/)
+          if (messageMatch) {
+            message = messageMatch[1]
+          } else {
+            // Remove the JSON block and use remaining text
+            message = responseContent.replace(jsonMatch[0], '').trim()
+          }
         }
+      } else {
+        // No JSON found, use response as-is
+        message = responseContent
       }
     } catch (e2) {
       // If parsing fails, just return the message (will be cleaned by stripJSON)
@@ -474,6 +506,23 @@ Be conversational, helpful, personalized, and ask for confirmation before loggin
 
   // Always strip any remaining JSON from the message to ensure clean display
   message = stripJSON(message).trim() || 'Done!'
+  
+  // Final safety check: if message still contains JSON-like patterns, clean them
+  if (message.includes('"action"') || message.includes('"requiresconfirmation') || message.includes('"requires_confirmation')) {
+    // Try to extract just the message content
+    const messageContentMatch = message.match(/"message"\s*:\s*"([^"]*)"/)
+    if (messageContentMatch) {
+      message = messageContentMatch[1]
+    } else {
+      // Last resort: aggressive cleanup
+      message = message
+        .replace(/\{[^{}]*\}/g, '')
+        .replace(/"\w+"\s*:\s*"[^"]*"/g, '')
+        .replace(/"\w+"\s*:\s*(true|false|null)/g, '')
+        .replace(/,\s*$/, '')
+        .trim() || 'Done!'
+    }
+  }
 
   return { message, action }
 }

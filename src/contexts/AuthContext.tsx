@@ -22,6 +22,8 @@ interface AuthContextType {
   migrateGuestData: (newUserId: string) => Promise<{ success: boolean; errors: string[] }>
   migrateOldGuestData: (oldGuestUserId: string, newGuestUserId: string) => Promise<{ success: boolean; errors: string[] }>
   completeOnboarding: () => void
+  skipOnboarding: () => void
+  reopenOnboarding: () => void
   dismissNotificationDialog: () => void
   dismissGuestRestoreDialog: () => void
 }
@@ -124,9 +126,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else if (data) {
         setProfile(data as UserProfile)
-        // Check onboarding_completed flag - if false, show onboarding even if profile exists
-        const onboardingCompleted = (data as any).onboarding_completed !== false
-        setShowOnboarding(!onboardingCompleted)
+        // Profile exists - don't force onboarding. Users who skipped can resume from Profile page.
+        setShowOnboarding(false)
         
         // Phase 1: Migrate preferences from localStorage to DB (one-time migration)
         migratePreferencesFromLocalStorage(userId).catch(err => {
@@ -341,6 +342,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check will happen in loadProfile after preferences are loaded
   }
 
+  const skipOnboarding = async () => {
+    setShowOnboarding(false)
+    // Create a minimal default profile so the user can use the app
+    if (user?.id && supabase) {
+      try {
+        await supabase.from('user_profiles').upsert({
+          id: user.id,
+          goal: 'maintain',
+          activity_level: 'moderate',
+          dietary_preference: 'flexitarian',
+          calorie_target: 2000,
+          protein_target: 150,
+          water_goal: 2000,
+          onboarding_completed: false,
+        }, { onConflict: 'id' })
+        await loadProfile(user.id)
+      } catch (error) {
+        logger.warn('Failed to create default profile on skip:', error)
+        setShowOnboarding(false)
+      }
+    }
+  }
+
+  const reopenOnboarding = () => {
+    setShowOnboarding(true)
+  }
+
   const dismissNotificationDialog = async () => {
     setShowNotificationDialog(false)
     
@@ -397,6 +425,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         migrateGuestData,
         migrateOldGuestData,
         completeOnboarding,
+        skipOnboarding,
+        reopenOnboarding,
         dismissNotificationDialog,
         dismissGuestRestoreDialog,
       }}

@@ -937,17 +937,42 @@ Be conversational, helpful, and always tie your advice back to the user's **curr
     // Helper function to strip JSON and LaTeX from text
     const stripJSON = (text: string): string => {
       if (!text) return text
-      // Remove JSON objects (including multiline)
+      
       let cleaned = text
-        .replace(/\{[\s\S]*?"action"[\s\S]*?\}/g, '')
-        .replace(/\{[\s\S]*?\}/g, (match) => {
-          // Only remove if it looks like JSON (has quotes, colons, etc.)
-          if (match.includes('"') && match.includes(':')) {
-            return ''
-          }
-          return match
-        })
+      
+      // Remove complete JSON objects (try multiple patterns)
+      // Pattern 1: Remove complete JSON objects with balanced braces
+      cleaned = cleaned.replace(/\{[\s\S]*?"action"[\s\S]*?\}/g, '')
+      
+      // Pattern 2: Remove any remaining JSON-like objects
+      cleaned = cleaned.replace(/\{[^{}]*"requiresconfirmation"[^{}]*\}/gi, '')
+      cleaned = cleaned.replace(/\{[^{}]*"confirmationmessage"[^{}]*\}/gi, '')
+      
+      // Pattern 3: Remove standalone JSON key-value pairs (common in malformed responses)
+      cleaned = cleaned.replace(/"requiresconfirmation"\s*:\s*(true|false)/gi, '')
+      cleaned = cleaned.replace(/"confirmationmessage"\s*:\s*"([^"]*)"/gi, '')
+      cleaned = cleaned.replace(/"requires_confirmation"\s*:\s*(true|false)/gi, '')
+      cleaned = cleaned.replace(/"confirmation_message"\s*:\s*"([^"]*)"/gi, '')
+      
+      // Pattern 4: Remove action objects
+      cleaned = cleaned.replace(/"action"\s*:\s*\{[^}]*\}/gi, '')
+      
+      // Pattern 5: Remove message field if it's standalone (not part of a larger object)
+      // But keep the actual message content - we'll extract it separately
+      const messageMatch = cleaned.match(/"message"\s*:\s*"([^"]*)"/)
+      if (messageMatch && cleaned.trim().startsWith('"message"')) {
+        // If the whole text is just a message field, extract the value
+        cleaned = messageMatch[1]
+      } else {
+        // Otherwise just remove the field declaration but keep surrounding text
+        cleaned = cleaned.replace(/"message"\s*:\s*"([^"]*)"/g, '$1')
+      }
+      
+      // Clean up extra whitespace and newlines
+      cleaned = cleaned
         .replace(/\n{3,}/g, '\n\n')
+        .replace(/^\s+|\s+$/g, '')
+        .trim()
       
       // Remove LaTeX-style math blocks
       cleaned = cleaned
@@ -955,7 +980,7 @@ Be conversational, helpful, and always tie your advice back to the user's **curr
         .replace(/\\\(([\s\S]*?)\\\)/g, '$1')  // Remove \( ... \)
         .replace(/\\text\{([^}]*)\}/g, '$1')    // Remove \text{...}
         .replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '$1 / $2')  // Convert \frac{a}{b} to a / b
-        .replace(/\\[a-zA-Z]+\{([^}]*)\}/g, '$1')  // Remove other LaTeX commands like \textbf{...}, \emph{...}, etc.
+        .replace(/\\[a-zA-Z]+\{([^}]*)\}/g, '$1')  // Remove other LaTeX commands
         .trim()
       
       return cleaned
@@ -970,28 +995,80 @@ Be conversational, helpful, and always tie your advice back to the user's **curr
       const parsed = JSON.parse(responseMessage)
       if (parsed.action) {
         action = parsed.action
-        message = parsed.message || responseMessage
+        // Extract message - if it's missing or empty, use a default
+        message = parsed.message || ''
+        // If message is empty, don't fall back to raw response (it contains JSON)
+        if (!message || message.trim().length === 0) {
+          message = 'Done!'
+        }
       } else {
+        // No action, just extract message
         message = parsed.message || parsed.content || responseMessage
       }
     } catch (e) {
-      // Try extracting JSON action from text
+      // Not valid JSON - try extracting JSON action from text
       try {
-        const jsonMatch = responseMessage.match(/\{[\s\S]*"action"[\s\S]*\}/)
+        // Try to find JSON object with action field (handles embedded JSON)
+        const jsonMatch = responseMessage.match(/\{[\s\S]*?"action"[\s\S]*?\}/)
         if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0])
-          if (parsed.action) {
-            action = parsed.action
-            message = parsed.message || responseMessage.replace(jsonMatch[0], '').trim() || responseMessage
+          try {
+            const parsed = JSON.parse(jsonMatch[0])
+            if (parsed.action) {
+              action = parsed.action
+              // Extract message from parsed JSON
+              message = parsed.message || ''
+              
+              // If no message in JSON, try to extract from surrounding text
+              if (!message || message.trim().length === 0) {
+                const textBeforeJson = responseMessage.substring(0, responseMessage.indexOf(jsonMatch[0])).trim()
+                const textAfterJson = responseMessage.substring(responseMessage.indexOf(jsonMatch[0]) + jsonMatch[0].length).trim()
+                message = [textBeforeJson, textAfterJson].filter(Boolean).join(' ').trim()
+              }
+              
+              // If still no message, remove JSON and use remaining text
+              if (!message || message.trim().length === 0) {
+                message = responseMessage.replace(jsonMatch[0], '').trim()
+              }
+            }
+          } catch (parseError) {
+            // JSON match found but couldn't parse - try regex extraction
+            const messageMatch = responseMessage.match(/"message"\s*:\s*"([^"]*)"/)
+            if (messageMatch) {
+              message = messageMatch[1]
+            } else {
+              // Remove the JSON block and use remaining text
+              message = responseMessage.replace(jsonMatch[0], '').trim()
+            }
           }
+        } else {
+          // No JSON found, use response as-is
+          message = responseMessage
         }
       } catch (e2) {
-        // Not a JSON action, that's fine - return text response
+        // Fallback: use response as-is
+        message = responseMessage
       }
     }
 
     // Always strip any remaining JSON from the message to ensure clean display
     message = stripJSON(message).trim() || 'Done!'
+    
+    // Final safety check: if message still contains JSON-like patterns, clean them
+    if (message.includes('"action"') || message.includes('"requiresconfirmation') || message.includes('"requires_confirmation')) {
+      // Try to extract just the message content
+      const messageContentMatch = message.match(/"message"\s*:\s*"([^"]*)"/)
+      if (messageContentMatch) {
+        message = messageContentMatch[1]
+      } else {
+        // Last resort: aggressive cleanup
+        message = message
+          .replace(/\{[^{}]*\}/g, '')
+          .replace(/"\w+"\s*:\s*"[^"]*"/g, '')
+          .replace(/"\w+"\s*:\s*(true|false|null)/g, '')
+          .replace(/,\s*$/, '')
+          .trim() || 'Done!'
+      }
+    }
 
     // Return response with rate limit headers
     return res.status(200).json({

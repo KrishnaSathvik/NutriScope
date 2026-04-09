@@ -21,6 +21,7 @@ export default function WorkoutsPage() {
   const [selectedExercise, setSelectedExercise] = useState<ExerciseLibraryItem | null>(null) // Track selected exercise with MET value
   const [calculatedCalories, setCalculatedCalories] = useState<number | null>(null) // Auto-calculated calories
   const [manualCalories, setManualCalories] = useState<number | null>(null) // User-overridden calories
+  const [isCaloriesCleared, setIsCaloriesCleared] = useState(false) // Track if calories field was explicitly cleared
   const formRef = useRef<HTMLFormElement>(null)
   const today = format(new Date(), 'yyyy-MM-dd')
   const queryClient = useQueryClient()
@@ -168,6 +169,7 @@ export default function WorkoutsPage() {
     setSelectedExercise(null)
     setCalculatedCalories(null)
     setManualCalories(null)
+    setIsCaloriesCleared(false)
   }
 
   const handleCancel = () => {
@@ -177,6 +179,7 @@ export default function WorkoutsPage() {
     setSelectedExercise(null) // Clear selected exercise
     setCalculatedCalories(null) // Clear calculated calories
     setManualCalories(null) // Clear manual override
+    setIsCaloriesCleared(false) // Reset cleared flag
   }
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -244,6 +247,7 @@ export default function WorkoutsPage() {
     // Set calculated calories (will be recalculated when duration changes)
     setCalculatedCalories(calories)
     setManualCalories(null) // Reset manual override
+    setIsCaloriesCleared(false) // Reset cleared flag
     
     if (caloriesInput) caloriesInput.value = calories.toString()
     
@@ -345,7 +349,7 @@ export default function WorkoutsPage() {
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
                     max={today}
-                    className="bg-transparent border-none text-[10px] md:text-xs font-mono text-text focus:outline-none focus:ring-0 px-1.5 py-1 cursor-pointer w-28 md:w-32"
+                    className="bg-transparent border-none text-[10px] md:text-xs font-mono text-text focus:outline-none focus:ring-0 px-1.5 py-1 cursor-pointer w-24 sm:w-28 md:w-32"
                     title="Select date"
                   />
                   <button
@@ -399,31 +403,31 @@ export default function WorkoutsPage() {
 
       {/* Daily Summary */}
       {exercises && exercises.length > 0 && (
-        <div className="grid grid-cols-3 gap-2 md:gap-4">
-          <div className="card-modern border-orange-500/30 dark:border-orange-500/30 p-3 md:p-4">
-            <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-2 md:gap-4">
+          <div className="card-modern border-orange-500/30 dark:border-orange-500/30 p-2 sm:p-3 md:p-4">
+            <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 mb-1 md:mb-2">
               <Flame className="w-3.5 h-3.5 md:w-4 md:h-4 text-orange-500 fill-orange-500 dark:text-orange-500 dark:fill-orange-500 flex-shrink-0" />
-              <span className="text-[10px] md:text-xs text-dim font-mono uppercase truncate">Calories</span>
+              <span className="text-[9px] sm:text-[10px] md:text-xs text-dim font-mono uppercase truncate">Calories</span>
             </div>
-            <div className="text-xl md:text-2xl font-bold text-orange-500 dark:text-orange-500 font-mono">{totalCalories}</div>
+            <div className="text-lg sm:text-xl md:text-2xl font-bold text-orange-500 dark:text-orange-500 font-mono">{totalCalories}</div>
             <div className="text-[10px] md:text-xs text-dim font-mono mt-1">
               {selectedDate === today ? 'burned today' : 'burned'}
             </div>
           </div>
-          <div className="card-modern border-success/30 dark:border-acid/30 p-3 md:p-4">
-            <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2">
+          <div className="card-modern border-success/30 dark:border-acid/30 p-2 sm:p-3 md:p-4">
+            <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 mb-1 md:mb-2">
               <Clock className="w-3.5 h-3.5 md:w-4 md:h-4 text-success fill-success dark:text-success dark:fill-success flex-shrink-0" />
-              <span className="text-[10px] md:text-xs text-dim font-mono uppercase truncate">Duration</span>
+              <span className="text-[9px] sm:text-[10px] md:text-xs text-dim font-mono uppercase truncate">Duration</span>
             </div>
-            <div className="text-xl md:text-2xl font-bold text-success dark:text-success font-mono">{totalDuration}</div>
+            <div className="text-lg sm:text-xl md:text-2xl font-bold text-success dark:text-success font-mono">{totalDuration}</div>
             <div className="text-[10px] md:text-xs text-dim font-mono mt-1">minutes</div>
           </div>
-          <div className="card-modern border-purple-500/30 dark:border-acid/30 p-3 md:p-4">
-            <div className="flex items-center gap-1.5 md:gap-2 mb-1 md:mb-2">
+          <div className="card-modern border-purple-500/30 dark:border-acid/30 p-2 sm:p-3 md:p-4">
+            <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 mb-1 md:mb-2">
               <Activity className="w-3.5 h-3.5 md:w-4 md:h-4 text-purple-500 fill-purple-500 dark:text-purple-500 dark:fill-purple-500 flex-shrink-0" />
-              <span className="text-[10px] md:text-xs text-dim font-mono uppercase truncate">Workouts</span>
+              <span className="text-[9px] sm:text-[10px] md:text-xs text-dim font-mono uppercase truncate">Workouts</span>
             </div>
-            <div className="text-xl md:text-2xl font-bold text-purple-500 dark:text-text font-mono">{workoutCount}</div>
+            <div className="text-lg sm:text-xl md:text-2xl font-bold text-purple-500 dark:text-text font-mono">{workoutCount}</div>
             <div className="text-[10px] md:text-xs text-dim font-mono mt-1">
               {selectedDate === today ? 'logged today' : 'logged'}
             </div>
@@ -569,13 +573,22 @@ export default function WorkoutsPage() {
                   min="1"
                   className="input-modern text-sm md:text-base"
                   placeholder="e.g., 300"
-                  defaultValue={editingExercise?.calories_burned || ''}
-                  value={manualCalories !== null ? manualCalories : (calculatedCalories !== null ? calculatedCalories : (editingExercise?.calories_burned || ''))}
+                  value={
+                    isCaloriesCleared
+                      ? ''
+                      : (manualCalories !== null 
+                          ? manualCalories 
+                          : (calculatedCalories !== null 
+                              ? calculatedCalories 
+                              : (editingExercise?.calories_burned || '')))
+                  }
                   onChange={(e) => {
                     const value = e.target.value
                     if (value === '') {
+                      setIsCaloriesCleared(true)
                       setManualCalories(null)
                     } else {
+                      setIsCaloriesCleared(false)
                       const numValue = Number(value)
                       if (!isNaN(numValue) && numValue > 0) {
                         setManualCalories(numValue)

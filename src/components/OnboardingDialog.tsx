@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase, isUsingDummyClient } from "@/lib/supabase"
 import { useAuth } from "@/contexts/AuthContext"
 import type { UserGoal, UserGoalType, UserGoals, DietaryPreference, ActivityLevel } from "@/types"
-import { ArrowRight, User, TrendingDown, Dumbbell, Activity, Heart, UtensilsCrossed, Leaf, Fish, Apple, Footprints, Coffee, Briefcase, Zap, Sparkles, CheckCircle2, TrendingUp, Target, Zap as EnergyIcon } from "lucide-react"
+import { ArrowRight, X, User, TrendingDown, Dumbbell, Activity, Heart, UtensilsCrossed, Leaf, Fish, Apple, Footprints, Coffee, Briefcase, Zap, Sparkles, CheckCircle2, TrendingUp, Target, Zap as EnergyIcon } from "lucide-react"
 
 const onboardingSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -36,8 +36,8 @@ const onboardingSchema = z.object({
   height_inches: z.number().min(0).max(11).optional(),
   goal: z.enum(["lose_weight", "gain_muscle", "maintain", "improve_fitness"]).optional().or(z.string().optional()), // Keep for backward compatibility, accept any string
   goals: z.array(z.enum([
-    "lose_weight", "gain_muscle", "gain_weight", "maintain", 
-    "improve_fitness", "build_endurance", "improve_health", 
+    "lose_weight", "gain_muscle", "gain_weight", "maintain",
+    "improve_fitness", "build_endurance", "improve_health",
     "body_recomposition", "increase_energy", "reduce_body_fat"
   ])).min(1, "Please select at least one goal").optional(),
   dietary_preference: z.enum(["vegetarian", "non_vegetarian", "vegan", "flexitarian"]),
@@ -57,6 +57,7 @@ interface OnboardingDialogProps {
   onOpenChange: (open: boolean) => void
   userId?: string
   onComplete: () => void
+  onSkip?: () => void
 }
 
 export function OnboardingDialog({
@@ -64,6 +65,7 @@ export function OnboardingDialog({
   onOpenChange,
   userId,
   onComplete,
+  onSkip,
 }: OnboardingDialogProps) {
   const [step, setStep] = useState(1)
   const { toast } = useToast()
@@ -76,7 +78,17 @@ export function OnboardingDialog({
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<OnboardingForm>({
-    resolver: zodResolver(onboardingSchema),
+    resolver: async (values, context, options) => {
+      // Empty number inputs with valueAsNumber produce NaN instead of undefined.
+      // Zod's .optional() only accepts undefined, so NaN causes silent validation failures.
+      const cleaned = { ...values } as Record<string, unknown>
+      for (const key of Object.keys(cleaned)) {
+        if (typeof cleaned[key] === 'number' && isNaN(cleaned[key] as number)) {
+          cleaned[key] = undefined
+        }
+      }
+      return zodResolver(onboardingSchema)(cleaned as typeof values, context, options)
+    },
     defaultValues: {
       goal: "maintain",
       dietary_preference: "flexitarian",
@@ -402,14 +414,29 @@ export function OnboardingDialog({
         <div
           className="
             bg-surface text-text
-            rounded-2xl border border-border/70 
+            rounded-2xl border border-border/70
             shadow-xl shadow-black/10
-            p-5 sm:p-6 md:p-8
+            p-3 sm:p-5 md:p-8
             max-h-[90vh] overflow-y-auto scrollbar-hide
           "
       >
         <div className="relative">
-          <DialogHeader className="mb-6">
+          {/* Skip / Close button */}
+          {onSkip && (
+            <button
+              type="button"
+              onClick={() => {
+                onSkip()
+                navigate('/dashboard')
+              }}
+              className="absolute top-0 right-0 z-10 p-1.5 rounded-full text-dim hover:text-text hover:bg-panel/80 transition-colors"
+              aria-label="Skip onboarding"
+              title="Skip for now"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
+          <DialogHeader className="mb-6 pr-8">
               <div className="inline-flex text-[11px] font-bold font-mono bg-accent-soft/50 border border-accent/40 rounded-full px-3 py-1.5 gap-2 items-center mb-4" style={{ color: '#0D9488' }}>
               <div className="flex items-center gap-1">
                 <span className="inline-flex h-2 w-2 rounded-full bg-orange-500 shadow-sm"></span>
@@ -418,7 +445,7 @@ export function OnboardingDialog({
               </div>
               Personalization Setup
             </div>
-            <DialogTitle className="text-3xl sm:text-4xl tracking-tight text-text font-mono">
+            <DialogTitle className="text-2xl sm:text-3xl md:text-4xl tracking-tight text-text font-mono">
               Welcome to NutriScope!
             </DialogTitle>
             <DialogDescription className="text-base text-dim mt-2">
@@ -446,7 +473,7 @@ export function OnboardingDialog({
             <div className="flex justify-between mt-4">
               {[1, 2, 3].map((stepNum) => (
                 <div key={stepNum} className="flex flex-col items-center flex-1">
-                  <div className={`w-14 h-14 rounded-full flex items-center justify-center font-mono text-base font-bold transition-all ${
+                  <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-full flex items-center justify-center font-mono text-sm sm:text-base font-bold transition-all ${
                     stepNum < step 
                       ? "text-white shadow-lg scale-105" 
                       : stepNum === step 
@@ -463,7 +490,7 @@ export function OnboardingDialog({
                   } : {}}
                   >
                     {stepNum < step ? (
-                      <CheckCircle2 className="w-7 h-7 text-white stroke-[3]" />
+                      <CheckCircle2 className="w-5 h-5 sm:w-7 sm:h-7 text-white stroke-[3]" />
                     ) : (
                       <span className="text-lg">{stepNum}</span>
                     )}
@@ -480,7 +507,17 @@ export function OnboardingDialog({
             </div>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={handleSubmit(onSubmit, (formErrors) => {
+              // If validation fails on a previous step's field, navigate back to show the error
+              const step1Fields = ['name', 'gender', 'age', 'weight', 'height', 'unit_system', 'weight_lbs', 'height_feet', 'height_inches']
+              const step2Fields = ['goals', 'goal', 'dietary_preference', 'activity_level', 'target_weight', 'target_weight_lbs', 'timeframe_months']
+              const errorKeys = Object.keys(formErrors)
+              if (errorKeys.some(k => step1Fields.includes(k))) {
+                setStep(1)
+              } else if (errorKeys.some(k => step2Fields.includes(k))) {
+                setStep(2)
+              }
+            })} className="space-y-6">
             {step === 1 && (
               <div className="space-y-6">
                 <div>
@@ -699,7 +736,7 @@ export function OnboardingDialog({
                   <p className="text-xs text-dim font-mono mb-3">
                     You can select multiple goals. We'll personalize your targets based on your selections.
                   </p>
-                  <div className="grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto scrollbar-hide">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3 max-h-[250px] sm:max-h-[350px] md:max-h-[400px] overflow-y-auto scrollbar-hide">
                     {allGoals.map((option) => {
                       const Icon = goalIcons[option.value]
                       const isSelected = goals.includes(option.value)
@@ -921,7 +958,7 @@ export function OnboardingDialog({
                   <p className="text-xs text-dim mb-3 font-mono">
                     Select the option that best matches your weekly exercise routine. This affects how many calories your body burns daily.
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3">
                     {[
                       { 
                         value: "sedentary", 

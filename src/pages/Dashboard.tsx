@@ -208,18 +208,18 @@ export default function Dashboard() {
       )}
 
       {/* Today's Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
         {/* Calories Card */}
-        <div className="card-modern p-3 md:p-4">
-          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-            <div className="w-10 h-10 rounded-xl bg-icon-soft flex items-center justify-center flex-shrink-0">
-              <Flame className="w-5 h-5 text-orange-500 fill-orange-500" />
+        <div className="card-modern p-2.5 sm:p-3 md:p-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 mb-2 md:mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-icon-soft flex items-center justify-center flex-shrink-0">
+              <Flame className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500 fill-orange-500" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[10px] md:text-xs text-dim font-medium font-mono uppercase tracking-wider mb-1 truncate">Calories</div>
-              <div className="text-xl md:text-2xl font-bold text-text font-mono">
+              <div className="text-[9px] sm:text-[10px] md:text-xs text-dim font-medium font-mono uppercase tracking-wider mb-0.5 sm:mb-1 truncate">Calories</div>
+              <div className="text-base sm:text-xl md:text-2xl font-bold text-text font-mono">
                 {dailyLog?.calories_consumed || 0}
-                <span className="text-xs md:text-sm text-dim font-medium ml-1">
+                <span className="text-[10px] sm:text-xs md:text-sm text-dim font-medium ml-0.5 sm:ml-1">
                   / {profile?.calorie_target || 2000}
                 </span>
               </div>
@@ -234,16 +234,16 @@ export default function Dashboard() {
         </div>
 
         {/* Protein Card */}
-        <div className="card-modern p-3 md:p-4">
-          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-            <div className="w-10 h-10 rounded-xl bg-icon-soft flex items-center justify-center flex-shrink-0">
-              <Beef className="w-5 h-5 text-emerald-500 fill-emerald-500" />
+        <div className="card-modern p-2.5 sm:p-3 md:p-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 mb-2 md:mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-icon-soft flex items-center justify-center flex-shrink-0">
+              <Beef className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500 fill-emerald-500" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[10px] md:text-xs text-dim font-medium font-mono uppercase tracking-wider mb-1 truncate">Protein</div>
-              <div className="text-xl md:text-2xl font-bold text-text font-mono">
+              <div className="text-[9px] sm:text-[10px] md:text-xs text-dim font-medium font-mono uppercase tracking-wider mb-0.5 sm:mb-1 truncate">Protein</div>
+              <div className="text-base sm:text-xl md:text-2xl font-bold text-text font-mono">
                 {dailyLog?.protein || 0}g
-                <span className="text-xs md:text-sm text-dim font-medium ml-1">
+                <span className="text-[10px] sm:text-xs md:text-sm text-dim font-medium ml-0.5 sm:ml-1">
                   / {profile?.protein_target || 150}g
                 </span>
               </div>
@@ -258,16 +258,16 @@ export default function Dashboard() {
         </div>
 
         {/* Water Card */}
-        <div className="card-modern p-3 md:p-4">
-          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-            <div className="w-10 h-10 rounded-xl bg-icon-soft flex items-center justify-center flex-shrink-0">
-              <Droplet className="w-5 h-5 text-blue-500 fill-blue-500" />
+        <div className="card-modern p-2.5 sm:p-3 md:p-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 mb-2 md:mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-icon-soft flex items-center justify-center flex-shrink-0">
+              <Droplet className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 fill-blue-500" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[10px] md:text-xs text-dim font-medium font-mono uppercase tracking-wider mb-1 truncate">Water</div>
-              <div className="text-xl md:text-2xl font-bold text-text font-mono">
+              <div className="text-[9px] sm:text-[10px] md:text-xs text-dim font-medium font-mono uppercase tracking-wider mb-0.5 sm:mb-1 truncate">Water</div>
+              <div className="text-base sm:text-xl md:text-2xl font-bold text-text font-mono">
                 {waterAmount}ml
-                <span className="text-xs md:text-sm text-dim font-medium ml-1">
+                <span className="text-[10px] sm:text-xs md:text-sm text-dim font-medium ml-0.5 sm:ml-1">
                   / {waterGoal}ml
                 </span>
               </div>
@@ -282,16 +282,16 @@ export default function Dashboard() {
         </div>
 
         {/* Activity Card */}
-        <div className="card-modern p-3 md:p-4">
-          <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
-            <div className="w-10 h-10 rounded-xl bg-icon-soft flex items-center justify-center flex-shrink-0">
-              <Activity className="w-5 h-5 text-purple-500 fill-purple-500" />
+        <div className="card-modern p-2.5 sm:p-3 md:p-4">
+          <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 mb-2 md:mb-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-icon-soft flex items-center justify-center flex-shrink-0">
+              <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-purple-500 fill-purple-500" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[10px] md:text-xs text-dim font-medium font-mono uppercase tracking-wider mb-1 truncate">Activity</div>
-              <div className="text-xl md:text-2xl font-bold text-text font-mono">
+              <div className="text-[9px] sm:text-[10px] md:text-xs text-dim font-medium font-mono uppercase tracking-wider mb-0.5 sm:mb-1 truncate">Activity</div>
+              <div className="text-base sm:text-xl md:text-2xl font-bold text-text font-mono">
                 {dailyLog?.calories_burned || 0}
-                <span className="text-xs md:text-sm text-dim font-medium ml-1">cal</span>
+                <span className="text-[10px] sm:text-xs md:text-sm text-dim font-medium ml-0.5 sm:ml-1">cal</span>
               </div>
             </div>
           </div>
@@ -341,7 +341,7 @@ export default function Dashboard() {
           <div className="text-xs md:text-sm text-dim font-medium font-mono uppercase tracking-wider mb-2 md:mb-3">
             Quick Add
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {quickWaterAmounts.map((amount) => (
               <button
                 key={amount}

@@ -65,7 +65,8 @@ function AppRoutes() {
     user, 
     isGuest,
     loading,
-    completeOnboarding, 
+    completeOnboarding,
+    skipOnboarding,
     dismissNotificationDialog,
     dismissGuestRestoreDialog,
   } = useAuth()
@@ -145,6 +146,7 @@ function AppRoutes() {
         onOpenChange={() => {}}
         userId={user?.id}
         onComplete={completeOnboarding}
+        onSkip={skipOnboarding}
       />
       <NotificationPermissionDialog
         open={showNotificationDialog}

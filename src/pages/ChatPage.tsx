@@ -45,6 +45,8 @@ export default function ChatPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const streamRef = useRef<MediaStream | null>(null)
+  const permissionCheckedRef = useRef<boolean>(false)
+  const lastConversationLoadedRef = useRef<boolean>(false)
 
   // Get daily log for enhanced context
   const { data: dailyLog } = useQuery({
@@ -60,6 +62,48 @@ export default function ChatPage() {
     enabled: !!user?.id,
   })
 
+  // Load last conversation on mount if no conversationId is set
+  useEffect(() => {
+    const loadLastConversation = async () => {
+      if (!user?.id || conversationId || conversations.length === 0 || lastConversationLoadedRef.current) return
+      
+      lastConversationLoadedRef.current = true
+      
+      // Check if we have a stored last conversation ID
+      const lastConversationId = localStorage.getItem(`nutriscope_last_conversation_${user.id}`)
+      if (lastConversationId) {
+        // Verify conversation still exists
+        const conversation = conversations.find(c => c.id === lastConversationId)
+        if (conversation) {
+          setConversationId(lastConversationId)
+          const loadedConversation = await getConversation(user.id, lastConversationId)
+          if (loadedConversation && loadedConversation.messages.length > 0) {
+            setMessages(loadedConversation.messages)
+            if (loadedConversation.summary) {
+              setConversationSummary(loadedConversation.summary)
+            }
+            return
+          }
+        }
+      }
+      
+      // Otherwise, load the most recent conversation
+      if (conversations.length > 0) {
+        const mostRecent = conversations[0]
+        setConversationId(mostRecent.id)
+        const loadedConversation = await getConversation(user.id, mostRecent.id)
+        if (loadedConversation && loadedConversation.messages.length > 0) {
+          setMessages(loadedConversation.messages)
+          if (loadedConversation.summary) {
+            setConversationSummary(loadedConversation.summary)
+          }
+          localStorage.setItem(`nutriscope_last_conversation_${user.id}`, mostRecent.id)
+        }
+      }
+    }
+    
+    loadLastConversation()
+  }, [user?.id, conversations, conversationId]) // Include conversationId to reset flag when it changes
 
   // Load conversation when conversationId changes
   useEffect(() => {
@@ -68,9 +112,15 @@ export default function ChatPage() {
         const conversation = await getConversation(user.id, conversationId)
         if (conversation && conversation.messages.length > 0) {
           setMessages(conversation.messages)
+          if (conversation.summary) {
+            setConversationSummary(conversation.summary)
+          }
+          // Store as last conversation
+          localStorage.setItem(`nutriscope_last_conversation_${user.id}`, conversationId)
         }
-      } else if (!conversationId) {
-        // Reset to initial message for new chat
+      } else if (!conversationId && user?.id && lastConversationLoadedRef.current) {
+        // Only reset to initial message if we've already tried loading last conversation
+        // This prevents resetting while we're still loading
         setMessages([
           {
             id: '1',
@@ -79,6 +129,7 @@ export default function ChatPage() {
             timestamp: new Date().toISOString(),
           },
         ])
+        setConversationSummary(undefined)
       }
     }
     loadConversation()
@@ -86,6 +137,7 @@ export default function ChatPage() {
 
   // Handle new chat
   const handleNewChat = () => {
+    lastConversationLoadedRef.current = false // Reset flag to allow loading on next mount
     setConversationId(null)
     setMessages([
       {
@@ -98,6 +150,11 @@ export default function ChatPage() {
     setInput('')
     setSelectedImage(null)
     setShowHistory(false)
+    setConversationSummary(undefined)
+    // Clear last conversation when starting new chat
+    if (user?.id) {
+      localStorage.removeItem(`nutriscope_last_conversation_${user.id}`)
+    }
   }
 
   // Handle conversation selection
@@ -158,11 +215,49 @@ export default function ChatPage() {
     return () => clearTimeout(timeoutId)
   }, [messages, conversationId, user, isGuest, refetchConversations, conversationSummary])
 
-  // Cleanup on unmount
+  // Check microphone permission on mount
+  useEffect(() => {
+    const checkMicrophonePermission = async () => {
+      if (permissionCheckedRef.current) return
+      
+      try {
+        // Check if permission was previously granted
+        const permissionStatus = localStorage.getItem('nutriscope_mic_permission')
+        if (permissionStatus === 'granted') {
+          // Try to get stream silently to verify permission is still valid
+          try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            streamRef.current = stream
+            // Stop tracks immediately - we just wanted to verify permission
+            stream.getTracks().forEach(track => track.stop())
+            streamRef.current = null
+            permissionCheckedRef.current = true
+          } catch (e) {
+            // Permission might have been revoked, clear stored status
+            localStorage.removeItem('nutriscope_mic_permission')
+            permissionCheckedRef.current = true
+          }
+        } else {
+          permissionCheckedRef.current = true
+        }
+      } catch (error) {
+        // Ignore errors during permission check
+        permissionCheckedRef.current = true
+      }
+    }
+    
+    checkMicrophonePermission()
+  }, [])
+
+  // Cleanup on unmount - but don't stop tracks if permission is granted (keep stream alive)
   useEffect(() => {
     return () => {
-      if (streamRef.current) {
+      // Only stop tracks if we're not keeping the stream alive
+      // The stream will be reused if permission is granted
+      const permissionStatus = localStorage.getItem('nutriscope_mic_permission')
+      if (permissionStatus !== 'granted' && streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop())
+        streamRef.current = null
       }
     }
   }, [])
@@ -211,10 +306,28 @@ export default function ChatPage() {
         return
       }
 
+      // Check permission status before requesting
+      const permissionStatus = localStorage.getItem('nutriscope_mic_permission')
+      
+      // If permission was previously denied, don't request again
+      if (permissionStatus === 'denied') {
+        const errorMessage: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: 'Microphone access was previously denied. Please enable it in your browser settings.',
+          timestamp: new Date().toISOString(),
+        }
+        setMessages((prev) => [...prev, errorMessage])
+        return
+      }
+
       // Request new stream if we don't have one
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
       audioChunksRef.current = []
+      
+      // Store permission as granted
+      localStorage.setItem('nutriscope_mic_permission', 'granted')
 
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
@@ -252,16 +365,29 @@ export default function ChatPage() {
 
       mediaRecorder.start()
       setIsRecording(true)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting recording:', error)
       setIsRecording(false)
-      const errorMessage: ChatMessage = {
-        id: Date.now().toString(),
-        role: 'assistant',
-        content: 'Could not access microphone. Please check your permissions and try again.',
-        timestamp: new Date().toISOString(),
+      
+      // Store permission status based on error
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        localStorage.setItem('nutriscope_mic_permission', 'denied')
+        const errorMessage: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: 'Microphone access was denied. Please enable microphone permissions in your browser settings and try again.',
+          timestamp: new Date().toISOString(),
+        }
+        setMessages((prev) => [...prev, errorMessage])
+      } else {
+        const errorMessage: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: 'Could not access microphone. Please check your permissions and try again.',
+          timestamp: new Date().toISOString(),
+        }
+        setMessages((prev) => [...prev, errorMessage])
       }
-      setMessages((prev) => [...prev, errorMessage])
     }
   }
 

@@ -9,12 +9,12 @@ import AchievementWidget from '@/components/AchievementWidget'
 import { GenderSelectionDialog } from '@/components/GenderSelectionDialog'
 import { UpdateTargetsDialog } from '@/components/UpdateTargetsDialog'
 import { calculatePersonalizedTargets } from '@/services/personalizedTargets'
-import { Edit, X, User, Target, Activity, UtensilsCrossed, Flame, Droplet, Mail, CheckCircle2, Scale, UserCircle, Calendar, Weight, Beef, TrendingDown, TrendingUp, Dumbbell, Heart, Zap as EnergyIcon } from 'lucide-react'
+import { Edit, X, User, Target, Activity, UtensilsCrossed, Flame, Droplet, Mail, CheckCircle2, Scale, UserCircle, Calendar, Weight, Beef, TrendingDown, TrendingUp, Dumbbell, Heart, Zap as EnergyIcon, ArrowRight } from 'lucide-react'
 import { useUserRealtimeSubscription } from '@/hooks/useRealtimeSubscription'
 import { useToast } from '@/hooks/use-toast'
 
 export default function ProfilePage() {
-  const { user, profile } = useAuth()
+  const { user, profile, reopenOnboarding } = useAuth()
   const queryClient = useQueryClient()
   const { toast } = useToast()
 
@@ -563,6 +563,25 @@ export default function ProfilePage() {
         </div>
       </div>
 
+      {/* Resume Onboarding Banner */}
+      {(profile as any)?.onboarding_completed === false && (
+        <button
+          onClick={reopenOnboarding}
+          className="w-full card-modern border-acid/40 p-4 flex items-center gap-3 hover:border-acid/70 transition-colors text-left group"
+        >
+          <div className="w-9 h-9 rounded-sm bg-acid/15 flex items-center justify-center border border-acid/30 flex-shrink-0">
+            <Target className="w-4.5 h-4.5 text-acid" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-text font-mono">Complete Profile Setup</p>
+            <p className="text-xs text-dim font-mono">Set your goals, targets, and preferences for personalized tracking</p>
+          </div>
+          <div className="text-dim group-hover:text-acid transition-colors flex-shrink-0">
+            <ArrowRight className="w-4 h-4" />
+          </div>
+        </button>
+      )}
+
       <div className="card-modern border-acid/30 p-4 md:p-6">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 md:gap-4 mb-4 md:mb-6">
           <div className="flex items-center gap-2 md:gap-3">
@@ -669,7 +688,7 @@ export default function ProfilePage() {
               <p className="text-xs text-dim font-mono mb-3">
                 Select multiple goals to get personalized targets based on your combined objectives.
               </p>
-              <div className="grid grid-cols-2 gap-2 max-h-[300px] overflow-y-auto scrollbar-hide">
+              <div className="grid grid-cols-2 gap-2 max-h-[200px] sm:max-h-[300px] md:max-h-[400px] overflow-y-auto scrollbar-hide">
                 {[
                   { value: "lose_weight" as UserGoalType, label: "Lose Weight", icon: TrendingDown, color: "#10B981", bgColor: "rgba(16, 185, 129, 0.15)" },
                   { value: "gain_muscle" as UserGoalType, label: "Gain Muscle", icon: Dumbbell, color: "#F59E0B", bgColor: "rgba(245, 158, 11, 0.15)" },
