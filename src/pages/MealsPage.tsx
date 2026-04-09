@@ -483,7 +483,7 @@ export default function MealsPage() {
 
 
   return (
-      <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-20 md:pb-6 space-y-4 md:space-y-8">
+      <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 py-4 md:py-6 pb-4 md:pb-6 space-y-4 md:space-y-8">
       <div className="border-b border-border pb-4 md:pb-6">
         <div>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">

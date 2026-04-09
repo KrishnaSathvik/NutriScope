@@ -682,7 +682,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 pt-4 md:pt-6 pb-24 md:pb-8 flex flex-col flex-1 min-h-0">
+    <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto px-4 pt-4 md:pt-6 pb-4 md:pb-8 flex flex-col flex-1 min-h-0">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-border pb-4 md:pb-6">
         <div>

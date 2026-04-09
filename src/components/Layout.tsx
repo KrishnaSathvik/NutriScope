@@ -56,9 +56,9 @@ export default function Layout() {
       </a>
       
       {/* Top Navigation */}
-      <nav className="sticky top-0 z-50 bg-surface/80 backdrop-blur-xl border-b border-border" aria-label="Main navigation">
+      <nav className="sticky top-0 z-50 bg-surface/80 backdrop-blur-xl border-b border-border" aria-label="Main navigation" style={{ paddingTop: 'env(safe-area-inset-top, 0)' }}>
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0">
+          <div className="flex justify-between h-14 sm:h-16 items-center gap-1.5 sm:gap-2 md:gap-4 min-w-0">
             <Link to="/landing" className="group transition-transform hover:scale-105 active:scale-95 flex-shrink-0">
               <Logo />
             </Link>
@@ -113,7 +113,7 @@ export default function Layout() {
                     style={{ minHeight: '2rem' }}
                   >
                     <span className="hidden sm:inline">Create Account</span>
-                    <span className="sm:hidden">Create Account</span>
+                    <span className="sm:hidden">Sign Up</span>
                   </Link>
                 </>
               )}
@@ -250,10 +250,10 @@ export default function Layout() {
       </nav>
 
       {/* Main Content - Full Width */}
-      <main id="main-content" className="w-full overflow-y-auto md:overflow-y-visible bg-bg" role="main" style={{ 
-        width: '100%', 
-        minHeight: 'calc(100vh - 4rem)',
-        paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0))'
+      <main id="main-content" className="w-full overflow-y-auto md:overflow-y-visible bg-bg" role="main" style={{
+        width: '100%',
+        minHeight: 'calc(100vh - 3.5rem - env(safe-area-inset-top, 0px))',
+        paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))'
       }}>
         <Outlet />
       </main>

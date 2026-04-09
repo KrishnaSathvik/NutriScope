@@ -54,7 +54,7 @@ export function Header({ user: propUser }: HeaderProps) {
   }
 
   return (
-    <header className="relative z-20 border-b border-border bg-surface/80 backdrop-blur-xl">
+    <header className="relative z-20 border-b border-border bg-surface/80 backdrop-blur-xl" style={{ paddingTop: 'env(safe-area-inset-top, 0)' }}>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-8 lg:px-10">
         <div className="flex items-center justify-between py-3 sm:py-3.5 md:py-4 gap-3 md:gap-6">
           {/* Brand */}
